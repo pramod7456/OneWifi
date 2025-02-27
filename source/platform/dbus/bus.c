@@ -1017,6 +1017,7 @@ void bus_setOpenTelemetryContext(const char *traceParent, const char *traceState
         ot_ctx->otTraceState[0] = '\0';
 }
 
+#if 0
 static bus_error_t bus_set_trace_context(bus_handle_t *handle, const char *traceParent,
     const char *traceState)
 {
@@ -1027,6 +1028,7 @@ static bus_error_t bus_set_trace_context(bus_handle_t *handle, const char *trace
 
     return bus_error_success;
 }
+#endif
 static bus_error_t bus_open(bus_handle_t *handle, char *component_name)
 {
     VERIFY_NULL_WITH_RC(component_name);
@@ -2238,6 +2240,5 @@ void rdkb_bus_desc_init(wifi_bus_desc_t *desc)
     desc->bus_event_unsubs_fn = bus_event_unsubscribe;
     desc->bus_method_invoke_fn = bus_method_invoke;
     desc->bus_get_trace_context_fn = bus_get_trace_context;
-    desc->bus_set_trace_context_fn = bus_set_trace_context;
     desc->bus_error_to_string_fn = bus_error_to_string;
 }

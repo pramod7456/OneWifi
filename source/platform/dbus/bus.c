@@ -2173,7 +2173,7 @@ static bus_data_type_t convert_ccsp_to_bus_data_type(enum dataType_e type)
         bus_data_type = bus_data_type_boolean;
         break;
     case ccsp_byte:
-        bus_data_type = bus_data_type_byte;
+        bus_data_type = bus_data_type_bytes;
         break;
     case ccsp_int:
         bus_data_type = bus_data_type_int32;

@@ -834,7 +834,28 @@ static void wan_failover_handler(char *event_name, raw_data_t *p_data, void *use
 
     wifi_util_dbg_print(WIFI_CTRL, "%s:%d: recv data:%d\r\n", __func__, __LINE__, data_value);
 }
+static void rf_status_handler(char *event_name, raw_data_t *p_data, void *userData)
+{
+    (void)userData;
 
+    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Recvd Event name =%s\n",  __func__, __LINE__,event_name);
+
+    if(strcmp(event_name, RF_STATUS_CHECK) != 0) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Not RF_STATUS_CHECK, %s\n", __func__, __LINE__, event_name);
+        return;
+    } else if (p_data->data_type != bus_data_type_boolean) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: Invalid Received:%s data type:%x",
+                __func__, __LINE__, event_name, p_data->data_type);
+        return;
+    }
+	if (p_data->raw_data.b) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d:Received true value\n",__func__, __LINE__);
+   }
+   else {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d:Received false value\n",__func__, __LINE__);
+   }
+
+}
 static void hotspotTunnelHandler(char *event_name, raw_data_t *p_data, void *userData)
 {
     (void)userData;
@@ -1756,6 +1777,19 @@ void bus_subscribe_events(wifi_ctrl_t *ctrl)
             ctrl->device_tunnel_status_subscribed = true;
             wifi_util_info_print(WIFI_CTRL, "%s:%d bus: bus event:%s subscribe success\n",
                 __FUNCTION__, __LINE__, WIFI_DEVICE_TUNNEL_STATUS);
+        }
+    }
+   if  (ctrl->rf_status_subscribed == false) {
+        // TODO - what's the namespace for the event
+        int rc = bus_desc->bus_event_subs_fn(&ctrl->handle ,RF_STATUS_CHECK , rf_status_handler,
+            NULL, 0);
+        if (rc != bus_error_success) {
+            // wifi_util_dbg_print(WIFI_CTRL,"%s:%d TunnelStatus subscribe Failed, rc:
+            // %d\n",__FUNCTION__, __LINE__, rc);
+        } else {
+            ctrl->rf_status_subscribed = true;
+            wifi_util_info_print(WIFI_CTRL, "%s:%d rf_status_handler subscribe success, rc: %d\n",
+                __FUNCTION__, __LINE__, rc);
         }
     }
 

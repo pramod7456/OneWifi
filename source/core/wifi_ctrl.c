@@ -258,12 +258,12 @@ void sta_selfheal_handing(wifi_ctrl_t *ctrl, vap_svc_t *l_svc)
             wifi_util_error_print(WIFI_CTRL,"%s:%d selfheal: STA connection failed for %d minutes, publish selfheal connection timeout\n",
                             __func__, __LINE__, selfheal_event_publish_time());
             /* publish selfheal STA Connection Timeout  device */
-            selfheal_event_publish(ctrl);
+            //selfheal_event_publish(ctrl);
             disconnected_time = 0;
             connection_timeout = 0;
         } else if (((disconnected_time * STA_CONN_RETRY_TIMEOUT) >= ((selfheal_event_publish_time() * 60) / 2)) && (radio_reset_triggered == false)) {
-            reset_wifi_radios();
-            radio_reset_triggered = true;
+            //reset_wifi_radios();
+            //radio_reset_triggered = true;
         } else if ((connection_timeout * STA_CONN_RETRY_TIMEOUT) >= MAX_CONNECTION_ALGO_TIMEOUT) {
             l_svc->event_fn(l_svc, wifi_event_type_exec, wifi_event_exec_timeout, vap_svc_event_none, NULL);
             connection_timeout = 0;
@@ -278,11 +278,11 @@ void sta_selfheal_handing(wifi_ctrl_t *ctrl, vap_svc_t *l_svc)
 bool is_sta_enabled(void)
 {
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    //wifi_util_dbg_print(WIFI_CTRL,"[%s:%d] device mode:%d active_gw_check:%d\r\n",
-    //    __func__, __LINE__, ctrl->network_mode, ctrl->active_gw_check);
-    return ((ctrl->network_mode == rdk_dev_mode_type_ext ||
-                ctrl->network_mode == rdk_dev_mode_type_em_node || ctrl->active_gw_check == true) &&
-        ctrl->eth_bh_status == false);
+    wifi_util_dbg_print(WIFI_CTRL,"[%s:%d] device mode:%d active_gw_check:%d and rf_status_down=%d\r\n",
+       __func__, __LINE__, ctrl->network_mode, ctrl->active_gw_check,  ctrl->rf_status_down);
+   return ((ctrl->network_mode == rdk_dev_mode_type_ext ||
+              ctrl->network_mode == rdk_dev_mode_type_em_node || ctrl->active_gw_check == true || 
+              ctrl->rf_status_down == true ) &&  ctrl->eth_bh_status == false);
 }
 
 void ctrl_queue_loop(wifi_ctrl_t *ctrl)
@@ -754,13 +754,54 @@ void start_extender_vaps(void)
     ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
     ext_svc->start_fn(ext_svc, WIFI_ALL_RADIO_INDICES, NULL);
 }
+void start_station_vaps()
+{
+    wifi_ctrl_t *ctrl;
+    vap_svc_t *ext_svc = NULL;
+	wifi_mgr_t *g_wifidb;
+    g_wifidb = get_wifimgr_obj();
+	wifi_hal_capability_t *wifi_hal_cap_obj = &g_wifidb->hal_cap;
+	 int band;
+ wifi_vap_info_map_t *wifi_vap_map ;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+    uint8_t num_radios = getNumberRadios();
+    for(int radio_indx = 0; radio_indx < num_radios; ++radio_indx) {
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+	    convert_radio_index_to_freq_band(&wifi_hal_cap_obj->wifi_prop, radio_indx, &band);
+        wifi_vap_map = (wifi_vap_info_map_t *)get_wifidb_vap_map(radio_indx);
+        for(unsigned int j = 0; j < wifi_vap_map->num_vaps; ++j) {
+            if(strstr(wifi_vap_map->vap_array[j].vap_name, "mesh_sta") == NULL) {
+                continue;
+            }
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+			 if (band == WIFI_FREQUENCY_6_BAND) {
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+			 wifi_vap_map->vap_array[j].u.sta_info.security.mode = wifi_security_mode_wpa3_enterprise;
+           wifi_vap_map->vap_array[j].u.sta_info.security.wpa3_transition_disable = true;
+            wifi_vap_map->vap_array[j].u.sta_info.security.mfp = wifi_mfp_cfg_required;
+            wifi_vap_map->vap_array[j].u.sta_info.security.u.key.type = wifi_security_key_type_sae;
+			 }
+			 else {
+			   wifi_vap_map->vap_array[j].u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+			}
 
+              strcpy(wifi_vap_map->vap_array[j].u.sta_info.ssid, "XB8-secure");
+			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+    }
+	}
+    ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
+    ext_svc->start_fn(ext_svc, WIFI_ALL_RADIO_INDICES, NULL);
+    wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
+	ctrl->webconfig_state |= ctrl_webconfig_state_vap_mesh_sta_cfg_rsp_pending;
+}
 void start_gateway_vaps()
 {
     vap_svc_t *priv_svc, *pub_svc, *mesh_gw_svc;
     unsigned int value;
     wifi_ctrl_t *ctrl;
-
+    wifi_util_dbg_print(WIFI_CTRL,"%s and %d\n",__func__,__LINE__);
     ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
 
     priv_svc = get_svc_by_type(ctrl, vap_svc_type_private);
@@ -787,10 +828,18 @@ void start_gateway_vaps()
     value = false;
     if (bus_get_active_gw_parameter(WIFI_ACTIVE_GATEWAY_CHECK, &value) == RETURN_OK) {
         ctrl->active_gw_check = value;
-        if (is_sta_enabled() == true) {
+    }
+    if (is_sta_enabled() == true) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d start mesh sta\n",__func__, __LINE__);
             start_extender_vaps();
-        }
+    }
+    value = false;
+    if (bus_get_active_gw_parameter(RF_STATUS_CHECK, &value) == RETURN_OK) {
+        ctrl->rf_status_down = value;
+    }
+    if (is_sta_enabled() == true) {
+            wifi_util_info_print(WIFI_CTRL, "%s:%d start mesh sta\n",__func__, __LINE__);
+            start_station_vaps();
     }
 }
 
@@ -1365,6 +1414,7 @@ int init_wifi_ctrl(wifi_ctrl_t *ctrl)
 
     ctrl->bus_events_subscribed = false;
     ctrl->tunnel_events_subscribed = false;
+    ctrl->rf_status_subscribed = false;
 
 #if defined (FEATURE_SUPPORT_WEBCONFIG)
     register_with_webconfig_framework();
@@ -2135,7 +2185,8 @@ static int bus_check_and_subscribe_events(void* arg)
         (ctrl->device_mode_subscribed == false) || (ctrl->active_gateway_check_subscribed == false) ||
         (ctrl->device_tunnel_status_subscribed == false) || (ctrl->device_wps_test_subscribed == false) ||
         (ctrl->test_device_mode_subscribed == false) || (ctrl->mesh_status_subscribed == false) ||
-        (ctrl->marker_list_config_subscribed == false) || (ctrl->mesh_keep_out_chans_subscribed == false)
+        (ctrl->marker_list_config_subscribed == false) || (ctrl->mesh_keep_out_chans_subscribed == false) ||
+         (ctrl->rf_status_subscribed ==false)
 #if defined (RDKB_EXTENDER_ENABLED)
         || (ctrl->eth_bh_status_subscribed == false)
 #endif
@@ -2147,16 +2198,19 @@ static int bus_check_and_subscribe_events(void* arg)
 
 static int sta_connectivity_selfheal(void* arg)
 {
-    wifi_ctrl_t *ctrl = NULL;
-    vap_svc_t *ext_svc;
+    #if 0
+	wifi_ctrl_t *ctrl = NULL;
+    //vap_svc_t *ext_svc;
 
     ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     
     ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
     if (is_sta_enabled()) {
         // check sta connectivity selfheal
-        sta_selfheal_handing(ctrl, ext_svc);
+        wifi_util_dbg_print(WIFI_CTRL,"station is enabled and hence selfheal started\n");
+        //sta_selfheal_handing(ctrl, ext_svc);
     }
+	#endif
     return TIMER_TASK_COMPLETE;
 }
 

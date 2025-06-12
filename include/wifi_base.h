@@ -39,6 +39,7 @@ extern "C" {
 #define WIFI_STA_CONNECTED_GW_BSSID         "Device.WiFi.STA.{i}.Bssid"
 #define WIFI_STA_SELFHEAL_CONNECTION_TIMEOUT "Device.WiFi.STAConnectionTimeout"
 #define WIFI_ACTIVE_GATEWAY_CHECK           "Device.X_RDK_GatewayManagement.ExternalGatewayPresent"
+#define RF_STATUS_CHECK                     "Device.WiFi.RFStatus"
 #define WIFI_WAN_FAILOVER_TEST              "Device.WiFi.WanFailoverTest"
 #define WIFI_LMLITE_NOTIFY                  "Device.Hosts.X_RDKCENTRAL-COM_LMHost_Sync_From_WiFi"
 #define WIFI_HOTSPOT_NOTIFY                 "Device.X_COMCAST-COM_GRE.Hotspot.ClientChange"

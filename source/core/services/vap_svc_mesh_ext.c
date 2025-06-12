@@ -538,7 +538,7 @@ void ext_start_scan(vap_svc_t *svc)
     
     int dwell_time = get_dwell_time();
     for (radio_index = 0; radio_index < getNumberRadios(); radio_index++) {
-        if (ext->is_radio_ignored == true && radio_index == ext->ignored_radio_index) {
+        if ((ext->is_radio_ignored == true && radio_index == ext->ignored_radio_index) || (radio_index == 2)) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d ignore radio index %u\n", __func__, __LINE__,
                 radio_index);
             ext->scanned_radios++;
@@ -1715,6 +1715,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
             return RETURN_ERR;
         }
+       wifi_util_dbg_print(WIFI_CTRL, "%s:%d interface_name=%s\n", __func__, __LINE__,sta_data->interface_name);
     }
 
     if (candidate != NULL) {

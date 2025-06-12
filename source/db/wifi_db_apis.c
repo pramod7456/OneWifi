@@ -6781,13 +6781,13 @@ int wifidb_init_vap_config_default(int vap_index, wifi_vap_info_t *config,
             cfg.u.sta_info.security.u.key.type = wifi_security_key_type_sae;
         } else {
 #if defined(NEWPLATFORM_PORT)
-                cfg.u.sta_info.security.mode = wifi_security_mode_wpa3_transition;
-                cfg.u.sta_info.security.wpa3_transition_disable = false;
-                cfg.u.sta_info.security.mfp = wifi_mfp_cfg_optional;
-                cfg.u.sta_info.security.u.key.type = wifi_security_key_type_psk_sae;
+                cfg.u.sta_info.security.mode = wifi_security_mode_wpa3_enterprise;
+                cfg.u.sta_info.security.wpa3_transition_disable = true;
+                cfg.u.sta_info.security.mfp = wifi_mfp_cfg_required;
+                cfg.u.sta_info.security.u.key.type = wifi_security_key_type_sae;
 #else
                 cfg.u.sta_info.security.mfp = wifi_mfp_cfg_disabled;
-                cfg.u.sta_info.security.mode = wifi_security_mode_wpa2_personal;
+                cfg.u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
 #endif
         }
         cfg.u.sta_info.security.encr = wifi_encryption_aes;
@@ -6795,8 +6795,12 @@ int wifidb_init_vap_config_default(int vap_index, wifi_vap_info_t *config,
         cfg.u.sta_info.scan_params.period = 10;
         memset(ssid, 0, sizeof(ssid));
         if (wifi_hal_get_default_ssid(ssid, vap_index) == 0) {
+		 strcpy(ssid,"XB8-secure");
+		  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d:%s\n",__func__,__LINE__,ssid);
             strcpy(cfg.u.sta_info.ssid, ssid);
         } else {
+		 strcpy(ssid,"XB8-secure");
+		    wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
             strcpy(cfg.u.sta_info.ssid, vap_name);
         }
         memset(password, 0, sizeof(password));
@@ -8721,17 +8725,54 @@ static void bus_subscription_handler(char *event_name, raw_data_t *p_data, void 
     (void)userData;
     wifi_util_dbg_print(WIFI_MGR,"%s:%d bus_subscription_handler:%s\n", __func__, __LINE__, event_name);
 }
+bus_error_t rf_set_status(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+	//raw_data_t rdata = { 0 };
+	bus_error_t rc = bus_error_success;
+	wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    if (ctrl == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+	ctrl->rf_status_down = true;
+	start_station_vaps();
+	#if 0
+	memset(&rdata, 0, sizeof(raw_data_t));
+    rdata.data_type = bus_data_type_boolean;
+    rdata.raw_data.b = (void *)p_data;
+     rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle,
+            name, &rdata);
+        if (rc != bus_error_success) {
+            wifi_util_error_print(WIFI_CTRL,
+                "%s:%d: bus: bus_event_publish_fn Event failed for event: %s valu= %d\n", __func__, __LINE__,
+                name,rdata.raw_data.b );
+            return bus_error_general;
+        }
+		#endif
+
+	  return rc;
 
 int wifi_mgr_bus_subsription(bus_handle_t *handle)
 {
     int rc;
     char *component_name = "WifiMgr";
-
+    int num_elements;
+    bus_data_element_t dataElements[] = {
+        { RF_STATUS_CHECK, bus_element_type_method,
+            { NULL, rf_set_status, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+            { bus_data_type_boolean, true, 0, 0, 0, NULL } }
+    }; 
     rc = get_bus_descriptor()->bus_open_fn(handle, component_name);
     if (rc != bus_error_success) {
         wifi_util_error_print(WIFI_MGR, "%s:%d bus: bus_open_fn open failed for component:%s, rc:%d\n",
 	 __func__, __LINE__, component_name, rc);
         return RETURN_ERR;
+    }
+  num_elements = (sizeof(dataElements) / sizeof(bus_data_element_t));
+    rc = get_bus_descriptor()->bus_reg_data_element_fn(handle, dataElements, num_elements);
+    if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s bus: bus_regDataElements failed\n", __FUNCTION__);
     }
 
     wifi_util_dbg_print(WIFI_MGR, "%s:%d bus open success\n", __func__, __LINE__);

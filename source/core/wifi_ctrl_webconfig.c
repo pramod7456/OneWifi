@@ -2667,6 +2667,74 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
     return ((ret == RETURN_OK) ? webconfig_error_none:webconfig_error_apply);
 }
 
+void start_station_vaps(bool rf_status)
+{
+    wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+    webconfig_subdoc_data_t *data = NULL;
+    int status = RETURN_OK;
+    int vap_index , radio_index = 0, vap_array_index = 0, band = 0;
+    char *str;
+    char password[128] = {0};
+    wifi_vap_name_t vap_names[MAX_NUM_RADIOS] = {0};
+    wifi_ctrl_t *ctrl;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+
+    data = (webconfig_subdoc_data_t *) malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: malloc failed to allocate webconfig_subdoc_data_t, size %d\n", \
+                              __func__, sizeof(webconfig_subdoc_data_t));
+        return;
+    }
+
+    webconfig_init_subdoc_data(data);
+    unsigned int num_vaps = get_list_of_mesh_sta(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS, &vap_names[0]);
+
+    for (size_t i = 0; i < num_vaps; i++) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+        vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop,vap_names[i]);
+        if (vap_index == RETURN_ERR) {
+            continue;
+        }
+        status = get_vap_and_radio_index_from_vap_instance(&data->u.decoded.hal_cap.wifi_prop, vap_index, (uint8_t *)&radio_index, (uint8_t *)&vap_array_index);
+        if (status == RETURN_ERR) {
+            break;
+        } else {
+            convert_radio_index_to_freq_band(&data->u.decoded.hal_cap.wifi_prop, radio_index, &band);
+            if (rf_status) {
+                wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
+                snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"XB8-secure");
+                if (band == WIFI_FREQUENCY_6_BAND) {
+                    data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa3_enterprise;
+                } else {
+                    data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
+                }
+            } else {
+                wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
+                snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"we.connect.yellowstone");
+                if (band == WIFI_FREQUENCY_6_BAND) {
+                    data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa3_personal;
+                } else {
+                    data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa2_personal;
+                }
+                memset(password, 0, sizeof(password));
+               if (wifi_hal_get_default_keypassphrase(password,vap_index) == 0) {
+                    strcpy(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key, password);
+                } else {
+                    strcpy(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key, "12345678");
+                }
+            }
+
+        }
+    } 
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) == webconfig_error_none) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d -webconfig_encode success\n", __FUNCTION__, __LINE__);
+        str = data->u.encoded.raw;
+        push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig, wifi_event_webconfig_set_data_dml, NULL);
+
+     } else {
+        webconfig_data_free(data);
+     }
+}
 // register subdocs with webconfig_framework
 int register_with_webconfig_framework()
 {

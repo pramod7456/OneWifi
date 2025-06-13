@@ -233,7 +233,6 @@ typedef struct wifi_ctrl {
     bool                bus_events_subscribed;
     bool                active_gateway_check_subscribed;
     bool                tunnel_events_subscribed;
-    bool                rf_status_subscribed;
     bool                mesh_status_subscribed;
     bool                device_mode_subscribed;
     bool                test_device_mode_subscribed;
@@ -401,7 +400,7 @@ char *get_assoc_devices_blob();
 void get_subdoc_name_from_vap_index(uint8_t vap_index, int* subdoc);
 int dfs_nop_start_timer(void *args);
 int webconfig_send_full_associate_status(wifi_ctrl_t *ctrl);
-void start_station_vaps();
+void start_station_vaps(bool enable);
 bool hotspot_cfg_sem_wait_duration(uint32_t time_in_sec);
 void hotspot_cfg_sem_signal(bool status);
 

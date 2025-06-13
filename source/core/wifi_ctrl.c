@@ -754,48 +754,7 @@ void start_extender_vaps(void)
     ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
     ext_svc->start_fn(ext_svc, WIFI_ALL_RADIO_INDICES, NULL);
 }
-void start_station_vaps()
-{
-    wifi_ctrl_t *ctrl;
-    vap_svc_t *ext_svc = NULL;
-	wifi_mgr_t *g_wifidb;
-    g_wifidb = get_wifimgr_obj();
-	wifi_hal_capability_t *wifi_hal_cap_obj = &g_wifidb->hal_cap;
-	 int band;
- wifi_vap_info_map_t *wifi_vap_map ;
-    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-    uint8_t num_radios = getNumberRadios();
-    for(int radio_indx = 0; radio_indx < num_radios; ++radio_indx) {
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-	    convert_radio_index_to_freq_band(&wifi_hal_cap_obj->wifi_prop, radio_indx, &band);
-        wifi_vap_map = (wifi_vap_info_map_t *)get_wifidb_vap_map(radio_indx);
-        for(unsigned int j = 0; j < wifi_vap_map->num_vaps; ++j) {
-            if(strstr(wifi_vap_map->vap_array[j].vap_name, "mesh_sta") == NULL) {
-                continue;
-            }
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-			 if (band == WIFI_FREQUENCY_6_BAND) {
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-			 wifi_vap_map->vap_array[j].u.sta_info.security.mode = wifi_security_mode_wpa3_enterprise;
-           wifi_vap_map->vap_array[j].u.sta_info.security.wpa3_transition_disable = true;
-            wifi_vap_map->vap_array[j].u.sta_info.security.mfp = wifi_mfp_cfg_required;
-            wifi_vap_map->vap_array[j].u.sta_info.security.u.key.type = wifi_security_key_type_sae;
-			 }
-			 else {
-			   wifi_vap_map->vap_array[j].u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-			}
 
-              strcpy(wifi_vap_map->vap_array[j].u.sta_info.ssid, "XB8-secure");
-			  wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-    }
-	}
-    ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
-    ext_svc->start_fn(ext_svc, WIFI_ALL_RADIO_INDICES, NULL);
-    wifi_util_dbg_print(WIFI_DB,"Pramod %s:%d\n",__func__,__LINE__);
-	ctrl->webconfig_state |= ctrl_webconfig_state_vap_mesh_sta_cfg_rsp_pending;
-}
 void start_gateway_vaps()
 {
     vap_svc_t *priv_svc, *pub_svc, *mesh_gw_svc;
@@ -839,7 +798,7 @@ void start_gateway_vaps()
     }
     if (is_sta_enabled() == true) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d start mesh sta\n",__func__, __LINE__);
-            start_station_vaps();
+            //start_station_vaps();
     }
 }
 
@@ -1414,7 +1373,6 @@ int init_wifi_ctrl(wifi_ctrl_t *ctrl)
 
     ctrl->bus_events_subscribed = false;
     ctrl->tunnel_events_subscribed = false;
-    ctrl->rf_status_subscribed = false;
 
 #if defined (FEATURE_SUPPORT_WEBCONFIG)
     register_with_webconfig_framework();
@@ -2185,8 +2143,7 @@ static int bus_check_and_subscribe_events(void* arg)
         (ctrl->device_mode_subscribed == false) || (ctrl->active_gateway_check_subscribed == false) ||
         (ctrl->device_tunnel_status_subscribed == false) || (ctrl->device_wps_test_subscribed == false) ||
         (ctrl->test_device_mode_subscribed == false) || (ctrl->mesh_status_subscribed == false) ||
-        (ctrl->marker_list_config_subscribed == false) || (ctrl->mesh_keep_out_chans_subscribed == false) ||
-         (ctrl->rf_status_subscribed ==false)
+        (ctrl->marker_list_config_subscribed == false) || (ctrl->mesh_keep_out_chans_subscribed == false)
 #if defined (RDKB_EXTENDER_ENABLED)
         || (ctrl->eth_bh_status_subscribed == false)
 #endif
@@ -2870,7 +2827,6 @@ wifi_radio_capabilities_t *getRadioCapability(UINT radioIndex)
         return NULL;
     }
 
-    wifi_util_dbg_print(WIFI_CTRL, "%s Input radioIndex = %d\n", __FUNCTION__, radioIndex);
 
     return &wifi_hal_cap_obj->wifi_prop.radiocap[radioIndex];
 }

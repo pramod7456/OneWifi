@@ -538,7 +538,7 @@ void ext_start_scan(vap_svc_t *svc)
     
     int dwell_time = get_dwell_time();
     for (radio_index = 0; radio_index < getNumberRadios(); radio_index++) {
-        if ((ext->is_radio_ignored == true && radio_index == ext->ignored_radio_index) || (radio_index == 2)) {
+        if (ext->is_radio_ignored == true && radio_index == ext->ignored_radio_index) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d ignore radio index %u\n", __func__, __LINE__,
                 radio_index);
             ext->scanned_radios++;
@@ -1115,9 +1115,15 @@ int vap_svc_mesh_ext_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_i
             &map->vap_array[i].u.sta_info.security);
         if (!is_sta_enabled()) {
             ext_set_conn_state(ext, connection_state_disconnected_steady, __func__, __LINE__);
+        } else {
+            ext_set_conn_state(ext, connection_state_disconnected_scan_list_none, __func__, __LINE__);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d sta is enabled starting the station vaps\n",__FUNCTION__,__LINE__);
+            schedule_connect_sm(svc);
+
+            ext->is_started = true;
+
         }
     }
-
     return 0;
 }
 
@@ -1484,6 +1490,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     wifi_radio_feature_param_t *radio_feat = NULL;
     bus_error_t rc;
     raw_data_t data;
+    char *bridge_name = "brww0";
 
     ctrl = svc->ctrl;
     ext = &svc->u.ext;
@@ -1695,7 +1702,10 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     }
 
     if (send_event == true) {
-        sprintf(name, "Device.WiFi.STA.%d.Connection.Status", index + 1);
+        wifi_util_dbg_print(WIFI_CTRL,"Now connected %s:%d\n",__func__,__LINE__);
+		wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);
+        wifi_util_dbg_print(WIFI_CTRL,"Now connected %s:%d\n",__func__,__LINE__);
+		sprintf(name, "Device.WiFi.STA.%d.Connection.Status", index + 1);
 
         wifi_util_dbg_print(WIFI_CTRL, "%s:%d bus name: %s connection status: %s\n", __func__,
             __LINE__, name, ext_conn_status_to_str(sta_data->stats.connect_status));
@@ -1715,7 +1725,21 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
             return RETURN_ERR;
         }
-       wifi_util_dbg_print(WIFI_CTRL, "%s:%d interface_name=%s\n", __func__, __LINE__,sta_data->interface_name);
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d interface_name=%s\n", __func__, __LINE__,sta_data->interface_name);
+        sprintf(name, "Device.WiFi.EndPoint.1.Status");
+        uint32_t str_size = strlen("Up") + 1;
+        memset(&data, 0, sizeof(raw_data_t));
+        data.data_type = bus_data_type_string;
+        data.raw_data.bytes = malloc(str_size);
+        data.raw_data_len = str_size;
+        strncpy((char *)data.raw_data.bytes, "Up", str_size);
+
+        rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, name, &data);
+        if (rc != bus_error_success) {
+            wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
+            return RETURN_ERR;
+        }
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d interface_name=%s\n", __func__, __LINE__,sta_data->interface_name);
     }
 
     if (candidate != NULL) {

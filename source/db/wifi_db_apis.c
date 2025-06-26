@@ -6790,6 +6790,9 @@ int wifidb_init_vap_config_default(int vap_index, wifi_vap_info_t *config,
                 cfg.u.sta_info.security.mode = wifi_security_mode_wpa2_personal;
 #endif
         }
+	memset(cfg.u.sta_info.security.u.radius.ip,0,sizeof(cfg.u.sta_info.security.u.radius.ip));
+	memset(cfg.u.sta_info.security.u.radius.s_ip,0,sizeof(cfg.u.sta_info.security.u.radius.s_ip));
+	wifi_util_error_print(WIFI_DB, "%s:%d: ip : %s sec-ip : %s\n", __func__, __LINE__, cfg.u.sta_info.security.u.radius.ip, cfg.u.sta_info.security.u.radius.s_ip);
         cfg.u.sta_info.security.encr = wifi_encryption_aes;
         cfg.u.sta_info.enabled = false;
         cfg.u.sta_info.scan_params.period = 10;

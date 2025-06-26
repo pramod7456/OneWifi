@@ -2725,7 +2725,9 @@ void start_station_vaps(bool rf_status)
             }
 
         }
-    } 
+    }
+    wifi_util_error_print(WIFI_CTRL, "[%s %d] radio-idx : %d Radius IP : %s secondary-ip : %s\n", __func__, __LINE__, radio_index, data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip, data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.sip);
+
     if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) == webconfig_error_none) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d -webconfig_encode success\n", __FUNCTION__, __LINE__);
         str = data->u.encoded.raw;

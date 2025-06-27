@@ -332,7 +332,7 @@ int process_disconnection_event_timeout(vap_svc_t *svc)
 
     return 0;
 }
-
+#if 0
 static int process_udhcp_disconnect_event_timeout(vap_svc_t *svc)
 {
     wifi_ctrl_t *ctrl = svc->ctrl;
@@ -374,7 +374,7 @@ static int process_udhcp_disconnect_event_timeout(vap_svc_t *svc)
 
     return 0;
 }
-
+#endif
 static int process_trigger_disconnection_event_timeout(vap_svc_t *svc)
 {
     wifi_ctrl_t *ctrl = svc->ctrl;
@@ -418,6 +418,7 @@ static int process_trigger_disconnection_event_timeout(vap_svc_t *svc)
 
 int process_udhcp_ip_check(vap_svc_t *svc)
 {
+#if 0
     static int ip_check_count = 0;
     struct sockaddr_in sa;
     char value[128];
@@ -489,6 +490,7 @@ int process_udhcp_ip_check(vap_svc_t *svc)
     }
 
     ip_check_count++;
+#endif
     return 0;
 }
 

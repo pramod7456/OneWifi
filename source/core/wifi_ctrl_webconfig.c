@@ -2708,6 +2708,10 @@ void start_station_vaps(bool rf_status)
                 } else {
                     data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
                 }
+
+            memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip));
+            memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip));
+	    wifi_util_error_print(WIFI_CTRL, "%s:%d IP size : %u IP : %s Sec-IP : %s\n", __func__, __LINE__, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip), data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip, data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip);  
             } else {
                 wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
                 snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"we.connect.yellowstone");

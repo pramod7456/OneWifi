@@ -3656,10 +3656,16 @@ void handle_webconfig_event(wifi_ctrl_t *ctrl, const char *raw, unsigned int len
             num_ssid += get_list_of_lnf_radius(&mgr->hal_cap.wifi_prop, MAX_NUM_RADIOS,
                 &vap_names[num_ssid]);
             break;
+        case webconfig_subdoc_type_mesh_sta:
+            wifi_util_error_print(WIFI_CTRL, "%s:%d  mesh_sta event pointer\n", __func__, __LINE__);
+            num_ssid += get_list_of_mesh_sta(&mgr->hal_cap.wifi_prop, MAX_NUM_RADIOS,
+                &vap_names[num_ssid]);
+            break;
 
         default:
             break;
         }
+            wifi_util_error_print(WIFI_CTRL, "%s:%d  Pramod subtype=%d\n", __func__, __LINE__,subdoc_type);
 
         if (num_ssid != 0) {
             update_subdoc_data(&data, num_ssid, vap_names);

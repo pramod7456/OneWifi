@@ -2710,6 +2710,82 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
 
     return ((ret == RETURN_OK) ? webconfig_error_none:webconfig_error_apply);
 }
+void start_station_vaps(bool rf_status)
+{
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+  webconfig_subdoc_data_t *data = NULL;
+    int status = RETURN_OK;
+    int vap_index,private_vap_index;
+    int radio_index = 0;
+    int vap_array_index = 0,private_vap_array_index = 0;
+    char *str;
+    char password[128] = {0};
+    wifi_ctrl_t *ctrl;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+
+    wifi_vap_name_t vap_names[MAX_NUM_RADIOS] = {0},private_vap_names[MAX_NUM_RADIOS] = {0};
+    data = (webconfig_subdoc_data_t *) malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s: malloc failed to allocate webconfig_subdoc_data_t, size %d\n", \
+                              __func__, sizeof(webconfig_subdoc_data_t));
+        return;
+     }
+
+    webconfig_init_subdoc_data(data);
+     unsigned int num_vaps = get_list_of_mesh_sta(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS, &vap_names[0]);
+     unsigned int private_num_vaps = get_list_of_private_ssid(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS, &private_vap_names[0]);
+
+    for (size_t i = 0; i < num_vaps || i < private_num_vaps; i++) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+        vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop,vap_names[i]);
+        if (vap_index == RETURN_ERR) {
+            continue;
+        }
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+        private_vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop,private_vap_names[i]);
+        if (private_vap_index == RETURN_ERR) {
+            continue;
+		}
+        status = get_vap_and_radio_index_from_vap_instance(&data->u.decoded.hal_cap.wifi_prop, vap_index, (uint8_t *)&radio_index, (uint8_t *)&vap_array_index);
+        if (status == RETURN_ERR) {
+            break;
+        }
+        status = get_vap_and_radio_index_from_vap_instance(&data->u.decoded.hal_cap.wifi_prop, private_vap_index, (uint8_t *)&radio_index, (uint8_t *)&private_vap_array_index);
+        if (status == RETURN_ERR) {
+            break;
+        }
+      else {
+           if(rf_status) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d pvt=%s passphrase = %s\n", __func__, __LINE__,rf_status,data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[private_vap_array_index].u.bss_info.ssid,data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[private_vap_array_index].u.bss_info.security.u.key.key);
+          snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[private_vap_array_index].u.bss_info.ssid);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+          snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key),data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[private_vap_array_index].u.bss_info.security.u.key.key);
+          } else {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
+          snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"we.connect.yellowstone");
+          memset(password, 0, sizeof(password));
+          if (wifi_hal_get_default_keypassphrase(password,vap_index) == 0) {
+            strcpy(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key, password);
+        } else {
+            strcpy(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.key.key, "12345678");
+        }
+          }
+
+         }
+        }
+
+    if (webconfig_encode(&ctrl->webconfig, data, webconfig_subdoc_type_mesh_sta) == webconfig_error_none) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d -webconfig_encode success\n", __FUNCTION__, __LINE__);
+          str = data->u.encoded.raw;
+        push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig, wifi_event_webconfig_set_data_dml, NULL);
+  } else {
+        webconfig_data_free(data);
+    }
+
+        wifi_util_error_print(WIFI_CTRL, "%s:%d \n", __func__, __LINE__);
+
+}
 
 // register subdocs with webconfig_framework
 int register_with_webconfig_framework()

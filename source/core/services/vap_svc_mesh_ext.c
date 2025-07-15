@@ -31,6 +31,7 @@
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
 #include "wifi_util.h"
+#include "wifi_stubs.h"
 #include "wifi_hal_rdk_framework.h"
 
 #define PATH_TO_RSSI_NORMALIZER_FILE "/tmp/rssi_normalizer_2_4.cfg"
@@ -1513,6 +1514,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     bool found_candidate = false, send_event = false;
     unsigned int i = 0, index, j = 0;
     char name[64];
+    char cmd[128] = {0};
     wifi_sta_conn_info_t sta_conn_info;
     wifi_radio_operationParam_t *radio_params = NULL;
     wifi_radio_feature_param_t *radio_feat = NULL;
@@ -1732,6 +1734,10 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     if (send_event == true) {
         wifi_util_dbg_print(WIFI_CTRL,"Now connected %s:%d\n",__func__,__LINE__);
 		wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);
+
+        snprintf(cmd, sizeof(cmd), "ip link set dev %s up", bridge_name);
+        wifi_util_dbg_print(WIFI_CTRL,"%s:%d cmd : %s\n",__func__,__LINE__, cmd);
+        get_stubs_descriptor()->v_secure_system_fn(cmd);
         wifi_util_dbg_print(WIFI_CTRL,"Now connected %s:%d\n",__func__,__LINE__);
 		sprintf(name, "Device.WiFi.STA.%d.Connection.Status", index + 1);
 

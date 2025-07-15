@@ -33,6 +33,7 @@
 #include "wifi_util.h"
 #include "wifi_stubs.h"
 #include "wifi_hal_rdk_framework.h"
+#include "wifi_base.h"
 
 #define PATH_TO_RSSI_NORMALIZER_FILE "/tmp/rssi_normalizer_2_4.cfg"
 #define DEFAULT_RSSI_NORMALIZER_2_4_VALUE 20
@@ -1502,6 +1503,27 @@ static int apply_pending_channel_change(vap_svc_t *svc, int vap_index)
     return RETURN_OK;
 }
 
+int get_endpoint_enable(wifi_ctrl_t *ctrl)
+{
+    int rc = bus_error_success;
+    raw_data_t data;
+    memset(&data, 0, sizeof(raw_data_t));
+    bool endpoint_enable;
+    rc = get_bus_descriptor()->bus_data_get_fn(&ctrl->handle, RF_STATUS_CHECK, &data);
+    if (data.data_type != bus_data_type_boolean) {
+        wifi_util_error_print(WIFI_CTRL,"%s:%d %s bus_data_get_fn failed with data_type:0x%x, rc:%d\n", __func__, __LINE__, RF_STATUS_CHECK, data.data_type, rc);
+   }
+
+    if (rc != bus_error_success) {
+         wifi_util_error_print(WIFI_CTRL, "%s:%d bus_geti_fn failed for [%s] with error [%d]\n",
+           __func__, __LINE__, ETH_BH_STATUS, rc);
+    }
+    endpoint_enable = data.raw_data.b;
+    wifi_util_dbg_print(WIFI_CTRL, "%s:%d: event: %s value: %d\n", __func__, __LINE__, RF_STATUS_CHECK, endpoint_enable);
+    return endpoint_enable;
+}
+
+
 int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
 {
     wifi_mgr_t *mgr = (wifi_mgr_t *)get_wifimgr_obj();
@@ -1521,6 +1543,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     bus_error_t rc;
     raw_data_t data;
     char *bridge_name = "brww0";
+    int ret = 0;
 
     ctrl = svc->ctrl;
     ext = &svc->u.ext;
@@ -1538,6 +1561,24 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
         ext_conn_status_to_str(sta_data->stats.connect_status));
     vap_map = &mgr->radio_config[index].vaps.vap_map;
 
+    if (sta_data->stats.connect_status == 1) {
+        ret = get_endpoint_enable(ctrl);
+	wifi_util_info_print(WIFI_CTRL,"%s:%d ret updated as %d\n", __func__, __LINE__, ret);
+	if (ret == true) {
+	    sprintf(name, "Device.WiFi.EndPoint.1.Status");
+	    uint32_t str_size = strlen("Down") + 1;
+	    memset(&data, 0, sizeof(raw_data_t));
+            data.data_type = bus_data_type_string;
+            data.raw_data.bytes = malloc(str_size);
+            data.raw_data_len = str_size;
+            strncpy((char *)data.raw_data.bytes, "Down", str_size);
+	    rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, name,  &data);
+            if (rc != bus_error_success) {
+                wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
+                return RETURN_ERR;
+            }
+	}
+    }
 
     for (i = 0; i < vap_map->num_vaps; i++) {
         if (vap_map->vap_array[i].vap_index == sta_data->stats.vap_index) {

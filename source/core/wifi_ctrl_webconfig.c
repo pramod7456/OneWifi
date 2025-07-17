@@ -2746,7 +2746,7 @@ void start_station_vaps(bool rf_status)
             convert_radio_index_to_freq_band(&data->u.decoded.hal_cap.wifi_prop, radio_index, &band);
             if (rf_status) {
                 wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
-                snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"XB8-secure");
+                snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"Xfinity_Ignite");
                 if (band == WIFI_FREQUENCY_6_BAND) {
                     data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa3_enterprise;
                 } else {

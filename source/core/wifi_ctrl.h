@@ -34,6 +34,7 @@ extern "C" {
 #include "wifi_util.h"
 #include "wifi_webconfig.h"
 #include "wifi_apps_mgr.h"
+#include "multiap.h"
 
 #define WIFI_WEBCONFIG_PRIVATESSID         1
 #define WIFI_WEBCONFIG_HOMESSID            2
@@ -68,6 +69,7 @@ extern "C" {
 #define SPEEDTEST_SUBSCRIBE                "Device.IP.Diagnostics.X_RDK_SpeedTest.SubscriberUnPauseTimeOut"
 
 #define TEST_WIFI_DEVICE_MODE              "Device.X_RDKCENTRAL-COM_DeviceControl.DeviceNetworkingMode_1"
+#define TEST_WIFI_EXTENDER_MODE              "Device.X_RDKCENTRAL-COM_DeviceControl.DeviceNetworkingMode_2"
 
 #define WIFI_BUS_HOTSPOT_UP                "Device.WiFi.HotspotUp"
 #define WIFI_BUS_HOTSPOT_DOWN              "Device.WiFi.HotspotDown"

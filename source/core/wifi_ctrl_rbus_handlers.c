@@ -107,6 +107,72 @@ static int get_subdoc_type(wifi_provider_response_t *response, webconfig_subdoc_
     return ret;
 }
 
+bus_error_t rf_get_status(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    bus_error_t rc = bus_error_success;
+    int status = -1;
+    wifi_util_dbg_print(WIFI_CTRL,"%s:%d\n",__func__,__LINE__);
+    p_data->data_type = bus_data_type_uint32;
+    get_1905_status(status);
+    wifi_util_info_print(WIFI_CTRL,"%s:%d status=%d\n",__func__,__LINE__,status);
+      
+    p_data->raw_data.u32 = (unsigned int)status;
+    return rc;
+}
+
+bus_error_t rf_set_status(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    bus_error_t rc = bus_error_success;
+    int rf_status = 0;
+    if(p_data->data_type != bus_data_type_uint32) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid data input\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+    rf_status =  (int)p_data->raw_data.u32;
+    wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status %d\n", __func__, __LINE__,rf_status);
+    set_1905_status(rf_status);
+    wifi_util_error_print(WIFI_CTRL, "%s:%d exit\n", __func__, __LINE__);
+    return rc;
+}
+bus_error_t  testDeviceModeHandler_2(char *event_name, raw_data_t *p_data, bus_user_data_t *userData)
+{
+    (void)userData;
+    int device_mode = rdk_dev_mode_type_gw;
+
+    wifi_util_dbg_print(WIFI_CTRL, "%s:%d recvd event:%s\n", __func__, __LINE__, event_name);
+
+    if ((strcmp(event_name, TEST_WIFI_EXTENDER_MODE) == 0) && (p_data->data_type == bus_data_type_uint32)) {
+        device_mode = p_data->raw_data.u32;
+
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d: event:%s: value:%d\n", __func__, __LINE__,
+            event_name, device_mode);
+        push_event_to_ctrl_queue(&device_mode, sizeof(device_mode), wifi_event_type_command,
+            wifi_event_type_device_network_mode, NULL);
+    } else {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: Unsupported event:%s:%x\n", __func__, __LINE__,
+            event_name, p_data->data_type);
+    }
+    return bus_error_success;
+}
+
+bus_error_t send_rf_message(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    bus_error_t rc = bus_error_success;
+     char *pTmp = NULL;
+    if(p_data->data_type != bus_data_type_string) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid data input\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+    
+    pTmp = (char *)p_data->raw_data.bytes;
+    wifi_util_error_print(WIFI_CTRL, "%s:%d message should be sent on %s\n", __func__, __LINE__,pTmp);
+      send_multiap_broadcast_message(pTmp);
+       wifi_util_info_print(WIFI_CTRL, "%s:%d interface_name=%s after sending 1905 frame\n", __func__, __LINE__,pTmp);
+    return rc;
+}
 int stats_bus_publish(wifi_ctrl_t *ctrl, void *stats_data)
 {
     webconfig_subdoc_data_t *data;
@@ -2868,6 +2934,9 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_STA_CONNECTED_GW_BSSID, bus_element_type_property,
                                     { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_bytes, true, 0, 0, 0, NULL } },
+                                { RF_SEND_MESSAGE, bus_element_type_method,
+                                    { NULL,send_rf_message, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
                                 { WIFI_BUS_WIFIAPI_COMMAND, bus_element_type_method,
                                     { NULL, set_wifiapi_command, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
@@ -2955,6 +3024,12 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_COLLECT_STATS_RADIO_TEMPERATURE, bus_element_type_event,
                                     { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
                                     { bus_data_type_bytes, false, 0, 0, 0, NULL } },
+                                { TEST_WIFI_EXTENDER_MODE, bus_element_type_method,
+                                    { NULL, testDeviceModeHandler_2, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_uint32, true, 0, 0, 0, NULL } },
+                                { RF_STATUS_CHECK, bus_element_type_method,
+                                    { rf_get_status, rf_set_status, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_uint32, true, 0, 0, 0, NULL } },
                                 { WIFI_COLLECT_STATS_VAP_TABLE, bus_element_type_table,
                                     { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL}, slow_speed, num_of_vaps,
                                     { bus_data_type_object, false, 0, 0, 0, NULL } },

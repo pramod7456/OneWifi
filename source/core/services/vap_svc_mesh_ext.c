@@ -30,6 +30,7 @@
 #include "vap_svc.h"
 #include "wifi_ctrl.h"
 #include "wifi_mgr.h"
+#include "multiap.h"
 #include "wifi_util.h"
 #include "wifi_hal_rdk_framework.h"
 
@@ -1699,6 +1700,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
             return RETURN_ERR;
         }
+
     }
 
     if (candidate != NULL) {

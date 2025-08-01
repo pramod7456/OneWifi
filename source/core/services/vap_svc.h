@@ -65,7 +65,7 @@ typedef bool (* vap_svc_is_my_fn_t)(unsigned int vap_index);
 
 #define EXT_SCAN_RESULT_TIMEOUT                4000
 #define EXT_SCAN_RESULT_WAIT_TIMEOUT           4000
-#define EXT_CONN_STATUS_IND_TIMEOUT            5000
+#define EXT_CONN_STATUS_IND_TIMEOUT            12000
 #define EXT_CSA_WAIT_TIMEOUT                   3000
 #define EXT_DISCONNECTION_IND_TIMEOUT          5000
 #define EXT_UDHCP_IP_CHECK_INTERVAL            60000

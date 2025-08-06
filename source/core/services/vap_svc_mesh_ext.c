@@ -1849,6 +1849,14 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             }
 	    //ret = set_endpoint_enable(sta_data->stats.connect_status);
 	}
+
+        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Deleting link\n", __func__, __LINE__);	
+	memset(cmd, '\0', 128);
+	snprintf(cmd, sizeof(cmd), "ovs-vsctl del-port brww0 wl1");
+        wifi_util_dbg_print(WIFI_CTRL,"%s:%d cmd : %s\n",__func__,__LINE__, cmd);
+        get_stubs_descriptor()->v_secure_system_fn(cmd);
+        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Link Deletion done\n", __func__, __LINE__);	
+
         if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
 	    candidate = &ext->new_bss;

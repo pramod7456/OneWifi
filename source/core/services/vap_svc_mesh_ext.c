@@ -1708,6 +1708,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             (ext->conn_state == connection_state_connection_to_nb_in_progress)) {
                 wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             int radio_freq_band = 0;
+	    scan_trigger_counter = 0;
             // copy the bss info to lcb
             memset(&ext->last_connected_bss, 0, sizeof(bss_candidate_t));
             memcpy(&ext->last_connected_bss.external_ap, &sta_data->bss_info, sizeof(wifi_bss_info_t));
@@ -1727,7 +1728,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             ext_set_conn_state(ext, connection_state_connected, __func__, __LINE__);
 	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
             if (ret == RETURN_ERR) {
-	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n");
+	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
 	    }
         
 	    wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);

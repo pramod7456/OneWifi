@@ -3172,6 +3172,31 @@ bus_error_t set_force_vap_apply(char *name, raw_data_t *p_data, bus_user_data_t 
     return bus_error_invalid_input;
 }
 
+void register_endpoint_components(wifi_ctrl_t *ctrl)
+{
+    int rc = bus_error_success;
+    int num_elements;
+    bus_data_element_t data_elements[] = {
+                         { WIFI_ENDPOINT_CONNECT_STATUS, bus_element_type_method,
+                                    { get_endpoint_status,NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
+
+			{ RF_STATUS_CHECK, bus_element_type_method,
+                                    { rf_get_status, rf_set_status, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, true, 0, 0, 0, NULL } },
+     };
+     num_elements = (sizeof(data_elements) / sizeof(bus_data_element_t));
+     rc = get_bus_descriptor()->bus_reg_data_element_fn(&ctrl->handle,data_elements, num_elements);
+     wifi_util_error_print(WIFI_CTRL, "%s %d rc : %d\n", __func__, __LINE__, rc);
+     if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s %dbus: bus_regDataElements failed\n", __FUNCTION__, __LINE__);
+        return;
+     }
+      wifi_util_error_print(WIFI_CTRL, "%s %d bus: bus_regDataElements done\n", __FUNCTION__, __LINE__);
+     return;
+}
+
+
 void bus_register_handlers(wifi_ctrl_t *ctrl)
 {
     int rc = bus_error_success;
@@ -3207,9 +3232,6 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_STA_CONNECTED_GW_BSSID, bus_element_type_property,
                                     { get_sta_attribs, set_sta_attribs, NULL, NULL, eventSubHandler, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_bytes, true, 0, 0, 0, NULL } },
-                                { WIFI_ENDPOINT_CONNECT_STATUS, bus_element_type_method,
-                                    { get_endpoint_status,NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-                                    { bus_data_type_string, true, 0, 0, 0, NULL } },
                                 { WIFI_BUS_WIFIAPI_COMMAND, bus_element_type_method,
                                     { NULL, set_wifiapi_command, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
@@ -3306,9 +3328,6 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_COLLECT_STATS_RADIO_TEMPERATURE, bus_element_type_event,
                                     { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, slow_speed, ZERO_TABLE,
                                     { bus_data_type_bytes, false, 0, 0, 0, NULL } },
-                                { RF_STATUS_CHECK, bus_element_type_method,
-                                    { rf_get_status, rf_set_status, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
-                                    { bus_data_type_boolean, true, 0, 0, 0, NULL } },
                                 { WIFI_COLLECT_STATS_VAP_TABLE, bus_element_type_table,
                                     { NULL, NULL, stats_table_addrowhandler, stats_table_removerowhandler, NULL, NULL}, slow_speed, num_of_vaps,
                                     { bus_data_type_object, false, 0, 0, 0, NULL } },

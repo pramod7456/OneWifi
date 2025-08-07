@@ -1748,6 +1748,8 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     webconfig_send_full_associate_status(ctrl);
     ctrl->exit_ctrl = false;
     ctrl->ctrl_initialized = true;
+    register_endpoint_components();
+    get_stubs_descriptor()->v_secure_system_fn("touch /tmp/wifi_ready_to_process");
     ctrl_queue_loop(ctrl);
 
 #ifdef ONEWIFI_ANALYTICS_APP_SUPPORT

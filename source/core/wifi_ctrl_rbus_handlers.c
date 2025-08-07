@@ -3176,6 +3176,7 @@ void register_endpoint_components(wifi_ctrl_t *ctrl)
 {
     int rc = bus_error_success;
     int num_elements;
+    wifi_util_info_print(WIFI_CTRL,"%s:%d Testing\n", __func__, __LINE__);
     bus_data_element_t data_elements[] = {
                          { WIFI_ENDPOINT_CONNECT_STATUS, bus_element_type_method,
                                     { get_endpoint_status,NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
@@ -3186,6 +3187,7 @@ void register_endpoint_components(wifi_ctrl_t *ctrl)
                                     { bus_data_type_boolean, true, 0, 0, 0, NULL } },
      };
      num_elements = (sizeof(data_elements) / sizeof(bus_data_element_t));
+    wifi_util_info_print(WIFI_CTRL,"%s:%d num-elements : %d\n", __func__, __LINE__, num_elements);
      rc = get_bus_descriptor()->bus_reg_data_element_fn(&ctrl->handle,data_elements, num_elements);
      wifi_util_error_print(WIFI_CTRL, "%s %d rc : %d\n", __func__, __LINE__, rc);
      if (rc != bus_error_success) {

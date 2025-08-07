@@ -1748,8 +1748,11 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     webconfig_send_full_associate_status(ctrl);
     ctrl->exit_ctrl = false;
     ctrl->ctrl_initialized = true;
-    register_endpoint_components();
+    wifi_util_info_print(WIFI_CTRL,"%s:%d Testing\n", __func__, __LINE__);
+    register_endpoint_components(ctrl);
+    wifi_util_info_print(WIFI_CTRL,"%s:%d Testing\n", __func__, __LINE__);
     get_stubs_descriptor()->v_secure_system_fn("touch /tmp/wifi_ready_to_process");
+    wifi_util_info_print(WIFI_CTRL,"%s:%d Testing\n", __func__, __LINE__);
     ctrl_queue_loop(ctrl);
 
 #ifdef ONEWIFI_ANALYTICS_APP_SUPPORT

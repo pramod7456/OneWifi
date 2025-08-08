@@ -3832,11 +3832,23 @@ bool is_vap_param_config_changed(wifi_vap_info_t *vap_info_old, wifi_vap_info_t 
     if (isSta) {
         // Ignore change of conn_status, scan_params, mac to avoid reconfiguration and disconnection
         // BSSID change is handled by event.
-        if (IS_STR_CHANGED(vap_info_old->u.sta_info.ssid, vap_info_new->u.sta_info.ssid,
+	wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+	wifi_util_error_print(WIFI_WEBCONFIG, "[%s %d] rf-status : %d Old SSID : %s New SSID : %s\n", __func__, __LINE__, ctrl->rf_status_down, vap_info_old->u.sta_info.ssid, vap_info_new->u.sta_info.ssid);
+        if ((ctrl->rf_status_down == 1) && ((strcmp(vap_info_old->u.sta_info.ssid, "Xfinity_Ignite") == 0) && (strcmp(vap_info_new->u.sta_info.ssid, "Xfinity_Ignite") == 0))) {
+	    wifi_util_error_print(WIFI_WEBCONFIG, "[%s %d] rf-status : %d Old SSID : %s New SSID : %s\n", __func__, __LINE__, ctrl->rf_status_down, vap_info_old->u.sta_info.ssid, vap_info_new->u.sta_info.ssid);
+	    wifi_util_error_print(WIFI_WEBCONFIG, "[%s %d] Docsis disabled and SSID same. Overriding the update\n", __func__, __LINE__);
+	    return true;
+	}
+	if (IS_STR_CHANGED(vap_info_old->u.sta_info.ssid, vap_info_new->u.sta_info.ssid,
                 sizeof(ssid_t)) ||
             IS_CHANGED(vap_info_old->u.sta_info.enabled, vap_info_new->u.sta_info.enabled) ||
             IS_BIN_CHANGED(&vap_info_old->u.sta_info.security, &vap_info_new->u.sta_info.security,
                 sizeof(wifi_vap_security_t))) {
+	        wifi_util_error_print(WIFI_WEBCONFIG, "[%s %d] rf-status : %d Old SSID : %s New SSID : %s\n", __func__, __LINE__, ctrl->rf_status_down, vap_info_old->u.sta_info.ssid, vap_info_new->u.sta_info.ssid);
+		if ((ctrl->rf_status_down == 1) && ((strcmp(vap_info_old->u.sta_info.ssid, "Xfinity_Ignite") == 0) && (strcmp(vap_info_new->u.sta_info.ssid, "we.connect.yellowstone") == 0))) {
+		    wifi_util_error_print(WIFI_WEBCONFIG, "[%s %d] Device is in docsis disabled mode. Avoid applying blob for mesh sta\n", __func__, __LINE__);
+		    return false;
+		}
             return true;
         }
     } else {

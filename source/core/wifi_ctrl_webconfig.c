@@ -871,6 +871,7 @@ int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
 
             start_wifi_sched_timer(vap_info->vap_index, ctrl, wifi_vap_sched);
 
+	    wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d [TESTING]\n", __func__, __LINE__);
             if (svc->update_fn(svc, tgt_radio_idx, p_tgt_vap_map, &tgt_rdk_vap_info) != RETURN_OK) {
                 wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d: failed to apply\n", __func__, __LINE__);
                 memset(update_status, 0, sizeof(update_status));
@@ -902,6 +903,7 @@ int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
              * So, it won't be updated within update_fn -> wifidb_update_wifi_vap_info. Thats the reason why I leaved memcpy here. 
              */
             memcpy(mgr_vap_info, &p_tgt_vap_map->vap_array[0], sizeof(wifi_vap_info_t));
+	    wifi_util_error_print(WIFI_WEBCONFIG, "%s:%d [TESTING]\n", __func__, __LINE__);
 
             // This block of code is only used for updating VAP mac.
             //if (vap_info->vap_mode == wifi_vap_mode_ap && is_bssid_valid(p_tgt_vap_map->vap_array[0].u.bss_info.bssid)) {

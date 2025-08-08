@@ -1726,6 +1726,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
 
             // change the state
             ext_set_conn_state(ext, connection_state_connected, __func__, __LINE__);
+	    wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD] scan-trigger-counter : %d\n", __func__, __LINE__, scan_trigger_counter);
 	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
             if (ret == RETURN_ERR) {
 	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
@@ -1843,22 +1844,23 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
 
 	if (scan_trigger_counter >= scan_trigger_threshold) {
 	    wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD] scan_trigger_counter : %d scan_trigger_threshold : %d\n", __func__, __LINE__, scan_trigger_counter, scan_trigger_threshold);
-            ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
+            scan_trigger_counter = 0;
+	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
             if (ret == RETURN_ERR) {
                 wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
             }
 	    //ret = set_endpoint_enable(sta_data->stats.connect_status);
 	}
 
-#if 0 //Required for Backup build
+        //Workaround for sta disconnection
         wifi_util_dbg_print(WIFI_CTRL,"%s:%d Deleting link\n", __func__, __LINE__);	
 	memset(cmd, '\0', 128);
 	snprintf(cmd, sizeof(cmd), "ovs-vsctl del-port brww0 wl1");
         wifi_util_dbg_print(WIFI_CTRL,"%s:%d cmd : %s\n",__func__,__LINE__, cmd);
         get_stubs_descriptor()->v_secure_system_fn(cmd);
         wifi_util_dbg_print(WIFI_CTRL,"%s:%d Link Deletion done\n", __func__, __LINE__);	
-#endif
-        if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
+        
+	if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
 	    candidate = &ext->new_bss;
             found_candidate = true;

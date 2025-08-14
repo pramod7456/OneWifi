@@ -1574,7 +1574,7 @@ int publish_endpoint_status_to_wan(wifi_ctrl_t *ctrl, int connection_status) {
     return RETURN_OK;
 }
 
-
+#define DELPORT_FLAG "/tmp/del-port" 
 int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
 {
     wifi_mgr_t *mgr = (wifi_mgr_t *)get_wifimgr_obj();

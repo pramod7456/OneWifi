@@ -1731,14 +1731,15 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             if (ret == RETURN_ERR) {
 	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
 	    }
-        
+       
+#if 0 
 	    wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);
 
             snprintf(cmd, sizeof(cmd), "ip link set dev %s up", bridge_name);
             wifi_util_dbg_print(WIFI_CTRL,"%s:%d cmd : %s\n",__func__,__LINE__, cmd);
             get_stubs_descriptor()->v_secure_system_fn(cmd);
+#endif
 	    /* Self heal to check if the connected interface received valid ip after a timeout if not trigger a reconnection */
-
             if (ext->ext_udhcp_ip_check_id != 0) {
                 scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
                 ext->ext_udhcp_ip_check_id = 0;

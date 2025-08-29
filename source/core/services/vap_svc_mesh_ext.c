@@ -1593,7 +1593,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     wifi_radio_feature_param_t *radio_feat = NULL;
     bus_error_t rc;
     raw_data_t data;
-   // char *bridge_name = "brww0";
+    char *bridge_name = "brww0";
     int ret = 0;
 
     ctrl = svc->ctrl;

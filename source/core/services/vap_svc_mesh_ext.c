@@ -1708,6 +1708,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             (ext->conn_state == connection_state_connection_to_nb_in_progress)) {
                 wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             int radio_freq_band = 0;
+	    char mac_str[32] = {'\0'};
 	    scan_trigger_counter = 0;
             // copy the bss info to lcb
             memset(&ext->last_connected_bss, 0, sizeof(bss_candidate_t));
@@ -1727,10 +1728,26 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             // change the state
             ext_set_conn_state(ext, connection_state_connected, __func__, __LINE__);
 	    wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD] scan-trigger-counter : %d\n", __func__, __LINE__, scan_trigger_counter);
-	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
-            if (ret == RETURN_ERR) {
-	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
-	    }
+	    uint8_mac_to_string_mac(temp_vap_info->u.sta_info.mac, mac_str);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d Bridge:%s  Using MAC-Str:%s MAC : %02x:%02x:%02x:%02x:%02x:%02x\n",
+                     __func__, __LINE__,
+                     bridge_name, mac_str, temp_vap_info->u.sta_info.mac[0], temp_vap_info->u.sta_info.mac[1], temp_vap_info->u.sta_info.mac[2], temp_vap_info->u.sta_info.mac[3], temp_vap_info->u.sta_info.mac[4], temp_vap_info->u.sta_info.mac[5]);
+	   snprintf(cmd, sizeof(cmd), "ovs-vsctl set bridge %s other-config:hwaddr=%s", bridge_name, mac_str);
+	   wifi_util_info_print(WIFI_CTRL, "%s:%d Cmd : %s\n", __func__, __LINE__);
+	   ret = get_stubs_descriptor()->v_secure_system_fn(cmd);
+           if (ret != 0) {
+    		wifi_util_dbg_print(WIFI_CTRL, "%s:%d Failed to set bridge MAC, ret=%d\n",
+                        __func__, __LINE__, ret);
+	   } else {
+    		wifi_util_info_print(WIFI_CTRL, "%s:%d Successfully set bridge MAC to %s\n",
+                         __func__, __LINE__, mac_str);
+	   }
+	   
+	   ret = 0; 
+	   ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
+           if (ret == RETURN_ERR) {
+	       wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
+	   }
        
 #if 0 
 	    wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);

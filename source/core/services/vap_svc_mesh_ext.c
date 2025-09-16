@@ -1538,7 +1538,7 @@ int publish_endpoint_status_to_wan(wifi_ctrl_t *ctrl, int connection_status) {
         memset(data.raw_data.bytes, '\0', MAX_STATUS_LEN);
 	if (connection_status == 2) { // connected state
             strncpy((char *)data.raw_data.bytes, "Up", MAX_STATUS_LEN);
-	} else if (connection_status ==1) { //discpnnected state
+	} else if ((connection_status ==1) || (connection_status ==3)) { //discpnnected state or ap_not_found case
             strncpy((char *)data.raw_data.bytes, "Down", MAX_STATUS_LEN);
 	}
 	rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, name,  &data);

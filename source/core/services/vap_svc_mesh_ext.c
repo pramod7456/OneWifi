@@ -558,7 +558,7 @@ int process_udhcp_ip_check(vap_svc_t *svc)
 	   } else {
 	      wifi_util_info_print(WIFI_CTRL,"%s:%d Failed to get IP Address\n", __func__, __LINE__);
 	   }
-	   if ((inet_pton(AF_INET, ipv4, &sa4.sin_addr) == 1) || (inet_pton(AF_INET6, ipv6, &sa6.sin6_addr) == 1)) {
+	   if ((inet_pton(AF_INET, ipv4, &sa.sin_addr) == 1) || (inet_pton(AF_INET6, ipv6, &sa6.sin6_addr) == 1)) {
                wifi_util_info_print(WIFI_CTRL,"%s:%d IP Address valid\n", __func__, __LINE__);
 	       scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
                ext->ext_udhcp_ip_check_id = 0;
@@ -1190,7 +1190,7 @@ int vap_svc_mesh_ext_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_i
     unsigned int i;
     wifi_vap_info_map_t tgt_vap_map;
     vap_svc_ext_t *ext = &svc->u.ext;
-
+    wifi_ctrl_t *ctrl = svc->ctrl;
     for (i = 0; i < map->num_vaps; i++) {
         memset((unsigned char *)&tgt_vap_map, 0, sizeof(tgt_vap_map));
         memcpy((unsigned char *)&tgt_vap_map.vap_array[0], (unsigned char *)&map->vap_array[i],
@@ -1666,15 +1666,15 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     bss_candidate_t *candidate = NULL;
     bool found_candidate = false, send_event = false;
     unsigned int i = 0, index, j = 0;
-    char name[64];
     char cmd[128] = {0};
-    wifi_sta_conn_info_t sta_conn_info;
     wifi_radio_operationParam_t *radio_params = NULL;
     wifi_radio_feature_param_t *radio_feat = NULL;
-    bus_error_t rc;
-    raw_data_t data;
     char *bridge_name = "brww0";
     int ret = 0;
+    raw_data_t data;
+    bus_error_t rc;
+    wifi_sta_conn_info_t sta_conn_info;
+    char name[64] = {'\0'};
 
     ctrl = svc->ctrl;
     ext = &svc->u.ext;
@@ -1857,7 +1857,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
         }
     } else if (sta_data->stats.connect_status == wifi_connection_status_ap_not_found || sta_data->stats.connect_status == wifi_connection_status_disconnected) {
 
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+        wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
         apply_pending_channel_change(svc, sta_data->stats.vap_index);
 
         if (ext->conn_state == connection_state_connected &&
@@ -1892,27 +1892,27 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             ext->ext_disconnection_event_timeout_handler_id = 0;
         }
 
-	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
-            if (ret == RETURN_ERR) {
-                wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
-            }
-	    //ret = set_endpoint_enable(sta_data->stats.connect_status);
-	}
+        ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
+        if (ret == RETURN_ERR) {
+            wifi_util_dbg_print(WIFI_CTRL, "%s:%d Error in publishing the status\n", __func__,
+                __LINE__);
+        }
+        // ret = set_endpoint_enable(sta_data->stats.connect_status);
 
-        //Workaround for sta disconnection
-        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Deleting link\n", __func__, __LINE__);	
-	memset(cmd, '\0', 128);
-	snprintf(cmd, sizeof(cmd), "ovs-vsctl del-port brww0 wl1");
-        wifi_util_dbg_print(WIFI_CTRL,"%s:%d cmd : %s\n",__func__,__LINE__, cmd);
+        // Workaround for sta disconnection
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d Deleting link\n", __func__, __LINE__);
+        memset(cmd, '\0', 128);
+        snprintf(cmd, sizeof(cmd), "ovs-vsctl del-port brww0 wl1");
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d cmd : %s\n", __func__, __LINE__, cmd);
         get_stubs_descriptor()->v_secure_system_fn(cmd);
-        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Link Deletion done\n", __func__, __LINE__);	
-        
-	if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
+        wifi_util_dbg_print(WIFI_CTRL, "%s:%d Link Deletion done\n", __func__, __LINE__);
+
+        if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
             wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
-	    candidate = &ext->new_bss;
+            candidate = &ext->new_bss;
             found_candidate = true;
         } else if ((ext->conn_state == connection_state_connection_to_lcb_in_progress) ||
-                (ext->conn_state == connection_state_connected)) {
+            (ext->conn_state == connection_state_connected)) {
 
             wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             if (ext->is_radio_ignored == true) {
@@ -1923,17 +1923,18 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                     __LINE__);
             } else {
                 wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
-		candidate = &ext->last_connected_bss;
+                candidate = &ext->last_connected_bss;
                 found_candidate = true;
                 ext_set_conn_state(ext, connection_state_connection_to_lcb_in_progress, __func__,
                     __LINE__);
             }
         } else if (ext->conn_state == connection_state_connection_in_progress) {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             candidate = ext->candidates_list.scan_list;
             for (i = 0; i < ext->candidates_list.scan_count; i++) {
                 wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
-                if ((candidate->conn_attempt == connection_attempt_wait) && (candidate->conn_retry_attempt < STA_MAX_CONNECT_ATTEMPT)) {
+                if ((candidate->conn_attempt == connection_attempt_wait) &&
+                    (candidate->conn_retry_attempt < STA_MAX_CONNECT_ATTEMPT)) {
                     wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
                     found_candidate = true;
                     break;
@@ -1946,7 +1947,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                 candidate = NULL;
             }
         } else if (ext->conn_state == connection_state_disconnection_in_progress) {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             ext_set_conn_state(ext, connection_state_connection_in_progress, __func__, __LINE__);
             candidate = ext->candidates_list.scan_list;
             found_candidate = true;
@@ -1979,10 +1980,10 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     }
 
     if (candidate != NULL) {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+        wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
         if ((found_candidate == false && (ext->conn_state != connection_state_connected)) ||
                 ((found_candidate == true) && (candidate->conn_retry_attempt >= STA_MAX_CONNECT_ATTEMPT))) {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
             // fallback to last connected bssid if new bssid fails
             if (ext->conn_state == connection_state_connection_to_nb_in_progress) {
                 // clear new bssid since it is not used for reconnection
@@ -1992,12 +1993,12 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                 // connection to new bssid is done before disconnection so the last bssid
                 // still can be connected
                 if (!is_connected_to_bssid(ext)) {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+                    wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
                     ext_set_conn_state(ext, connection_state_connection_to_lcb_in_progress,
                         __func__, __LINE__);
                     candidate = &ext->last_connected_bss;
                 } else {
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+                    wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
                     ext_set_conn_state(ext, connection_state_connected, __func__, __LINE__);
                 }
             } else {
@@ -2006,7 +2007,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                 ext_set_conn_state(ext, connection_state_disconnected_scan_list_none, __func__,
                     __LINE__);
             }
-                wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
+            wifi_util_info_print(WIFI_CTRL, "%s:%d[PRAMOD]\n", __func__, __LINE__);
 
             schedule_connect_sm(svc);
         } else {

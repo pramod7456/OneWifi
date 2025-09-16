@@ -2182,7 +2182,6 @@ static int sta_connectivity_selfheal(void* arg)
         wifi_util_dbg_print(WIFI_CTRL,"station is enabled and hence selfheal started\n");
         sta_selfheal_handing(ctrl, ext_svc);
     }
-	#endif
     return TIMER_TASK_COMPLETE;
 }
 

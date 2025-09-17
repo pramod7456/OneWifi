@@ -419,75 +419,56 @@ static int process_trigger_disconnection_event_timeout(vap_svc_t *svc)
     return 0;
 }
 
-int parse_ipv6_cidr(char *input, char *ip_out, size_t ip_out_len, int *prefix_len) {
-    char buf[128];
-    char *slash;
-    wifi_util_info_print(WIFI_CTRL,"%s:%d input : [%s] ip-out-len : [%d]\n", __func__, __LINE__, input, ip_out_len);
-    if (!input || !ip_out) return -1;
-
-    strncpy(buf, input, sizeof(buf));
-    buf[sizeof(buf)-1] = '\0';
-    wifi_util_info_print(WIFI_CTRL,"%s:%d buf : %s input : %s\n", __func__, __LINE__, buf, input);
-    slash = strchr(buf, '/');
-    if (slash) {
-        *slash = '\0';  // split address and prefix
-        *prefix_len = atoi(slash + 1);
-	wifi_util_info_print(WIFI_CTRL,"%s:%d slash : %s len : %d\n", __func__, __LINE__, slash, *prefix_len);
-    } else {
-        *prefix_len = -1;  // no prefix found
-    }
-
-    strncpy(ip_out, buf, ip_out_len);
-    ip_out[ip_out_len-1] = '\0';
-    wifi_util_info_print(WIFI_CTRL,"%s:%d buf : %s ip-out : %s\n", __func__, __LINE__, buf, ip_out);
-    return 0; 
+static int validate_ip(const char *ip, int family) {
+    char buf[sizeof(struct in6_addr)];
+    wifi_util_info_print(WIFI_CTRL,"%s:%d ip : %s family : %d\n", __func__, __LINE__, ip, family);
+    return inet_pton(family, ip, buf) == 1;
 }
 
-int get_ipv6_from_bridge(char *out, size_t len) {
-    FILE *fp;
-    char ip_prefix[128] = {0};
-    char command[256];
-    int prefix = -1;
+int has_valid_ip(const char *iface) {
+    struct ifaddrs *ifaddr, *ifa;
+    char addr[INET6_ADDRSTRLEN];
+    int found = 0;
 
-    snprintf(command, sizeof(command),
-             "ifconfig brww0 | grep -i \"inet6 addr\" | awk '{print $3}'");
-
-    wifi_util_info_print(WIFI_CTRL,"%s:%d command : [%s] len : [%d]\n", __func__, __LINE__, command, len);
-    fp = popen(command, "r");
-    if (!fp) return -1;
-
-    if (fgets(ip_prefix, sizeof(ip_prefix), fp)) {
-        size_t n = strlen(ip_prefix);
-        if (n > 0 && ip_prefix[n-1] == '\n')
-            ip_prefix[n-1] = '\0';
-	wifi_util_info_print(WIFI_CTRL,"%s:%d ip_prefix : %s\n", __func__, __LINE__, ip_prefix);
-        parse_ipv6_cidr(ip_prefix, out, len, &prefix);
+    if (getifaddrs(&ifaddr) == -1) {
+	wifi_util_info_print(WIFI_CTRL,"%s:%d Failed in getifaddrs\n", __func__, __LINE__);
+        return 0; // failure
     }
-    wifi_util_info_print(WIFI_CTRL,"%s:%d out : %s\n", __func__, __LINE__, out);
-    pclose(fp);
-    return 0;
-}
 
-int get_ipv4_from_bridge(char *out, size_t len) {
-    FILE *fp;
-    char command[256] = {'\0'};
-    snprintf(command, sizeof(command),
-             "ifconfig brww0 | grep -i \"inet addr\" | cut -d ':' -f 2 | cut -d ' ' -f 1");
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr)
+            continue;
 
-    wifi_util_info_print(WIFI_CTRL,"%s:%d command : [%s] len : [%d]\n", __func__, __LINE__, command, len);
-    fp = popen(command, "r");
-    if (!fp) return -1;
+	wifi_util_info_print(WIFI_CTRL,"%s:%d ifa-name : %s iface : %s\n", __func__, __LINE__, ifa->ifa_name, iface);
+        if (strcmp(ifa->ifa_name, iface) != 0)
+            continue;
 
-    if (fgets(out, len, fp)) {
-        size_t n = strlen(out);
-        if (n > 0 && out[n-1] == '\n')
-            out[n-1] = '\0';
+        int family = ifa->ifa_addr->sa_family;
+
+        if (family == AF_INET) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+            if (inet_ntop(AF_INET, &sin->sin_addr, addr, sizeof(addr))) {
+                if (validate_ip(addr, AF_INET)) {
+                    wifi_util_info_print(WIFI_CTRL,"%s:%d Valid IPv4 on %s: %s\n", __func__, __LINE__, iface, addr);
+                    found = 1;
+                    break; // return immediately if at least one valid IP
+                }
+            }
+        } else if (family == AF_INET6) {
+            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+            if (inet_ntop(AF_INET6, &sin6->sin6_addr, addr, sizeof(addr))) {
+                if (validate_ip(addr, AF_INET6)) {
+                    wifi_util_info_print(WIFI_CTRL,"%s:%d Valid IPv6 on %s: %s\n", __func__, __LINE__, iface, addr);
+                    found = 1;
+                    break; // return immediately if at least one valid IP
+                }
+            }
+        }
     }
-    wifi_util_info_print(WIFI_CTRL,"%s:%d out : %s\n", __func__, __LINE__, out);
-    pclose(fp);
-    return 0;
-}
 
+    freeifaddrs(ifaddr);
+    return found;
+}
 
 int process_udhcp_ip_check(vap_svc_t *svc)
 {
@@ -496,96 +477,89 @@ int process_udhcp_ip_check(vap_svc_t *svc)
     char value[128];
     char file_name[128];
     char command[256];
-    char ipv4[32] = {0};
-    char ipv6[128] = {0};
-    int ret = 0;
     struct sockaddr_in6 sa6;
     size_t len = 0;
     wifi_interface_name_t *interface_name;
     FILE *fp = NULL;
-    vap_svc_ext_t   *ext;
+    vap_svc_ext_t *ext;
     wifi_ctrl_t *ctrl;
     ctrl = svc->ctrl;
     ext = &svc->u.ext;
-    ret = get_endpoint_enable(ctrl);
-    wifi_util_info_print(WIFI_CTRL,"%s:%d ret updated as %d\n", __func__, __LINE__, ret);
-    if (ret == false) {
-    memset(value, '\0', sizeof(value));
-    memset(value, '\0', sizeof(file_name));
-    memset(command, '\0', sizeof(command));
-    interface_name = get_interface_name_for_vap_index(ext->connected_vap_index, svc->prop);
-    if ((interface_name == NULL) && (ip_check_count < EXT_UDHCP_IP_CHECK_NUM)) {
-        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Unable to fetch proper Interface name for connected index%d\n", __func__, __LINE__, ext->connected_vap_index);
-        ip_check_count++;
-        return 0;
-    }
-    snprintf(file_name, sizeof(file_name), "/var/run/udhcpc-%s.opts", *interface_name);
-    snprintf(command, sizeof(command), "grep \"ip=\" %s | cut -d '=' -f 2", file_name);
-    if ((ip_check_count < EXT_UDHCP_IP_CHECK_NUM) &&
-        (ext->conn_state == connection_state_connected)) {
-        if (access(file_name , F_OK) == 0) {
-            fp = popen(command, "r");
-            if (fp != NULL) {
-                fgets(value, sizeof(value), fp);
-                len  = strlen(value);
-                if (len > 0) {
-                    value[len-1] = '\0';
-                    if ((inet_pton(AF_INET, value, &(sa.sin_addr)) == 1) || (inet_pton(AF_INET6, value, &(sa.sin_addr)) == 1)) {
-                        scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
-                        ext->ext_udhcp_ip_check_id = 0;
-                        ip_check_count = 0;
-                        pclose(fp);
-                        return 0;
+    wifi_util_info_print(WIFI_CTRL, "%s:%d ret updated as %d\n", __func__, __LINE__, ret);
+    if (ctrl->rf_status_down == false) {
+        memset(value, '\0', sizeof(value));
+        memset(value, '\0', sizeof(file_name));
+        memset(command, '\0', sizeof(command));
+        interface_name = get_interface_name_for_vap_index(ext->connected_vap_index, svc->prop);
+        if ((interface_name == NULL) && (ip_check_count < EXT_UDHCP_IP_CHECK_NUM)) {
+            wifi_util_dbg_print(WIFI_CTRL,
+                "%s:%d Unable to fetch proper Interface name for connected index%d\n", __func__,
+                __LINE__, ext->connected_vap_index);
+            ip_check_count++;
+            return 0;
+        }
+        snprintf(file_name, sizeof(file_name), "/var/run/udhcpc-%s.opts", *interface_name);
+        snprintf(command, sizeof(command), "grep \"ip=\" %s | cut -d '=' -f 2", file_name);
+        if ((ip_check_count < EXT_UDHCP_IP_CHECK_NUM) &&
+            (ext->conn_state == connection_state_connected)) {
+            if (access(file_name, F_OK) == 0) {
+                fp = popen(command, "r");
+                if (fp != NULL) {
+                    fgets(value, sizeof(value), fp);
+                    len = strlen(value);
+                    if (len > 0) {
+                        value[len - 1] = '\0';
+                        if ((inet_pton(AF_INET, value, &(sa.sin_addr)) == 1) ||
+                            (inet_pton(AF_INET6, value, &(sa.sin_addr)) == 1)) {
+                            scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
+                            ext->ext_udhcp_ip_check_id = 0;
+                            ip_check_count = 0;
+                            pclose(fp);
+                            return 0;
+                        }
                     }
+                    pclose(fp);
                 }
-                pclose(fp);
+            }
+        }
+    } else {
+        if ((ip_check_count < EXT_UDHCP_IP_CHECK_NUM) &&
+            (ext->conn_state == connection_state_connected)) {
+            char iface[32] = "brww0";
+            if (has_valid_ip(iface)) {
+                wifi_util_error_print(WIFI_CTRL, "%s:%d Received Valid IP address\n", __func__,
+                    __LINE__);
+                scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
+                ext->ext_udhcp_ip_check_id = 0;
+                ip_check_count = 0;
+                return 0;
+            } else {
+                wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid IP address detected\n", __func__,
+                    __LINE__);
             }
         }
     }
-    } else {
-	if ((ip_check_count < EXT_UDHCP_IP_CHECK_NUM) && (ext->conn_state == connection_state_connected)) {
-           ret = 0;
-	   ret = get_ipv4_from_bridge(ipv4, sizeof(ipv4));
-           if (ret == 0) {
-	       wifi_util_info_print(WIFI_CTRL,"%s:%d IPv4 = %s\n", __func__, __LINE__, ipv4);
-	   } else {
-	       wifi_util_info_print(WIFI_CTRL,"%s:%d Failed to get IP Address\n", __func__, __LINE__);
-	   }
-	   ret = 0;
-	   ret = get_ipv6_from_bridge(ipv6, sizeof(ipv6));
-	   if (ret == 0) {
-	       wifi_util_info_print(WIFI_CTRL,"%s:%d IPv6 = %s\n", __func__, __LINE__, ipv6);
-	   } else {
-	      wifi_util_info_print(WIFI_CTRL,"%s:%d Failed to get IP Address\n", __func__, __LINE__);
-	   }
-	   if ((inet_pton(AF_INET, ipv4, &sa.sin_addr) == 1) || (inet_pton(AF_INET6, ipv6, &sa6.sin6_addr) == 1)) {
-               wifi_util_info_print(WIFI_CTRL,"%s:%d IP Address valid\n", __func__, __LINE__);
-	       scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
-               ext->ext_udhcp_ip_check_id = 0;
-               ip_check_count = 0;
-	       return 0;
-	   } else {
-               wifi_util_info_print(WIFI_CTRL,"%s:%d Invalid IP Address\n", __func__, __LINE__);
-	   }
-      }
-    }
-    
+
     if (ip_check_count >= EXT_UDHCP_IP_CHECK_NUM) {
         scheduler_cancel_timer_task(ctrl->sched, ext->ext_udhcp_ip_check_id);
         ext->ext_udhcp_ip_check_id = 0;
         ip_check_count = 0;
-        wifi_util_error_print(WIFI_CTRL,"%s:%d No IP on connected interface triggering a disconnect\n", __func__, __LINE__);
-        apps_mgr_analytics_event(&ctrl->apps_mgr, wifi_event_type_command, wifi_event_type_udhcp_ip_fail, ext);
+        wifi_util_error_print(WIFI_CTRL,
+            "%s:%d No IP on connected interface triggering a disconnect\n", __func__, __LINE__);
+        apps_mgr_analytics_event(&ctrl->apps_mgr, wifi_event_type_command,
+            wifi_event_type_udhcp_ip_fail, ext);
         ext->disconn_retry++;
         wifi_util_info_print(WIFI_CTRL, "%s:%d execute sta disconnect for vap index: %d\n",
             __func__, __LINE__, ext->connected_vap_index);
         if (wifi_hal_disconnect(ext->connected_vap_index) == RETURN_ERR) {
-            wifi_util_error_print(WIFI_CTRL, "%s:%d sta disconnect failed for vap index:%d, "
-                "retry after timeout\n", __func__, __LINE__, ext->connected_vap_index);
+            wifi_util_error_print(WIFI_CTRL,
+                "%s:%d sta disconnect failed for vap index:%d, "
+                "retry after timeout\n",
+                __func__, __LINE__, ext->connected_vap_index);
         }
-        scheduler_add_timer_task(ctrl->sched, FALSE, &ext->ext_udhcp_disconnect_event_timeout_handler_id,
-                process_udhcp_disconnect_event_timeout, svc,
-                EXT_DISCONNECTION_IND_TIMEOUT, 1, FALSE);
+        scheduler_add_timer_task(ctrl->sched, FALSE,
+            &ext->ext_udhcp_disconnect_event_timeout_handler_id,
+            process_udhcp_disconnect_event_timeout, svc, EXT_DISCONNECTION_IND_TIMEOUT, 1, FALSE);
         return 0;
     }
 
@@ -1220,16 +1194,11 @@ int vap_svc_mesh_ext_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_i
         
 	if (!is_sta_enabled()) {
             ext_set_conn_state(ext, connection_state_disconnected_steady, __func__, __LINE__);
-        } else {
-
-	    int ret = 0;
-	    ret = get_endpoint_enable(ctrl);
-            wifi_util_info_print(WIFI_CTRL,"%s:%d ret updated as %d\n", __func__, __LINE__, ret);
-            if (ret == true) {
+    } else {
+        if (ctrl->rf_status_down == true) {
                 ext_set_conn_state(ext, connection_state_disconnected_scan_list_none, __func__, __LINE__);
                 wifi_util_info_print(WIFI_CTRL, "%s:%d sta is enabled starting the station vaps\n",__FUNCTION__,__LINE__);
                 schedule_connect_sm(svc);
-
                 ext->is_started = true;
             }
         }
@@ -1600,6 +1569,7 @@ static int apply_pending_channel_change(vap_svc_t *svc, int vap_index)
     return RETURN_OK;
 }
 
+#if 0
 int get_endpoint_enable(wifi_ctrl_t *ctrl)
 {
     int rc = bus_error_success;
@@ -1619,41 +1589,43 @@ int get_endpoint_enable(wifi_ctrl_t *ctrl)
     wifi_util_dbg_print(WIFI_CTRL, "%s:%d: event: %s value: %d\n", __func__, __LINE__, RF_STATUS_CHECK, endpoint_enable);
     return endpoint_enable;
 }
+#endif
 
 #define MAX_STATUS_LEN 5
 
-int publish_endpoint_status_to_wan(wifi_ctrl_t *ctrl, int connection_status) {
+int publish_endpoint_status_to_wan(wifi_ctrl_t *ctrl, int connection_status)
+{
     int ret = 0;
-    char name[128] = {'\0'};
+    char name[128] = { '\0' };
     bus_error_t rc = bus_error_success;
-    wifi_util_info_print(WIFI_CTRL,"%s:%d Conn-status updated as %d\n", __func__, __LINE__, connection_status);	
-    ret = get_endpoint_enable(ctrl);
-    wifi_util_info_print(WIFI_CTRL,"%s:%d ret updated as %d\n", __func__, __LINE__, ret);
-    if (ret == true) {
-	raw_data_t data;
+    wifi_util_info_print(WIFI_CTRL, "%s:%d Conn-status updated as %d\n", __func__, __LINE__,
+        connection_status);
+    if (ctrl->rf_status_down == true) {
+        raw_data_t data;
         sprintf(name, "Device.WiFi.EndPoint.1.Status");
-	memset(&data, 0, sizeof(raw_data_t));
+        memset(&data, 0, sizeof(raw_data_t));
         data.data_type = bus_data_type_string;
         data.raw_data.bytes = malloc(MAX_STATUS_LEN);
         data.raw_data_len = MAX_STATUS_LEN;
         memset(data.raw_data.bytes, '\0', MAX_STATUS_LEN);
-	if (connection_status == 2) { // connected state
+        if (connection_status == 2) { // connected state
             strncpy((char *)data.raw_data.bytes, "Up", MAX_STATUS_LEN);
-	} else if ((connection_status ==1)  || (connection_status == 3)){ //discpnnected  or AP not found state
+        } else if ((connection_status == 1) ||
+            (connection_status == 3)) { // discpnnected  or AP not found state
             strncpy((char *)data.raw_data.bytes, "Down", MAX_STATUS_LEN);
-	}
-	rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, name,  &data);
+        }
+        rc = get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, name, &data);
         if (rc != bus_error_success) {
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n", __func__, __LINE__);
+            wifi_util_dbg_print(WIFI_CTRL, "%s:%d: bus_event_publish_fn(): Event failed\n",
+                __func__, __LINE__);
             return RETURN_ERR;
         }
     } else {
-	wifi_util_info_print(WIFI_CTRL,"%s:%d Endpoint not enabled\n", __func__, __LINE__);
-	return RETURN_OK;
+        wifi_util_info_print(WIFI_CTRL, "%s:%d Endpoint not enabled\n", __func__, __LINE__);
+        return RETURN_OK;
     }
     return RETURN_OK;
 }
-
 
 int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
 {

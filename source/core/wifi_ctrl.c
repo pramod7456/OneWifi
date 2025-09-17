@@ -242,40 +242,51 @@ void selfheal_event_publish(wifi_ctrl_t *ctrl)
 
 void sta_selfheal_handing(wifi_ctrl_t *ctrl, vap_svc_t *l_svc)
 {
-    static bool radio_reset_triggered      = false;
-    static unsigned int disconnected_time  = 0;
-    static unsigned int connection_timeout = 0;
-    vap_svc_ext_t   *ext;
-    ext = &l_svc->u.ext;
+    if (ctrl->rf_status_down == false) {
+        static bool radio_reset_triggered = false;
+        static unsigned int disconnected_time = 0;
+        static unsigned int connection_timeout = 0;
+        vap_svc_ext_t *ext;
+        ext = &l_svc->u.ext;
 
-    wifi_util_info_print(WIFI_CTRL,"%s:%d\n", __func__, __LINE__);
-    /* Reboot device is STA connection is unsuccessful */
-    if ((ext != NULL) && (ext->conn_state != connection_state_connected)) {
-        disconnected_time++;
-        connection_timeout++;
-        wifi_util_info_print(WIFI_CTRL,"%s:%d selfheal STA Connection Timeout  event publish time is set to %d minutes, disconnected_time:%d\n",
-                        __func__, __LINE__, selfheal_event_publish_time(), disconnected_time);
-        if ((disconnected_time * STA_CONN_RETRY_TIMEOUT) > (selfheal_event_publish_time() * 60)) {
-            wifi_util_error_print(WIFI_CTRL,"%s:%d selfheal: STA connection failed for %d minutes, publish selfheal connection timeout\n",
-                            __func__, __LINE__, selfheal_event_publish_time());
-            /* publish selfheal STA Connection Timeout  device */
-            selfheal_event_publish(ctrl);
+        wifi_util_info_print(WIFI_CTRL, "%s:%d\n", __func__, __LINE__);
+        /* Reboot device is STA connection is unsuccessful */
+        if ((ext != NULL) && (ext->conn_state != connection_state_connected)) {
+            disconnected_time++;
+            connection_timeout++;
+            wifi_util_info_print(WIFI_CTRL,
+                "%s:%d selfheal STA Connection Timeout  event publish time is set to %d minutes, "
+                "disconnected_time:%d\n",
+                __func__, __LINE__, selfheal_event_publish_time(), disconnected_time);
+            if ((disconnected_time * STA_CONN_RETRY_TIMEOUT) >
+                (selfheal_event_publish_time() * 60)) {
+                wifi_util_error_print(WIFI_CTRL,
+                    "%s:%d selfheal: STA connection failed for %d minutes, publish selfheal "
+                    "connection timeout\n",
+                    __func__, __LINE__, selfheal_event_publish_time());
+                /* publish selfheal STA Connection Timeout  device */
+                selfheal_event_publish(ctrl);
+                disconnected_time = 0;
+                connection_timeout = 0;
+            } else if (((disconnected_time * STA_CONN_RETRY_TIMEOUT) >=
+                           ((selfheal_event_publish_time() * 60) / 2)) &&
+                (radio_reset_triggered == false)) {
+                wifi_util_info_print(WIFI_CTRL, "%s:%d\n", __func__, __LINE__);
+                reset_wifi_radios();
+                radio_reset_triggered = true;
+            } else if ((connection_timeout * STA_CONN_RETRY_TIMEOUT) >=
+                MAX_CONNECTION_ALGO_TIMEOUT) {
+                wifi_util_info_print(WIFI_CTRL, "%s:%d\n", __func__, __LINE__);
+                l_svc->event_fn(l_svc, wifi_event_type_exec, wifi_event_exec_timeout,
+                    vap_svc_event_none, NULL);
+                connection_timeout = 0;
+            }
+        } else {
+            wifi_util_info_print(WIFI_CTRL, "%s:%d\n", __func__, __LINE__);
+            radio_reset_triggered = false;
             disconnected_time = 0;
             connection_timeout = 0;
-        } else if (((disconnected_time * STA_CONN_RETRY_TIMEOUT) >= ((selfheal_event_publish_time() * 60) / 2)) && (radio_reset_triggered == false)) {
-            wifi_util_info_print(WIFI_CTRL,"%s:%d\n", __func__, __LINE__);
-            reset_wifi_radios();
-            radio_reset_triggered = true;
-        } else if ((connection_timeout * STA_CONN_RETRY_TIMEOUT) >= MAX_CONNECTION_ALGO_TIMEOUT) {
-            wifi_util_info_print(WIFI_CTRL,"%s:%d\n", __func__, __LINE__);
-            l_svc->event_fn(l_svc, wifi_event_type_exec, wifi_event_exec_timeout, vap_svc_event_none, NULL);
-            connection_timeout = 0;
         }
-    } else {
-        wifi_util_info_print(WIFI_CTRL,"%s:%d\n", __func__, __LINE__);
-        radio_reset_triggered = false;
-        disconnected_time = 0;
-        connection_timeout = 0;
     }
 }
 
@@ -2171,16 +2182,18 @@ static int bus_check_and_subscribe_events(void* arg)
 
 static int sta_connectivity_selfheal(void* arg)
 {
-    wifi_ctrl_t *ctrl = NULL;
-    vap_svc_t *ext_svc;
+    if (ctrl->rf_status_down == false) {
+        wifi_ctrl_t *ctrl = NULL;
+        vap_svc_t *ext_svc;
 
-    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+        ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     
-    ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
-    if (is_sta_enabled()) {
-        // check sta connectivity selfheal
-        wifi_util_dbg_print(WIFI_CTRL,"station is enabled and hence selfheal started\n");
-        sta_selfheal_handing(ctrl, ext_svc);
+        ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
+        if (is_sta_enabled()) {
+            // check sta connectivity selfheal
+            wifi_util_dbg_print(WIFI_CTRL,"station is enabled and hence selfheal started\n");
+            sta_selfheal_handing(ctrl, ext_svc);
+	}
     }
     return TIMER_TASK_COMPLETE;
 }
@@ -2242,9 +2255,7 @@ static void ctrl_queue_timeout_scheduler_tasks(wifi_ctrl_t *ctrl)
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, run_cac_event, NULL, (CAC_PERIOD * 1000), 0, FALSE);
 #endif
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, run_greylist_event, NULL, (GREYLIST_CHECK_IN_SECONDS * 1000), 0, FALSE);
-    ret = get_endpoint_enable(ctrl);
-    wifi_util_info_print(WIFI_CTRL,"%s:%d ret updated as %d\n", __func__, __LINE__, ret);
-    if (ret == false) {
+    if (ctrl->rf_status_down == false) {
         wifi_util_info_print(WIFI_CTRL,"%s:%d Selfheal timer enabled\n", __func__, __LINE__);
 	scheduler_add_timer_task(ctrl->sched, FALSE, NULL, sta_connectivity_selfheal, NULL, (STA_CONN_RETRY_TIMEOUT * 1000), 0, FALSE);
     }

@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <unistd.h>
 #include "const.h"
 #include <unistd.h>
@@ -477,7 +478,6 @@ int process_udhcp_ip_check(vap_svc_t *svc)
     char value[128];
     char file_name[128];
     char command[256];
-    struct sockaddr_in6 sa6;
     size_t len = 0;
     wifi_interface_name_t *interface_name;
     FILE *fp = NULL;
@@ -485,7 +485,7 @@ int process_udhcp_ip_check(vap_svc_t *svc)
     wifi_ctrl_t *ctrl;
     ctrl = svc->ctrl;
     ext = &svc->u.ext;
-    wifi_util_info_print(WIFI_CTRL, "%s:%d ret updated as %d\n", __func__, __LINE__, ret);
+    wifi_util_info_print(WIFI_CTRL, "%s:%d ret updated as %d\n", __func__, __LINE__, ctrl->rf_status_down);
     if (ctrl->rf_status_down == false) {
         memset(value, '\0', sizeof(value));
         memset(value, '\0', sizeof(file_name));
@@ -1595,7 +1595,6 @@ int get_endpoint_enable(wifi_ctrl_t *ctrl)
 
 int publish_endpoint_status_to_wan(wifi_ctrl_t *ctrl, int connection_status)
 {
-    int ret = 0;
     char name[128] = { '\0' };
     bus_error_t rc = bus_error_success;
     wifi_util_info_print(WIFI_CTRL, "%s:%d Conn-status updated as %d\n", __func__, __LINE__,

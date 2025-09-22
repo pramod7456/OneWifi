@@ -2182,12 +2182,10 @@ static int bus_check_and_subscribe_events(void* arg)
 
 static int sta_connectivity_selfheal(void* arg)
 {
+    wifi_ctrl_t *ctrl = NULL;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     if (ctrl->rf_status_down == false) {
-        wifi_ctrl_t *ctrl = NULL;
         vap_svc_t *ext_svc;
-
-        ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    
         ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
         if (is_sta_enabled()) {
             // check sta connectivity selfheal
@@ -2246,7 +2244,6 @@ static int pending_states_webconfig_analyzer(void *arg)
 
 static void ctrl_queue_timeout_scheduler_tasks(wifi_ctrl_t *ctrl)
 {
-    int ret = 0;
 #ifdef ONEWIFI_ANALYTICS_APP_SUPPORT
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, run_analytics_event, NULL, (ANAYLYTICS_PERIOD * 1000), 0, FALSE);
 #endif
@@ -2257,7 +2254,7 @@ static void ctrl_queue_timeout_scheduler_tasks(wifi_ctrl_t *ctrl)
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, run_greylist_event, NULL, (GREYLIST_CHECK_IN_SECONDS * 1000), 0, FALSE);
     if (ctrl->rf_status_down == false) {
         wifi_util_info_print(WIFI_CTRL,"%s:%d Selfheal timer enabled\n", __func__, __LINE__);
-	scheduler_add_timer_task(ctrl->sched, FALSE, NULL, sta_connectivity_selfheal, NULL, (STA_CONN_RETRY_TIMEOUT * 1000), 0, FALSE);
+	    scheduler_add_timer_task(ctrl->sched, FALSE, NULL, sta_connectivity_selfheal, NULL, (STA_CONN_RETRY_TIMEOUT * 1000), 0, FALSE);
     }
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, bus_check_and_subscribe_events, NULL, (ctrl->poll_period * 1000), 0, FALSE);
     scheduler_add_timer_task(ctrl->sched, FALSE, NULL, pending_states_webconfig_analyzer, NULL, (ctrl->poll_period * 1000), 0, FALSE);

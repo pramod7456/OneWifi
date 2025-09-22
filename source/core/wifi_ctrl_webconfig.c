@@ -2782,9 +2782,10 @@ void start_station_vaps(bool rf_status)
                 } else {
                     data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.mode = wifi_security_mode_wpa2_enterprise;
                 }
-
-            memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip));
-            memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip));
+                data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.eap_type = WIFI_EAP_TYPE_TTLS;
+	        data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.phase2 = WIFI_EAP_PHASE2_MSCHAP;
+                memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.ip));
+                memset(&data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip, 0, sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.security.u.radius.s_ip));
             } else {
                 wifi_util_error_print(WIFI_CTRL, "%s:%d rf_status=%d \n", __func__, __LINE__,rf_status);
                 snprintf(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid,sizeof(data->u.decoded.radios[radio_index].vaps.vap_map.vap_array[vap_array_index].u.sta_info.ssid),"we.connect.yellowstone");

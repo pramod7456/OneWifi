@@ -1192,7 +1192,7 @@ int vap_svc_mesh_ext_update(vap_svc_t *svc, unsigned int radio_index, wifi_vap_i
         get_wifidb_obj()->desc.update_wifi_security_config_fn(getVAPName(map->vap_array[i].vap_index),
             &map->vap_array[i].u.sta_info.security);
         
-	if (!is_sta_enabled()) {
+	if (!is_sta_enabled())
             ext_set_conn_state(ext, connection_state_disconnected_steady, __func__, __LINE__);
     } else {
         if (ctrl->rf_status_down == true) {
@@ -1749,10 +1749,12 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
             // change the state
             ext_set_conn_state(ext, connection_state_connected, __func__, __LINE__);
 	    ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
-            if (ret == RETURN_ERR) {
-	        wifi_util_dbg_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
+       
+	    if (ret == RETURN_ERR) {
+                wifi_util_info_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
+            } else {
+	        wifi_util_info_print(WIFI_CTRL,"%s:%d Connect status sent successfully to the WM\n", __func__, __LINE__);
 	    }
-        
 	    wifi_hal_add_station_bridge(sta_data->interface_name,bridge_name);
 
             snprintf(cmd, sizeof(cmd), "ip link set dev %s up", bridge_name);
@@ -1864,10 +1866,12 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
         }
 
         ret = publish_endpoint_status_to_wan(ctrl, sta_data->stats.connect_status);
-        if (ret == RETURN_ERR) {
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d Error in publishing the status\n", __func__,
-                __LINE__);
-        }
+        
+	if (ret == RETURN_ERR) {
+            wifi_util_info_print(WIFI_CTRL,"%s:%d Error in publishing the status\n", __func__, __LINE__);
+        } else {
+	    wifi_util_info_print(WIFI_CTRL,"%s:%d Connect status sent successfully to the WM\n", __func__, __LINE__);
+	}
         // ret = set_endpoint_enable(sta_data->stats.connect_status);
 
         // Workaround for sta disconnection

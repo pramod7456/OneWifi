@@ -808,7 +808,7 @@ void start_gateway_vaps()
             start_extender_vaps();
     }
     value = false;
-    if (bus_get_active_gw_parameter(RF_STATUS_CHECK, &value) == RETURN_OK) {
+    if (bus_get_active_gw_parameter(WIFI_ENDPOINT_ENABLE_CHECK, &value) == RETURN_OK) {
         ctrl->rf_status_down = value;
     }
     if (is_sta_enabled() == true) {

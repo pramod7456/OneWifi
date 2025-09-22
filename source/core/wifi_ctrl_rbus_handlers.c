@@ -107,7 +107,7 @@ static int get_subdoc_type(wifi_provider_response_t *response, webconfig_subdoc_
     return ret;
 }
 
-bus_error_t rf_get_status(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t get_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void)user_data;
     bus_error_t rc = bus_error_success;
@@ -122,7 +122,7 @@ bus_error_t rf_get_status(char *name, raw_data_t *p_data, bus_user_data_t *user_
     return rc;
 }
 
-bus_error_t rf_set_status(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void)user_data;
     bus_error_t rc = bus_error_success;
@@ -3182,8 +3182,8 @@ void register_endpoint_components(wifi_ctrl_t *ctrl)
                                     { get_endpoint_status,NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
 
-			{ RF_STATUS_CHECK, bus_element_type_method,
-                                    { rf_get_status, rf_set_status, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+			{ WIFI_ENDPOINT_ENABLE_CHECK, bus_element_type_method,
+                                    { get_endpoint_enable, set_endpoint_enable, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_boolean, true, 0, 0, 0, NULL } },
      };
      num_elements = (sizeof(data_elements) / sizeof(bus_data_element_t));

@@ -2800,11 +2800,9 @@ void create_station_with_xfinity_credentials(webconfig_subdoc_data_t *data ,int 
 {
     int vap_index, radio_index = 0, vap_array_index = 0, band = 0, status = RETURN_OK;
     char cm_mac_str[32] = { 0 };
-    wifi_ctrl_t *ctrl;
-    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     wifi_mgr_t *mgr = get_wifimgr_obj();
 
-    for (size_t i = 0; i < num_vaps; i++) {
+    for (int i = 0; i < num_vaps; i++) {
         vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop, vap_names[i]);
         if (vap_index == RETURN_ERR) {
             continue;
@@ -2899,12 +2897,12 @@ void create_station_with_xfinity_credentials(webconfig_subdoc_data_t *data ,int 
 
 static void create_station_with_private_credentials(webconfig_subdoc_data_t *data,int num_vaps,int private_num_vaps,wifi_vap_name_t *private_vap_names )
 {
-    int private_vap_index, radio_index = 0, vap_index = 0, band = 0;
+    int private_vap_index = 0, radio_index = 0, vap_index = 0;
     int status = RETURN_OK;
     int vap_array_index = 0,private_vap_array_index = 0;
     wifi_vap_name_t vap_names[MAX_NUM_RADIOS] = { 0 };
     
-    for (size_t i = 0; i < num_vaps || i < private_num_vaps; i++) {
+    for (int i = 0; i < num_vaps || i < private_num_vaps; i++) {
         vap_index = convert_vap_name_to_index(&data->u.decoded.hal_cap.wifi_prop,vap_names[i]);
         if (vap_index == RETURN_ERR) {
             continue;
@@ -2937,14 +2935,13 @@ void start_station_vaps(bool is_private,bool rf_status)
 {
     webconfig_subdoc_data_t *data = NULL;
    
-    int vap_index, radio_index = 0, vap_array_index = 0, band = 0;
+    int vap_index = 0, radio_index = 0, vap_array_index = 0, band = 0;
     char *str;
     unsigned int private_num_vaps = 0;
     char password[128] = { 0 };
     wifi_vap_name_t vap_names[MAX_NUM_RADIOS] = { 0 },private_vap_names[MAX_NUM_RADIOS] = {0};
     wifi_ctrl_t *ctrl;
     ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    wifi_mgr_t *mgr = get_wifimgr_obj();
     data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
     if (data == NULL) {
         wifi_util_error_print(WIFI_CTRL,

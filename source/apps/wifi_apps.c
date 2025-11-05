@@ -468,7 +468,7 @@ wifi_app_descriptor_t app_desc[] = {
 #ifdef ONEWIFI_MULTIAP_APP_SUPPORT 
  {
          wifi_app_inst_multiap, 0,
-         wifi_event_type_hal_ind,
+         wifi_event_type_hal_ind | wifi_event_type_exec | wifi_event_type_webconfig,
          true, true,
          "MultiAp",
          multiap_init, multiap_event, multiap_deinit,

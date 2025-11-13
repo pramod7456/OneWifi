@@ -267,6 +267,9 @@ typedef struct wifi_ctrl {
     events_bus_data_t   events_bus_data;
     hotspot_cfg_sem_param_t hotspot_sem_param;
     bool                rf_status_down;
+    bool                rf_linkstats;
+    int                rf_link_id;
+    FILE                *fp;
 } wifi_ctrl_t;
 
 
@@ -405,6 +408,7 @@ void get_subdoc_type_name_from_ap_index(uint8_t vap_index, int* subdoc);
 int dfs_nop_start_timer(void *args);
 int webconfig_send_full_associate_status(wifi_ctrl_t *ctrl);
 void start_station_vaps(bool enable);
+void start_metrics_measurement(bool enable);
 bool hotspot_cfg_sem_wait_duration(uint32_t time_in_sec);
 void hotspot_cfg_sem_signal(bool status);
 int publish_endpoint_status(wifi_ctrl_t *ctrl, int connection_status);

@@ -151,6 +151,48 @@ bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t 
     return rc;
 
 }
+bus_error_t get_endpoint_linkstats(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    bus_error_t rc = bus_error_success;
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    if (ctrl == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+    p_data->data_type = bus_data_type_boolean;
+    p_data->raw_data.b = ctrl->rf_linkstats;
+    return rc;
+}
+
+bus_error_t set_endpoint_linkstats(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
+{
+    (void)user_data;
+    bus_error_t rc = bus_error_success;
+    bool rf_linkstats = false;
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    if (ctrl == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+
+    if (p_data->data_type != bus_data_type_boolean) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid data input\n", __func__, __LINE__);
+        return bus_error_general;
+    }
+    rf_linkstats = p_data->raw_data.b;
+    if (ctrl->rf_linkstats == rf_linkstats) {
+        wifi_util_info_print(WIFI_CTRL, "%s:%d RF-linkStatus : %d and value to set are same\n", __func__, __LINE__, ctrl->rf_linkstats);
+        return rc;
+    }
+    ctrl->rf_linkstats = rf_linkstats;
+    wifi_util_info_print(WIFI_CTRL, "%s:%d RF-Status : %d\n", __func__, __LINE__, ctrl->rf_linkstats);
+    start_metrics_measurement(rf_linkstats);
+
+    return rc;
+
+}
+
 
 int stats_bus_publish(wifi_ctrl_t *ctrl, void *stats_data)
 {
@@ -3261,6 +3303,9 @@ void register_endpoint_components(wifi_ctrl_t *ctrl)
 
                          { WIFI_ENDPOINT_ENABLE_CHECK, bus_element_type_method,
                                     { get_endpoint_enable, set_endpoint_enable, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_boolean, true, 0, 0, 0, NULL } },
+                         { WIFI_ENDPOINT_LINK_STATUS, bus_element_type_method,
+                                    { get_endpoint_linkstats, set_endpoint_linkstats, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_boolean, true, 0, 0, 0, NULL } },
      };
      num_elements = (sizeof(data_elements) / sizeof(bus_data_element_t));

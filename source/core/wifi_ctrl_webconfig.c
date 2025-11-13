@@ -2797,6 +2797,63 @@ webconfig_error_t webconfig_ctrl_apply(webconfig_subdoc_t *doc, webconfig_subdoc
     return ((ret == RETURN_OK) ? webconfig_error_none:webconfig_error_apply);
 }
 
+static int start_link_metric(void *arg)
+{
+    wifi_associated_dev3_t *dev_array = NULL;
+    unsigned int i=0,num_devs=0;
+	float  per = 0;
+	int ret = -1;
+    wifi_ctrl_t *ctrl = NULL;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+	ret = wifi_getApAssociatedDeviceDiagnosticResult3(15, &dev_array, &num_devs);
+    if (ret != RETURN_OK) {
+        wifi_util_error_print(WIFI_APPS,
+            "%s : %d  Failed to get AP Associated Devices statistics for vap index 15 \r\n",
+            __func__, __LINE__);
+        if (dev_array != NULL) {
+            free(dev_array);
+            dev_array = NULL;
+        }
+        return RETURN_ERR;
+    }
+  ctrl->fp = fopen("/nvram/output.txt", "a");	
+	for (i = 0; i < num_devs; i++) {
+	   per = ((double)dev_array[i].cli_ErrorsSent/(double)dev_array[i].cli_PacketsSent) * 100;
+        wifi_util_info_print(WIFI_APPS,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  per = %.2f\n",
+	       dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,per);
+	   fprintf(ctrl->fp, "%d %f %d\n",dev_array[i].cli_SNR,per,dev_array[i].cli_LastDataDownlinkRate); 
+	}
+	if( ctrl->fp !=NULL)
+		fclose(ctrl->fp);
+     if (dev_array != NULL) {
+            free(dev_array);
+            dev_array = NULL;
+        }
+
+    return 0;
+}
+void start_metrics_measurement(bool rf_status)
+{
+    wifi_util_info_print(WIFI_CTRL,"Enter %s:%d the bool value is %d\n", __func__, __LINE__,rf_status);
+    wifi_ctrl_t *ctrl = NULL;
+    ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    if(rf_status) {
+        wifi_util_info_print(WIFI_CTRL,"station metrics started\n");
+        scheduler_add_timer_task(ctrl->sched, false,&ctrl->rf_link_id, start_link_metric,
+                NULL, 5000, 500, true);
+    } else {
+        wifi_util_info_print(WIFI_CTRL,"station metrics stoped\n");
+		if ( ctrl->rf_link_id != 0) {
+            scheduler_cancel_timer_task(ctrl->sched, ctrl->rf_link_id);
+        wifi_util_info_print(WIFI_CTRL,"cancelled the timer\n");
+            ctrl->rf_link_id = 0;
+        }
+
+        fclose(ctrl->fp);
+		ctrl->fp = NULL;
+    }
+}
+
 void start_station_vaps(bool rf_status)
 {
     webconfig_subdoc_data_t *data = NULL;

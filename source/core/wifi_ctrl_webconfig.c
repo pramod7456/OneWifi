@@ -3106,11 +3106,11 @@ void start_station_vaps(bool is_private,bool rf_status)
     unsigned int num_vaps = get_list_of_mesh_sta(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS,
         &vap_names[0]);
     if (rf_status && !is_private) {
-        wifi_util_info_print(WIFI_CTRL,"%s:%d RF is down creating station with Hotspot credentials\n");
+        wifi_util_info_print(WIFI_CTRL,"%s:%d RF is down creating station with Hotspot credentials\n",__FUNCTION__,__LINE__);
 	    create_station_with_xfinity_credentials(data,num_vaps,vap_names);
     }
     else if (rf_status) {
-        wifi_util_info_print(WIFI_CTRL,"%s:%d creating station with private credentials\n");
+        wifi_util_info_print(WIFI_CTRL,"%s:%d creating station with private credentials\n", __FUNCTION__, __LINE__);
         private_num_vaps = get_list_of_private_ssid(&data->u.decoded.hal_cap.wifi_prop, MAX_NUM_RADIOS, &private_vap_names[0]);
         create_station_with_private_credentials(data,num_vaps,private_num_vaps,private_vap_names);
     }

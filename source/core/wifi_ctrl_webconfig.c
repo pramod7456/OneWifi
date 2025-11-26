@@ -741,6 +741,134 @@ bool is_force_apply_true(rdk_wifi_vap_info_t *rdk_vap_info) {
     return false;
 }
 
+
+#ifdef CONFIG_IEEE80211BE
+wifi_vap_info_t *get_vap_info_from_webconfig(webconfig_subdoc_decoded_data_t *data, char *vap_name)
+{
+    unsigned int j, k;
+
+    for (j = 0; j < getNumberRadios(); j++) {
+        for (k = 0; k < getNumberVAPsPerRadio(j); k++) {
+            if (strcmp(data->radios[j].vaps.vap_map.vap_array[k].vap_name, vap_name) == 0) {
+                return &data->radios[j].vaps.vap_map.vap_array[k];
+            }
+        }
+    }
+    return NULL;
+}
+
+wifi_vap_info_t *get_vap_info_from_radio(char *vap_name)
+{
+    unsigned int j;
+    int tgt_radio_idx, tgt_vap_index;
+    rdk_wifi_radio_t *radio;
+    wifi_vap_info_t *mgr_vap_info = NULL;
+    wifi_vap_info_map_t *mgr_vap_map = NULL;
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+
+    if ((tgt_radio_idx = convert_vap_name_to_radio_array_index(&mgr->hal_cap.wifi_prop, vap_name)) == -1) {
+        wifi_util_error_print(WIFI_MGR, "%s:%d: Could not find radio index for vap name:%s\n",
+                    __func__, __LINE__, vap_name);
+        return NULL;
+    }
+
+    tgt_vap_index = convert_vap_name_to_index(&mgr->hal_cap.wifi_prop, vap_name);
+    if (tgt_vap_index == -1) {
+        wifi_util_error_print(WIFI_MGR, "%s:%d: Could not find vap index for vap name:%s\n",
+                    __func__, __LINE__, vap_name);
+        return NULL;
+    }
+
+    for (j = 0; j < getNumberRadios(); j++) {
+        radio = &mgr->radio_config[j];
+        if (radio->vaps.radio_index == (unsigned int)tgt_radio_idx) {
+            mgr_vap_map = &radio->vaps.vap_map;
+            break;
+        }
+    }
+
+    if (mgr_vap_map == NULL) {
+        wifi_util_error_print(WIFI_MGR,
+            "%s:%d: Could not find tgt_radio_idx:%d for vap name:%s\n", __func__, __LINE__,
+            tgt_radio_idx, vap_name);
+        return NULL;
+    }
+
+    for (j = 0; j < mgr_vap_map->num_vaps; j++) {
+        if (mgr_vap_map->vap_array[j].vap_index == (unsigned int)tgt_vap_index) {
+            mgr_vap_info = &mgr_vap_map->vap_array[j];
+            break;
+        }
+    }
+
+    return mgr_vap_info;
+}
+
+static void update_mld_mac(webconfig_subdoc_decoded_data_t *data, char **vap_names, unsigned int size)
+{
+    unsigned int i;
+    wifi_vap_info_t *mgr_vap_info, *vap_info;
+    wifi_mld_common_info_t *mld_conf;
+    mac_address_t zero_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    mac_address_t mlo_mac = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    mac_addr_str_t mac_str = { 0 };
+    unsigned char *mld_addr_map[MAX_NUM_RADIOS] = {0};
+    unsigned char mld_id = 255;
+
+    for (i = 0; i < size; i++) {
+
+        vap_info = get_vap_info_from_webconfig(data, vap_names[i]);
+        if (vap_info == NULL) {
+            wifi_util_error_print(WIFI_MGR, "%s:%d: Could not find vap_info vap name:%s\n",
+                __func__, __LINE__, vap_names[i]);
+            return;
+        }
+
+        if (isVapSTAMesh(vap_info->vap_index))
+            continue;
+
+        mgr_vap_info = get_vap_info_from_radio(vap_names[i]);
+        if (mgr_vap_info == NULL) {
+            wifi_util_error_print(WIFI_MGR, "%s:%d: Could not find mgr_vap_info vap name:%s\n",
+                __func__, __LINE__, vap_names[i]);
+            return;
+        }
+
+        mld_conf = &vap_info->u.bss_info.mld_info.common_info;
+
+        /* Initialize mld_mac with VAP's BSSID */
+        memcpy(mld_conf->mld_addr, mgr_vap_info->u.bss_info.bssid, sizeof(mac_address_t));
+
+        if (mld_conf->mld_enable && mld_conf->mld_id < MLD_UNIT_COUNT && mld_conf->mld_link_id < MAX_NUM_MLD_LINKS) {
+            if (mld_id == 255)
+                mld_id = mld_conf->mld_id;
+            if (mld_id != mld_conf->mld_id) {
+                wifi_util_error_print(WIFI_MGR, "%s:%d: vap name:%s is not part of mld unit %d. VAP's mld_id %d\n",
+                    __func__, __LINE__, vap_names[i], mld_id, mld_conf->mld_id);
+                continue;
+            }
+            mld_addr_map[i] = mld_conf->mld_addr;
+            if (mld_conf->mld_link_id == 0) {
+                memcpy(mlo_mac, mgr_vap_info->u.bss_info.bssid, sizeof(mac_address_t));
+            }
+        }
+    }
+
+    if (memcmp(mlo_mac, zero_mac, sizeof(mac_address_t)) == 0) {
+        return; /* VAPs group does not contain MLO enabled VAPs */
+    }
+
+    to_mac_str(mlo_mac, mac_str);
+    for (i = 0; i < size; i++) {
+        if (mld_addr_map[i] != NULL) {
+            memcpy(mld_addr_map[i], mlo_mac, sizeof(mac_address_t));
+            wifi_util_info_print(WIFI_MGR, "%s:%d: Updating mld_addr %s for vap name:%s\n",
+                __func__, __LINE__, mac_str, vap_names[i]);
+        }
+    }
+}
+#endif // CONFIG_IEEE80211BE
+
 int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_data_t *data, char **vap_names, unsigned int size)
 {
     unsigned int i, j, k;
@@ -757,6 +885,9 @@ int webconfig_hal_vap_apply_by_name(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
     rdk_wifi_vap_info_t tgt_rdk_vap_info;
     int ret = 0;
 
+#ifdef CONFIG_IEEE80211BE
+    update_mld_mac(data, vap_names, size);
+#endif
     for (i = 0; i < size; i++) {
 
         if ((svc = get_svc_by_name(ctrl, vap_names[i])) == NULL) {
@@ -996,6 +1127,11 @@ int webconfig_stats_config_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
 
     wifi_util_dbg_print(WIFI_CTRL,"%s %d \n", __func__, __LINE__);
 
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_CTRL,"%s:%d data is NULL\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
     mgr_cfg_map = mgr->stats_config_map;
     dec_cfg_map = data->stats_config_map;
 
@@ -1056,7 +1192,7 @@ int webconfig_stats_config_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_dat
     }
 
   free_data:
-    if ((data != NULL) && (dec_cfg_map != NULL)) {
+    if (dec_cfg_map != NULL) {
         wifi_util_dbg_print(WIFI_CTRL,"%s %d Freeing Decoded Data \n", __func__, __LINE__);
         dec_stats_config = hash_map_get_first(dec_cfg_map);
         while (dec_stats_config != NULL) {
@@ -1085,6 +1221,11 @@ int webconfig_steering_clients_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded
     char key[64] = {0};
 
     wifi_util_dbg_print(WIFI_MGR,"%s %d \n", __func__, __LINE__);
+
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_MGR, "%s:%d data is NULL\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
 
     mgr_cfg_map = mgr->steering_client_map;
     dec_cfg_map = data->steering_client_map;
@@ -1144,7 +1285,7 @@ int webconfig_steering_clients_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded
     }
 
   free_data:
-    if ((data != NULL) && (dec_cfg_map != NULL)) {
+    if (dec_cfg_map != NULL) {
         wifi_util_dbg_print(WIFI_MGR,"%s %d Freeing Decoded Data \n", __func__, __LINE__);
         dec_steering_client = hash_map_get_first(dec_cfg_map);
         while (dec_steering_client != NULL) {
@@ -1174,6 +1315,11 @@ int webconfig_steering_config_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
     char key[64] = {0};
 
     wifi_util_dbg_print(WIFI_MGR,"%s %d \n", __func__, __LINE__);
+
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_MGR,"%s:%d: data is NULL\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
 
     mgr_cfg_map = mgr->steering_config_map;
     dec_cfg_map = data->steering_config_map;
@@ -1232,7 +1378,7 @@ int webconfig_steering_config_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_
         }
     }
   free_data:
-    if ((data != NULL) && (dec_cfg_map != NULL)) {
+    if (dec_cfg_map != NULL) {
         wifi_util_dbg_print(WIFI_MGR,"%s %d Freeing Decoded Data \n", __func__, __LINE__);
         dec_steer_config = hash_map_get_first(dec_cfg_map);
         while (dec_steer_config != NULL) {
@@ -1261,6 +1407,11 @@ int webconfig_vif_neighbors_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_da
     char key[64] = {0};
 
     wifi_util_dbg_print(WIFI_MGR,"%s %d \n", __func__, __LINE__);
+
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_MGR, "%s:%d data is NULL\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
 
     mgr_cfg_map = mgr->vif_neighbors_map;
     dec_cfg_map = data->vif_neighbors_map;
@@ -1319,7 +1470,7 @@ int webconfig_vif_neighbors_apply(wifi_ctrl_t *ctrl, webconfig_subdoc_decoded_da
         }
     }
   free_data:
-    if ((data != NULL) && (dec_cfg_map != NULL)) {
+    if (dec_cfg_map != NULL) {
         wifi_util_dbg_print(WIFI_MGR,"%s %d Freeing Decoded Data \n", __func__, __LINE__);
         dec_vif_neighbors = hash_map_get_first(dec_cfg_map);
         while (dec_vif_neighbors != NULL) {

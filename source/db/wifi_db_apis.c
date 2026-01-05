@@ -5986,6 +5986,7 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
             wifi_util_dbg_print(WIFI_DB,"%s:%d: nothing to update table_Wifi_Rfc_Config table\n", __func__, __LINE__);
         } else {
             wifidb_print("%s:%d Updated WIFI DB. Wifi Rfc Config table updated successful. \n",__func__, __LINE__);
+            wifi_util_dbg_print(WIFI_DB,"%s:%d: _Wifi_Rfc_Config table\n", __func__, __LINE__);
         }
     } else {
         strcpy(cfg.rfc_id,index);

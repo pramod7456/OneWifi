@@ -142,15 +142,6 @@ void qmgr_t::update_json(const char *str, vector_t v, cJSON *out_obj, bool &alar
     return;
 }
 
-char* qmgr_t::update_graph()
-{
-    pthread_mutex_lock(&m_json_lock);
-    char *json = cJSON_PrintUnformatted(out_obj);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d ijson=%s\n",__func__,__LINE__,json); 
-
-    pthread_mutex_unlock(&m_json_lock);
-    return json;
-}
 
 int qmgr_t::push_reporting_subdoc()
 {
@@ -208,6 +199,20 @@ int qmgr_t::push_reporting_subdoc()
     free(report);
     return 0;
 }
+void qmgr_t::update_graph( cJSON *out_obj)
+{
+    pthread_mutex_lock(&m_json_lock);
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
+    char *json = cJSON_PrintUnformatted(out_obj);
+    FILE *fp = fopen(m_args.output_file, "w");
+    if (fp) {
+        fputs(json, fp);
+        fclose(fp);
+    }
+    free(json);
+    pthread_mutex_unlock(&m_json_lock);
+    return ;
+}
 int qmgr_t::run()
 {
     int rc,count = 0;
@@ -260,9 +265,13 @@ int qmgr_t::run()
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             count = hash_map_count(m_link_map);
+            if (count == 0 ) {
+                remove(m_args.output_file);
+            }
             if (update_alarm) {
                 start_time = tm;
                 update_alarm = false;
+                update_graph(out_obj);
                 if (qmgr_is_batch_registered()) {
                     push_reporting_subdoc();   // batch mode
                 }
@@ -306,7 +315,6 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
         params++;
     }
     
-    
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(lq_obj, tmp, cJSON_CreateArray());
     
@@ -320,6 +328,7 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     cJSON_AddItemToObject(ca_obj, "Score", score_arr);
     cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
 
+    
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
     
@@ -462,6 +471,7 @@ int qmgr_t::init(stats_arg_t *stats, bool create_flag)
 }
 int qmgr_t::rapid_disconnect(stats_arg_t *stats)
 {
+    wifi_util_info_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
     if (!stats || stats->mac_str[0] == '\0') {
         wifi_util_error_print(WIFI_APPS, "%s:%d invalid stats or empty MAC\n", __func__, __LINE__);
         return -1;

@@ -43,7 +43,7 @@ public:
     matrix_t operator *(matrix_t m);
     
     void sqroot(number_t n[]);
-    number_t sqrt_val(void);
+	number_t sqrt_val(void);
     double mod_z();
     number_t absolute();
 	double abs_val() const;

@@ -66,20 +66,38 @@ quality_flags_t linkq_t::m_quality_flag = { true, true, true, false, false, fals
 static inline double apply_recovery(double norm,int remaining,
                                     int total)
 {
-    double factor = 1.0;
+     double factor = 1.0;
     if (total <= 0 || remaining <= 0)
         return norm;
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d,remaining=%d total=%d\n",__func__,__LINE__,remaining,total);
+   wifi_util_info_print(WIFI_APPS,"%s:%d,remaining=%d total=%d\n",__func__,__LINE__,remaining,total);
 
     double progress = (double)(total - remaining) / (double)total;
 
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
+    int elapsed = (total * 5) - (remaining * 5);
+    if (elapsed <= 0)
+        return 0.0;
     
-    factor = 1.0 - exp(-4.0 * progress);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
-    return norm * factor;
+    if (access("/tmp/log_file", F_OK) == 0) {
+        factor = 1.0 - exp(-log(100.0) * progress);
+        wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
+    }
 
+    /* ---------- EULER MODE ---------- */
+    else if (access("/tmp/Euler_file", F_OK) == 0) {
+
+        // pure Euler: time-based
+        factor = 1.0 - exp(-(double)elapsed);
+         wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
+    }
+
+    /* ---------- DEFAULT MODE ---------- */
+    else {
+        factor = 1.0 - exp(-4.0 * progress);
+        wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
+    }
+    return norm * factor;
 }
 
 vector_t linkq_t::run_algorithm(linkq_data_t data,
@@ -108,6 +126,7 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         m_quality_flag.downlink_snr,m_quality_flag.downlink_per,m_quality_flag.downlink_phy,m_quality_flag.uplink_snr,
         m_quality_flag.uplink_per,m_quality_flag.uplink_phy,m_quality_flag.aggregate);
     
+
     v.m_num = 12;
     for (int i = 0; i < v.m_num; i++)
         v.m_val[i].m_re = 0.0;
@@ -153,9 +172,7 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
                 norm[i] = sum / m_uplink_phy_history.size();
         }
 
-        if (m_quality_flag.int_reconn && m_recovery_remaining > 0) {
             norm[i] = apply_recovery(norm[i],m_recovery_remaining,m_recovery_total);
-        }
     }
 
     // -------------------------------------------------
@@ -392,6 +409,7 @@ vector_t linkq_t::run_test(bool &alarm, bool update_alarm, bool &rapid_disconnec
             data[i] = stat.dev.cli_LastDataUplinkRate;
         }
     }
+
     v = run_algorithm(data, alarm, update_alarm);
 
     // One recovery step per successful sample
@@ -456,7 +474,6 @@ void linkq_t::update_window_per()
 
 size_t linkq_t::get_window_samples(sample_t **out_samples)
 {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__);
     if (!out_samples || m_window_samples.empty())
         return 0;
     if (m_window_samples.empty())
@@ -492,7 +509,6 @@ void linkq_t::clear_window_samples()
 {
     m_window_samples.clear();
 }
-
 char *linkq_t::get_local_time(char *str, unsigned int len, bool hourformat)
 {
     struct timeval tv;
@@ -629,7 +645,6 @@ void linkq_t::unregister_station_mac(const char* str)
     }
     return;
 }
-
 
 linkq_t::linkq_t(mac_addr_str_t mac,unsigned int vap_index)
 {

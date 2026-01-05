@@ -63,12 +63,12 @@ public:
     char *get_local_time(char *buff, unsigned int len,bool flag);
     cJSON *create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index);
     void update_json(const char *str, vector_t v, cJSON *out_obj, bool &alarm);
-    char* update_graph();
     void register_station_mac(const char* str);
     void unregister_station_mac(const char* str);
     static void destroy_instance();
     static int set_quality_flags(quality_flags_t *flag);
     static int get_quality_flags(quality_flags_t *flag);
+    void update_graph( cJSON *out_obj);
     ~qmgr_t();
 };
 

@@ -195,7 +195,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
     if (mon_data->radio_presence[radio] == false) {
         wifi_util_info_print(WIFI_MON, "%s:%d radio_presence is false for radio : %d\n", __func__,
             __LINE__, radio);
-        return RETURN_OK;
+        //return RETURN_OK;
     }
 
     bss_param = Get_wifi_object_bss_parameter(args->vap_index);
@@ -351,6 +351,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                     memcpy(hal_sta->cli_MACAddress, hal_sta->cli_MLDAddr, sizeof(mac_address_t));
                     sta->primary_link = 0;
                 }
+		   wifi_util_info_print(WIFI_MON,"%s:%d Pramod rapid_disconnect_flag =%d\n",__func__,__LINE__,sta->rapid_disconnect_flag);
                 hash_map_put(sta_map, strdup(sta_key), sta);
                 sta->last_connected_time.tv_sec = tv_now.tv_sec;
                 sta->last_connected_time.tv_nsec = tv_now.tv_nsec;
@@ -470,7 +471,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                 wifi_util_dbg_print(WIFI_MON, "%s:%d total_disconnected_time %lu ms\n", __func__,
                     __LINE__,
                     (sta->total_disconnected_time.tv_sec * 1000) +
-                        (sta->total_disconnected_time.tv_nsec / 1000000));
+                       (sta->total_disconnected_time.tv_nsec / 1000000));
 
                 disconnected_time = (tv_now.tv_sec - sta->last_disconnected_time.tv_sec);
                 sta->dev_stats.cli_Active = false;
@@ -514,7 +515,6 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             wifi_util_info_print(WIFI_MON, "[%s:%d] Station info for, vap:%d ClientMac:%s\n",
                 __func__, __LINE__, (args->vap_index + 1),
             to_sta_key(tmp_sta->dev_stats.cli_MACAddress, sta_key));
-            wifi_util_dbg_print(WIFI_APPS, "%s:%d::\n", __func__, __LINE__);
             if(!is_zero_mac(tmp_sta->dev_stats.cli_MACAddress) && link_quality_measurement) {
                 link_data =(linkquality_data_t *) malloc (sizeof(linkquality_data_t));
                 if (link_data != NULL) {

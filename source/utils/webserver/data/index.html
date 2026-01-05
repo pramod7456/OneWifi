@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  .custom-dropdown .dropdown-selected {
+    max-width: 140px;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    padding-right: 16px;
+  }
+  body { font-family: Arial, sans-serif; margin:0; padding:0; }
+  h1,h2,p { text-align: center; }
+
+  .charts-container { padding: 10px; margin-bottom: 30px; }
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    width: 100%;
+  }
+
+.alarms-container h2 {
+    position: relative; /* Needed for absolute positioning of the dot */
+    padding-right: 20px; /* Ensure space for the badge */
+    display: inline-block; /* Keeps width tight around text */
+}
+
+#alarmDot {
+    display: none;               /* Hidden by default */
+    position: absolute;          /* Positioned relative to <h2> */
+    top: -5px;                   /* Slightly above the text */
+    right: -5px;                 /* Slightly outside the right edge */
+    height: 12px;                /* Size of the badge */
+    width: 12px;
+    background-color: red;       /* Red dot */
+    border-radius: 50%;          /* Circle */
+    border: 2px solid white;     /* Optional: white border for contrast */
+    box-shadow: 0 0 2px rgba(0,0,0,0.3); /* Optional: subtle shadow */
+}
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 30px;
+  }
+  td, th { border: 1px solid #ddd; padding: 8px; }
+  tr:nth-child(even) { background-color: #f2f2f2; }
+  tr:hover { background-color: #ddd; }
+  th {
+    background-color: #F0F8F5;
+    color: black;
+  }
+</style>
+
+<script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+</head>
+
+<body>
+<div style="position: relative;">
+<h1>Wi-Fi Telemetry — Link Quality, Connection Affinity & Alarms</h1>
+
+<div style="position:absolute;top:60px;right:40px;display:flex;gap:32px;z-index:10;background:#fff;padding:8px 16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+<div style="min-width:540px;">
+<div style="display:flex;align-items:center;margin-bottom:8px;">
+<b style="font-size:16px;margin-right:16px;">Link Parameters:</b>
+</div>
+
+<div style="display:flex;gap:24px;">
+<div>
+<b>Downlink</b>
+<div class="custom-dropdown" id="downlinkDropdown">
+<div class="dropdown-selected" onclick="toggleDropdown('downlinkDropdown')"></div>
+<div class="dropdown-options">
+<label><input type="checkbox" value="DOWNLINK_PER"> PER</label><br>
+<label><input type="checkbox" value="DOWNLINK_SNR"> SNR</label><br>
+<label><input type="checkbox" value="DOWNLINK_PHY"> PHY Rate</label><br>
+</div>
+</div>
+</div>
+
+<div>
+<b>Uplink</b>
+<div class="custom-dropdown" id="uplinkDropdown">
+<div class="dropdown-selected" onclick="toggleDropdown('uplinkDropdown')"></div>
+<div class="dropdown-options">
+<label><input type="checkbox" value="UPLINK_PER"> PER</label><br>
+<label><input type="checkbox" value="UPLINK_SNR"> SNR</label><br>
+<label><input type="checkbox" value="UPLINK_PHY"> PHY Rate</label><br>
+</div>
+</div>
+</div>
+<div style="display:flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+  <label>
+    <input type="checkbox" id="aggregateCheckbox">
+    <b>Aggregate</b>
+  </label>
+  <label>
+    <input type="checkbox" id="intreconnectCheckbox">
+    <b>Intermittent Reconnect</b>
+  </label>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="charts-container" style="margin-top:200px;"> <!-- increase top margin -->
+  <h2>Link Quality</h2>
+  <div id="LeftGridContainer" class="charts-grid"></div>
+</div>
+
+<div class="alarms-container">
+<h2>Alarms <span id="alarmDot"></span></h2>
+<table id="Alarms">
+<tr><th>Device</th><th>Description</th><th>Time</th></tr>
+</table>
+</div>
+
+<script type="module">
+import { fetchLinkParams as fetchLP, renderLinkQualityChart, renderAlarms } from './lq.js';
+
+let userEditing = false;
+let lastLocalChange = 0;
+
+// Toggle dropdown open/close
+window.toggleDropdown = id => document.getElementById(id).classList.toggle('open');
+function updateDropdownLabel(id) {
+  const d = document.getElementById(id);
+  if (!d) return;   // <-- skip if element not foundi
+    // Get all checked inputs inside this dropdown
+  const values = [...d.querySelectorAll('input:checked')].map(c => c.value);
+  const sel = d.querySelector('.dropdown-selected');
+  if (sel) sel.textContent = values.join(', ');
+
+//  const values = [...d.querySelectorAll('input:checked')].map(c => c.value);
+  //d.querySelector('.dropdown-selected').textContent = values.join(', ');
+   return values;
+}
+
+async function postLinkParam(key, value) {
+  try {
+    await fetch('/', {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: `${key}=${encodeURIComponent(value)}`
+    });
+  } catch (e) {
+    console.error('POST failed', e);
+  }
+}
+
+// Setup event listeners for dropdowns
+function setupDropdown(id, paramName, isAggregate = false) {
+  const d = document.getElementById(id);
+
+  d.querySelectorAll('input').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      userEditing = true;
+      lastLocalChange = Date.now();
+
+      updateDropdownLabel(id);
+
+      let value;
+      if (isAggregate) {
+        // Send Yes/No for Aggregate
+        value = e.target.checked ? 'Yes' : 'No';
+      } else {
+        // Send comma-separated checked values for Downlink/Uplink
+      const checked = [...d.querySelectorAll('input:checked')]
+                          .map(c => c.value);
+
+        //IMPORTANT FIX
+        value = checked.length > 0 ? checked.join(',') : 'NONE';
+      }
+
+      postLinkParam(paramName, value);
+    });
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    if (!d.contains(e.target)) d.classList.remove('open');
+  });
+}
+
+// Setup all three dropdowns
+setupDropdown('downlinkDropdown', 'downlink');
+setupDropdown('uplinkDropdown', 'uplink');
+
+const aggregateCheckbox = document.getElementById('aggregateCheckbox');
+aggregateCheckbox.addEventListener('change', (e) => {
+  const value = e.target.checked ? 'Yes' : 'No';
+  postLinkParam('aggregate', value);
+});
+const intreconnectCheckbox = document.getElementById('intreconnectCheckbox');
+
+intreconnectCheckbox.addEventListener('change', (e) => {
+  const value = e.target.checked ? 'Yes' : 'No';
+  postLinkParam('intreconnect', value);
+  lastLocalChange = Date.now();
+});
+
+// Apply selections to checkboxes and update label
+function applySelections(id, values, isAggregate = false) {
+  if (!values) values = '';
+
+  // URL-decode
+  const decoded = decodeURIComponent(values);
+
+  if (isAggregate) {
+    const checked = decoded === 'Yes';
+    const cb = document.querySelector(`#${id} input`);
+    if (cb) cb.checked = checked;
+  } else {
+    const list = decoded.split(',');
+    document.querySelectorAll(`#${id} input`).forEach(cb => {
+      cb.checked = list.includes(cb.value);
+    });
+  }
+
+  updateDropdownLabel(id);
+}
+function applyCheckbox(id, value) {
+  const cb = document.getElementById(id);
+  if (!cb) return;
+  cb.checked = decodeURIComponent(value) === 'Yes';
+}
+
+let lastAggregateChange = 0;
+// Fetch link params from server and apply to UI
+async function updateLinkParams() {
+  const data = await fetchLP();
+  if (!data) return;
+
+  // Prevent overwriting user edits for 1s
+  if (Date.now() - lastLocalChange < 1000) return;
+
+  applySelections('downlinkDropdown', data.downlink);
+  applySelections('uplinkDropdown', data.uplink);
+
+  applyCheckbox('aggregateCheckbox', data.aggregate);
+  applyCheckbox('intreconnectCheckbox', data.intreconnect);
+}
+
+// Initial fetch & periodic sync
+updateLinkParams();
+setInterval(updateLinkParams, 5000);
+
+// Telemetry
+async function fetchTelemetry() {
+  const scrollY = window.scrollY;
+  try {
+    const r = await fetch('/telemetry.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const d = await r.json();
+    renderLinkQualityChart(d);
+    renderAlarms(d);
+  } catch(e) { console.error(e); }
+  window.scrollTo(0, scrollY);
+}
+fetchTelemetry();
+setInterval(fetchTelemetry, 2000);
+</script>
+</body>
+</html>
+

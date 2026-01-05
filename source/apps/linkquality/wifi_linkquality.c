@@ -387,6 +387,29 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg, int len)
     return RETURN_OK;
              
  } 
+
+int link_quality_param_reinit(wifi_app_t *apps, void *arg, int len)
+{
+    if (!arg) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    linkquality_data_t *data = (linkquality_data_t *)arg;
+
+     server_arg_t *server_arg = &data->server_arg;
+        wifi_util_dbg_print(
+            WIFI_APPS,
+            "%s:%d  threshold=%f reporting=%d\n",
+            __func__, __LINE__,
+            server_arg->threshold,
+            server_arg->reporting
+        );
+        reinit_link_metrics(server_arg);
+
+    return RETURN_OK;
+}
+
 int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
 {
     if (!arg) {
@@ -409,7 +432,8 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
             i,
             stats->mac_str,
             stats->dev.cli_SNR,
-            stats->dev.cli_LastDataDownlinkRate
+            stats->dev.cli_LastDataDownlinkRate,
+            stats->vap_index
         );
 
         add_stats_metrics(stats);
@@ -457,6 +481,7 @@ int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, voi
 int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
 {
     switch (event->sub_type) {
+    switch (sub_type) {
         case wifi_event_exec_start:
             break;
 
@@ -469,6 +494,12 @@ int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
         default:
             wifi_util_dbg_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
             wifi_event_subtype_to_string(event->sub_type));
+        case wifi_event_exec_timeout:
+            link_quality_param_reinit(apps, arg,len);
+            break;
+        default:
+            wifi_util_error_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
+            wifi_event_subtype_to_string(sub_type));
             break;
     }
     return RETURN_OK;
@@ -487,7 +518,7 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             link_quality_hal_rapid_connect(apps, arg,len);
             break;
         default:
-            wifi_util_dbg_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
+            wifi_util_error_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
             wifi_event_subtype_to_string(sub_type));
             break;
     }
@@ -498,7 +529,7 @@ int link_quality_event(wifi_app_t *app, wifi_event_t *event)
 {
     switch (event->event_type) {
         case wifi_event_type_webconfig:
-            exec_event_webconfig_event(app, event);
+            exec_event_webconfig_event(app, event->sub_type, event->u.core_data.msg, event->u.core_data.len);
             break;
 
         case wifi_event_type_exec:

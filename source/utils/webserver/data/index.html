@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  /* Prevent dropdown label from shifting layout */
+  .custom-dropdown .dropdown-selected {
+    max-width: 140px;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    padding-right: 16px;
+  }
+  body { font-family: Arial, sans-serif; margin:0; padding:0; }
+  h1 { text-align: center; }
+  h2 { text-align: center; }
+  p { text-align: center; }
+
+  /* Charts Container */
+  .charts-container {
+    padding: 10px;
+    margin-bottom: 30px;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    width: 100%;
+  }
+
+  /* Alarms Container */
+  .alarms-container {
+    border: 2px solid #333;
+    padding: 10px;
+    position: relative;
+  }
+
+  #alarmDot {
+    display: none;
+    height: 10px;
+    width: 10px;
+    background-color: red;
+    border-radius: 50%;
+    position: absolute;
+    top: 15px;
+    right: 15px;
+  }
+
+  table {
+    font-family: Arial, Helvetica, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 30px;
+  }
+
+  td, th {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+
+  tr:nth-child(even) { background-color: #f2f2f2; }
+  tr:hover { background-color: #ddd; }
+
+  th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    background-color: #F0F8F5;
+    color: black;
+  }
+
+</style>
+<script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+</head>
+
+<body>
+
+  <div style="position: relative;">
+    <h1>Wi-Fi Telemetry — Link Quality, Connection Affinity & Alarms</h1>
+    <div style="position: absolute; top: 60px; right: 40px; display: flex; gap: 32px; z-index: 10; background: #fff; padding: 8px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); align-items: center;">
+  <div style="display: flex; gap: 32px; align-items: flex-start;">
+        <div style="min-width: 540px;">
+          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <div style="font-weight:bold; font-size: 16px; margin-right: 16px;">Link Parameters:</div>
+        <button id="submitLinkParams" style="padding: 6px 18px; font-size: 15px; border-radius: 6px; border: 1px solid #007bff; background: #007bff; color: #fff; cursor: pointer; vertical-align: top;">Submit</button>
+          </div>
+          <div style="display: flex; gap: 24px; align-items: flex-start;">
+            <div style="position: relative; min-width: 160px;">
+              <div style="font-weight:bold; margin-bottom: 4px;">Downlink</div>
+              <div class="custom-dropdown" id="downlinkDropdown">
+                <div class="dropdown-selected" onclick="toggleDropdown('downlinkDropdown')"></div>
+                <div class="dropdown-options">
+                  <label><input type="checkbox" value="Downlink_PER"> PER</label><br>
+                  <label><input type="checkbox" value="Downlink_SNR"> SNR</label><br>
+                  <label><input type="checkbox" value="Downlink_PHY Rate"> PHY Rate</label>
+                  <br><label><input type="checkbox" value="Downlink_Intermittent reconnect"> Intermittent reconnect</label>
+                </div>
+              </div>
+            </div>
+            <div style="position: relative; min-width: 160px;">
+              <div style="font-weight:bold; margin-bottom: 4px;">Uplink</div>
+              <div class="custom-dropdown" id="uplinkDropdown">
+                <div class="dropdown-selected" onclick="toggleDropdown('uplinkDropdown')"></div>
+                <div class="dropdown-options">
+                  <label><input type="checkbox" value="Uplink_PER"> PER</label><br>
+                  <label><input type="checkbox" value="Uplink_SNR"> SNR</label><br>
+                  <label><input type="checkbox" value="Uplink_PHY Rate"> PHY Rate</label>
+                  <br><label><input type="checkbox" value="Uplink_Intermittent reconnect"> Intermittent reconnect</label>
+                </div>
+              </div>
+            </div>
+            <div style="position: relative; min-width: 120px;">
+              <div style="font-weight:bold; margin-bottom: 4px;">Aggregate</div>
+              <div class="custom-dropdown" id="aggregateDropdown">
+                <div class="dropdown-selected" onclick="toggleDropdown('aggregateDropdown')"></div>
+                <div class="dropdown-options">
+                  <label><input type="checkbox" value="Aggregate_Yes"> Yes</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-container" style="margin-top: 60px;">
+  <div style="height: 120px;"></div>
+  <h2>Link Quality</h2>
+  <div id="LeftGridContainer" class="charts-grid"></div>
+  </div>
+
+  <!-- Alarms -->
+  <div class="alarms-container">
+    <h2>
+      Alarms
+      <span id="alarmDot"></span>
+    </h2>
+    <table id="Alarms">
+      <tr>
+        <th>Device</th>
+        <th>Description</th>
+        <th>Time</th>
+      </tr>
+    </table>
+  </div>
+
+  <script type="module">
+  // Helper to get selected values from a dropdown
+  function getSelectedValues(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return [];
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+    return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+  }
+
+  // Submit Link Parameters
+  document.getElementById('submitLinkParams').onclick = function() {
+    const downlink = getSelectedValues('downlinkDropdown');
+    const uplink = getSelectedValues('uplinkDropdown');
+    const aggregate = getSelectedValues('aggregateDropdown');
+    const body =
+      'downlink=' + encodeURIComponent(downlink.join(',')) +
+      '&uplink=' + encodeURIComponent(uplink.join(',')) +
+      '&aggregate=' + encodeURIComponent(aggregate.join(','));
+    fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+  };
+  // Custom dropdown with checkboxes logic
+  window.toggleDropdown = function(id) {
+    const dropdown = document.getElementById(id);
+    dropdown.classList.toggle('open');
+  };
+
+  function updateDropdownLabel(id) {
+  const dropdown = document.getElementById(id);
+  const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+  const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+  const label = dropdown.querySelector('.dropdown-selected');
+  label.textContent = selected.length ? selected.join(', ') : '';
+  }
+
+  function setupDropdown(id) {
+    const dropdown = document.getElementById(id);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', () => updateDropdownLabel(id));
+    });
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      if (!dropdown.contains(event.target)) {
+        dropdown.classList.remove('open');
+      }
+    });
+  }
+
+  setupDropdown('downlinkDropdown');
+  setupDropdown('uplinkDropdown');
+  setupDropdown('aggregateDropdown');
+
+  // Aggregate logic: checked only if at least one Downlink and one Uplink parameter are selected
+  const aggregateYes = document.querySelector('#aggregateDropdown input[value="Aggregate_Yes"]');
+  function updateAggregateCheckbox() {
+    const downlinkChecked = Array.from(document.querySelectorAll('#downlinkDropdown input[type="checkbox"]')).some(cb => cb.checked);
+    const uplinkChecked = Array.from(document.querySelectorAll('#uplinkDropdown input[type="checkbox"]')).some(cb => cb.checked);
+    aggregateYes.checked = downlinkChecked && uplinkChecked;
+    updateDropdownLabel('aggregateDropdown');
+  }
+
+  // Listen for changes on Downlink and Uplink checkboxes
+  document.querySelectorAll('#downlinkDropdown input[type="checkbox"], #uplinkDropdown input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', updateAggregateCheckbox);
+  });
+
+  // Enhanced Aggregate logic
+  aggregateYes.addEventListener('change', function() {
+    const downlinkChecked = Array.from(document.querySelectorAll('#downlinkDropdown input[type="checkbox"]')).some(cb => cb.checked);
+    const uplinkChecked = Array.from(document.querySelectorAll('#uplinkDropdown input[type="checkbox"]')).some(cb => cb.checked);
+    if (!downlinkChecked && !uplinkChecked && this.checked) {
+      // Select all Downlink and Uplink checkboxes
+      document.querySelectorAll('#downlinkDropdown input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+      updateDropdownLabel('downlinkDropdown');
+      document.querySelectorAll('#uplinkDropdown input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+      updateDropdownLabel('uplinkDropdown');
+    }
+    updateAggregateCheckbox();
+  });
+    import { renderLinkQualityChart, renderAlarms } from './lq.js';
+
+    function clearUI() {
+      const leftGridContainer = document.getElementById('LeftGridContainer');
+      leftGridContainer.innerHTML = '';
+      document.getElementById("Alarms").innerHTML = `
+        <tr>
+          <th>Device</th>
+          <th>Description</th>
+          <th>Time</th>
+        </tr>`;
+      document.getElementById("alarmDot").style.display = 'none';
+    }
+
+    async function fetchDataToRender() {
+      try {
+        const url = `${window.location.origin}/telemetry.json`;
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) { clearUI(); return; }
+
+        const text = await response.text();
+        if (!text.trim()) { clearUI(); return; }
+
+        const data = JSON.parse(text);
+        if (!data.Devices || data.Devices.length === 0) { clearUI(); return; }
+
+        renderLinkQualityChart(data);
+        renderAlarms(data);
+
+      } catch (e) {
+        console.error(e);
+        clearUI();
+      }
+    }
+
+    fetchDataToRender();
+    setInterval(fetchDataToRender, 2000);
+  </script>
+</body>
+</html>
+

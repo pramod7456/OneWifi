@@ -1861,8 +1861,8 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
     if (rfc_param->link_quality_rfc) {
         wifi_util_error_print(WIFI_CTRL,"%s:%d starting  Wifiwebserver \n", __func__, __LINE__);
-        run_web_server();
     }
+     run_web_server();
     wifi_util_error_print(WIFI_CTRL,"%s:%d started  Wifiwebserver \n", __func__, __LINE__);
     apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
     wifi_util_error_print(WIFI_CTRL,"%s:%d started  Wifi qualitymanager \n", __func__, __LINE__);

@@ -34,29 +34,29 @@ export async function fetchLinkParams(userEditing = false, lastLocalChange = 0) 
 // --------------------
 function getVapName(vapIndex) {
   const map = {
-    0: 'private_ssid_2g',
-    1: 'private_ssid_5g',
-    2: 'iot_ssid_2g',
-    3: 'iot_ssid_5g',
-    4: 'hotspot_open_2g',
-    5: 'hotspot_open_5g',
-    6: 'lnf_psk_2g',
-    7: 'lnf_psk_5g',
-    8: 'hotspot_secure_2g',
-    9: 'hotspot_secure_5g',
-    10: 'lnf_radius_2g',
-    11: 'lnf_radius_5g',
-    12: 'mesh_backhaul_2g',
-    13: 'mesh_backhaul_5g',
-    14: 'mesh_sta_2g',
-    15: 'mesh_sta_5g',
-    16: 'private_ssid_6g',
-    17: 'iot_ssid_6g',
-    18: 'hotspot_open_6g',
-    19: 'lnf_psk_6g',
-    20: 'hotspot_secure_6g',
-    22: 'mesh_backhaul_6g',
-    23: 'mesh_sta_6g'
+    0: 'private(2g)',
+    1: 'private(5g)',
+    2: 'iot(2g)',
+    3: 'iot(5g)',
+    4: 'hotspot_open(2g)',
+    5: 'hotspot_open(5g)',
+    6: 'lnf_psk(2g)',
+    7: 'lnf_psk(5g)',
+    8: 'hotspot_secure(2g)',
+    9: 'hotspot_secure(5g)',
+    10: 'lnf_radius(2g)',
+    11: 'lnf_radius(5g)',
+    12: 'mesh_backhaul(2g)',
+    13: 'mesh_backhaul(5g)',
+    14: 'mesh_sta(2g)',
+    15: 'mesh_sta(5g)',
+    16: 'private(6g)',
+    17: 'iot(6g)',
+    18: 'hotspot_open(6g)',
+    19: 'lnf_psk(6g)',
+    20: 'hotspot_secure(6g)',
+    22: 'mesh_backhaul(6g)',
+    23: 'mesh_sta(6g)'
   };
   return map[vapIndex] || `vap_${vapIndex}`;
 }
@@ -107,239 +107,179 @@ function getSelectedMetrics() {
     aggregate: document.querySelector('#aggregateCheckbox')?.checked === true
   };
 }
-
 // --------------------
-// Render charts
+// Render Link Quality Charts (scroll-safe)
 // --------------------
 export function renderLinkQualityChart(data) {
   const container = document.getElementById('LeftGridContainer');
-  container.innerHTML = '';
+  if (!container) return;
+
+  // Preserve scroll
+  const scrollTop = container.scrollTop;
 
   if (!data || !data.Devices) return;
 
-  // --------------------
-  // Read UI selections
-  // --------------------
+  // Read user selections
   const selected = {
     downlink: [...document.querySelectorAll('#downlinkDropdown input:checked')].map(cb => cb.value),
-    uplink:   [...document.querySelectorAll('#uplinkDropdown input:checked')].map(cb => cb.value),
+    uplink: [...document.querySelectorAll('#uplinkDropdown input:checked')].map(cb => cb.value),
     aggregate: document.querySelector('#aggregateCheckbox')?.checked === true
   };
 
-  // --------------------
-  // Helper: metric families (PER / PHY / SNR)
-  // --------------------
-  function getMetricFamilies() {
-    const families = new Set();
-    [...selected.downlink, ...selected.uplink].forEach(k => {
-      if (k.includes('_PER')) families.add('PER');
-      if (k.includes('_PHY')) families.add('PHY');
-      if (k.includes('_SNR')) families.add('SNR');
-    });
-    return [...families];
-  }
+  // Metric families helper
+  const metricFamilies = [...new Set([...selected.downlink, ...selected.uplink].flatMap(k => {
+    const arr = [];
+    if (k.includes('_PER')) arr.push('PER');
+    if (k.includes('_PHY')) arr.push('PHY');
+    if (k.includes('_SNR')) arr.push('SNR');
+    return arr;
+  }))];
 
-  const metricFamilies = getMetricFamilies();
-
-  // --------------------
-  // Render per device
-  // --------------------
-  data.Devices.forEach(dev => {
+  // Reuse or create chart divs per device
+  data.Devices.forEach((dev, idx) => {
     if (!dev.LinkQuality || !dev.Time) return;
 
-    const traces = [];
-    const div = document.createElement('div');
-    div.style.height = '400px';
-    div.style.width = '100%'; // responsive width
-    container.appendChild(div);
+    let div = container.querySelector(`.chartDiv[data-mac="${dev.MAC}"]`);
+    if (!div) {
+      div = document.createElement('div');
+      div.className = 'chartDiv';
+      div.dataset.mac = dev.MAC;
+      div.style.height = '400px';
+      div.style.width = '100%';
+      container.appendChild(div);
+    }
 
-    // ==========================================================
-    // AGGREGATE MODE
-    // ==========================================================
+    const traces = [];
+
+    // Aggregate mode
     if (selected.aggregate) {
       metricFamilies.forEach(type => {
         const val = dev.LinkQuality[type];
         if (!val) return;
-
         traces.push({
           name: type,
           x: dev.Time,
           y: val,
           type: 'scatter',
           mode: 'lines',
-         line: {
-    ...LINE_STYLES.aggregate,
-      color: getMetricColor(type),
-    width: LINE_WIDTHS.metric
-  }
+          line: { ...LINE_STYLES.aggregate, color: getMetricColor(type), width: LINE_WIDTHS.metric }
         });
       });
 
-      // Aggregate Score
       if (dev.LinkQuality.Score) {
         traces.push({
-name: formatScoreLabel('Score'),          
-x: dev.Time,
+          name: formatScoreLabel('Score'),
+          x: dev.Time,
           y: dev.LinkQuality.Score,
           type: 'scatter',
           mode: 'lines',
-         line: {
-    ...LINE_STYLES.aggregate,
-    width: LINE_WIDTHS.score,
-      color: COLORS_METRICS.Score
-  }
+          line: { ...LINE_STYLES.aggregate, color: COLORS_METRICS.Score, width: LINE_WIDTHS.score }
         });
       }
-    }
-    // ==========================================================
-    // NON-AGGREGATE MODE
-    // ==========================================================
-    else {
-      // Downlink metrics
+    } else {
+      // Downlink
       selected.downlink.forEach(key => {
         const val = dev.LinkQuality[key];
         if (!val) return;
-
         traces.push({
           name: formatLabel(key),
-           x: dev.Time,
-          y: val,
-          type: 'scatter',
-          mode: 'lines',
-         line: {
-    ...LINE_STYLES.downlink,
-      color: getMetricColor(key),
-    width: LINE_WIDTHS.metric
-  }
-        });
-      });
-
-      // Uplink metrics
-      selected.uplink.forEach(key => {
-        const val = dev.LinkQuality[key];
-        if (!val) return;
-
-        traces.push({
-            name: formatLabel(key),
           x: dev.Time,
           y: val,
           type: 'scatter',
           mode: 'lines',
-         line: {
-    ...LINE_STYLES.uplink,
-      color: getMetricColor(key),
-    width: LINE_WIDTHS.metric
-  }
+          line: { ...LINE_STYLES.downlink, color: getMetricColor(key), width: LINE_WIDTHS.metric }
         });
       });
 
-      // Downlink Score
-      if (selected.downlink.length > 0 && dev.LinkQuality.DOWNLINK_Score) {
+      // Uplink
+      selected.uplink.forEach(key => {
+        const val = dev.LinkQuality[key];
+        if (!val) return;
         traces.push({
-name: formatScoreLabel('DOWNLINK_Score'), 
+          name: formatLabel(key),
+          x: dev.Time,
+          y: val,
+          type: 'scatter',
+          mode: 'lines',
+          line: { ...LINE_STYLES.uplink, color: getMetricColor(key), width: LINE_WIDTHS.metric }
+        });
+      });
+
+      // Scores
+      if (selected.downlink.length && dev.LinkQuality.DOWNLINK_Score) {
+        traces.push({
+          name: formatScoreLabel('DOWNLINK_Score'),
           x: dev.Time,
           y: dev.LinkQuality.DOWNLINK_Score,
           type: 'scatter',
           mode: 'lines',
-       line: {
-      ...LINE_STYLES.downlink,
-    width: LINE_WIDTHS.score,
-      color: COLORS_METRICS.DNLINK_Score
-    }  
-      });
+          line: { ...LINE_STYLES.downlink, color: COLORS_METRICS.DNLINK_Score, width: LINE_WIDTHS.score }
+        });
       }
 
-      // Uplink Score
-      if (selected.uplink.length > 0 && dev.LinkQuality.UPLINK_Score) {
+      if (selected.uplink.length && dev.LinkQuality.UPLINK_Score) {
         traces.push({
-name: formatScoreLabel('UPLINK_Score'), 
+          name: formatScoreLabel('UPLINK_Score'),
           x: dev.Time,
           y: dev.LinkQuality.UPLINK_Score,
           type: 'scatter',
           mode: 'lines',
-   line: {
-      ...LINE_STYLES.uplink,
-    width: LINE_WIDTHS.score,
-      color: COLORS_METRICS.UPLINK_Score
-    }
+          line: { ...LINE_STYLES.uplink, color: COLORS_METRICS.UPLINK_Score, width: LINE_WIDTHS.score }
         });
       }
     }
-// --------------------
-// Determine the latest score
-// --------------------
-let latestScore = null;
 
-if (selected.aggregate && dev.LinkQuality.Score) {
-  // Aggregate → latest score rounded to 3 decimals
-  const scoreArr = dev.LinkQuality.Score;
-  latestScore = scoreArr[scoreArr.length - 1].toFixed(3);
-} else if (selected.downlink.length > 0 && selected.uplink.length > 0) {
-  // Both downlink and uplink → show latest of each rounded to 3 decimals
-  const dl = dev.LinkQuality.DOWNLINK_Score?.[dev.LinkQuality.DOWNLINK_Score.length - 1] ?? 0;
-  const ul = dev.LinkQuality.UPLINK_Score?.[dev.LinkQuality.UPLINK_Score.length - 1] ?? 0;
-  latestScore = `Downlink: ${dl.toFixed(3)}, Uplink: ${ul.toFixed(3)}`;
-} else if (selected.downlink.length > 0) {
-  const dl = dev.LinkQuality.DOWNLINK_Score?.[dev.LinkQuality.DOWNLINK_Score.length - 1] ?? 0;
-  latestScore = dl.toFixed(3);
-} else if (selected.uplink.length > 0) {
-  const ul = dev.LinkQuality.UPLINK_Score?.[dev.LinkQuality.UPLINK_Score.length - 1] ?? 0;
-  latestScore = ul.toFixed(3);
-}
+    // Latest score for title
+    let latestScore = '-';
+    if (selected.aggregate && dev.LinkQuality.Score) {
+      latestScore = dev.LinkQuality.Score.slice(-1)[0]?.toFixed(3) ?? '-';
+    } else {
+      const dl = dev.LinkQuality.DOWNLINK_Score?.slice(-1)[0];
+      const ul = dev.LinkQuality.UPLINK_Score?.slice(-1)[0];
+      if (dl != null && ul != null) latestScore = `Downlink: ${dl.toFixed(3)}, Uplink: ${ul.toFixed(3)}`;
+      else if (dl != null) latestScore = dl.toFixed(3);
+      else if (ul != null) latestScore = ul.toFixed(3);
+    }
 
-// --------------------
-// Build layout
-// ---------------
-const vapName = dev.VapIndex !== undefined ? getVapName(dev.VapIndex) : 'unknown';
-const layout = {
-  title: {
-   text: `
-      <b>Link Quality:</b>${dev.MAC}<br>
-      <b>Score:</b> ${latestScore ?? '-'} &nbsp;&nbsp; <b>VAP:</b> ${vapName}
-    `, 
-   x: 0.5,
-    xanchor: 'center'
-  },
-  xaxis: {
-    title: 'Time',
-    tickangle: -45 // slanted labels
-  },
-  yaxis: {
-    title: 'Score',
-    range: [0, 1],
-    tick0: 0,
-    dtick: 0.1,
-    fixedrange: true
-  },
-  height: 400,
-  autosize: true,
-  uirevision: 'keep',
-  margin: { t: 100, l: 60, r: 40, b: 60 } // extra top margin for multi-line title
-};
+    const vapName = dev.VapIndex !== undefined ? getVapName(dev.VapIndex) : 'unknown';
+    const layout = {
+      title: { text: `<b>Link Quality:</b>${dev.MAC}<br><b>Score:</b> ${latestScore} &nbsp;&nbsp; <b>VAP:</b> ${vapName}`, x: 0.5, xanchor: 'center' },
+      xaxis: { title: 'Time', tickangle: -45 },
+      yaxis: { title: 'Score', range: [0, 1], tick0: 0, dtick: 0.1, fixedrange: true },
+      height: 400,
+      autosize: true,
+      uirevision: 'keep',
+      margin: { t: 100, l: 60, r: 40, b: 60 }
+    };
 
-    // --------------------
-    // Render chart while preserving scroll
-    // --------------------
-    //const scrollY = window.scrollY;
-    Plotly.react(div, traces, layout, { responsive: true }).then(() => {
-      //window.scrollTo(0, scrollY);
-    });
+    Plotly.react(div, traces, layout, { responsive: true });
   });
+
+  // Restore container scroll
+  container.scrollTop = scrollTop;
 }
 
 // --------------------
-// Render alarms table
+// Render Alarms Table (scroll-safe)
 // --------------------
-function updateAlarmDot(show) {
-  const dot = document.getElementById('alarmDot');
-  if (dot) dot.style.display = show ? 'block' : 'none';
-}
-
 export function renderAlarms(data) {
   const table = document.getElementById('Alarms');
-  table.innerHTML = `<tr><th>Device</th><th>Description</th><th>Time</th></tr>`;
-  let hasAlarm = false;
+  if (!table) return;
 
+  // Preserve scroll
+  const scrollTop = table.scrollTop;
+
+  // Keep header, remove old rows
+  if (table.rows.length === 0) {
+    const header = document.createElement('tr');
+    header.innerHTML = `<th>Device</th><th>Description</th><th>Time</th>`;
+    table.appendChild(header);
+  } else {
+    while (table.rows.length > 1) table.deleteRow(1);
+  }
+
+  // Add alarm rows
+  let hasAlarm = false;
   data.Devices?.forEach(dev => {
     dev.LinkQuality?.Alarms?.forEach(a => {
       if (!a) return;
@@ -350,6 +290,139 @@ export function renderAlarms(data) {
     });
   });
 
-  updateAlarmDot(hasAlarm);
+  // Update alarm dot safely
+  const dot = document.getElementById('alarmDot');
+  if (dot) dot.style.visibility = hasAlarm ? 'visible' : 'hidden';
+
+  // Restore scroll
+  table.scrollTop = scrollTop;
+}
+let multiChartDiv = null;
+let aggregateChartDiv = null;
+
+// Static non-connected clients with default negative scores
+const staticDevices = [
+  { MAC: '92:AC:1E:22:AD:01', defaultScore: -0.3 },
+  { MAC: '94:AB:1C:13:25:AD', defaultScore: -0.15 },
+  { MAC: '12:BD:1B:12:7F:BC', defaultScore: -0.1 }
+];
+
+// Pastel colors for static clients
+const STATIC_COLORS = ['#a3c1ad', '#f7c59f', '#c1aed6'];
+
+// Generate negative scores for static clients
+function generateStaticScores(timeAxis) {
+  return staticDevices.map((d, idx) => {
+    const scores = timeAxis.map(() => {
+      // Small random negative variation around default score
+      let val = d.defaultScore + (Math.random() - 0.5) * 0.05;
+      return Math.min(0, Math.max(-1, val)); // clamp between -1 and 0
+    });
+    return {
+      MAC: d.MAC + ' (Unassoc_clients)',
+      Score: scores,
+      isStatic: true,
+      color: STATIC_COLORS[idx % STATIC_COLORS.length]
+    };
+  });
+}
+
+export function renderConnectionAffinityCharts(data) {
+  const multiContainer = document.getElementById('affinityMultiContainer');
+  const aggregateDiv = document.getElementById('affinityAggregateChart');
+  if (!multiContainer || !aggregateDiv || !data) return;
+
+  const COLORS = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
+
+  // ---------------- STEP 1: Build global time axis ----------------
+  const connectedDevices = (data.Devices || [])
+    .filter(d => d.ConnectionAffinity);
+  if (connectedDevices.length === 0) return;
+
+  // Global time axis from all connected devices
+  const timeSet = new Set();
+  connectedDevices.forEach(d => d.ConnectionAffinity.Time.forEach(t => timeSet.add(t)));
+  const timeAxis = Array.from(timeSet).sort((a,b) => a - b);
+
+  // ---------------- STEP 2: Generate static unassoc clients ----------------
+  const staticClients = generateStaticScores(timeAxis);
+
+  // ---------------- STEP 3: Build all devices aligned to global timeAxis ----------------
+  const allDevices = [
+    ...connectedDevices.map((d, idx) => {
+      // Align scores to global timeAxis
+      const alignedScore = timeAxis.map(t => {
+        const i = d.ConnectionAffinity.Time.indexOf(t);
+        return i !== -1 ? d.ConnectionAffinity.Score[i] : null; // missing → null
+      });
+      return {
+        MAC: d.MAC,
+        Score: alignedScore,
+        isStatic: false,
+        color: COLORS[idx % COLORS.length]
+      };
+    }),
+    ...staticClients
+  ];
+
+  // ---------------- STEP 4: Multi client bar chart ----------------
+  const barTraces = allDevices.map(d => ({
+    x: timeAxis,
+    y: d.Score,
+    type: 'bar',
+    name: d.MAC,
+    marker: { color: d.color }
+  }));
+
+  if (!multiChartDiv) {
+    multiChartDiv = document.createElement('div');
+    multiChartDiv.style.height = '420px';
+    multiChartDiv.style.width = '100%';
+    multiContainer.appendChild(multiChartDiv);
+  }
+
+  Plotly.react(multiChartDiv, barTraces, {
+    title: { text: '<b>Connection Affinity — Clients Score</b>', x: 0.5, xanchor: 'center' },
+    xaxis: { title: 'Time' , tickangle: -45 },
+    yaxis: { title: 'Score', range: [-1, 1], tick0: -1, dtick: 0.2 },
+    barmode: 'group',
+    height: 420,
+    margin: { t: 80, l: 60, r: 60, b: 60 }
+  }, { responsive: true });
+
+  // ---------------- STEP 5: Aggregate line chart ----------------
+  const aggregateValues = timeAxis.map((_, i) => {
+    let sum = 0, count = 0;
+    allDevices.forEach(d => {
+      const val = d.Score[i];
+      if (val !== null && val !== undefined) {
+        sum += val;
+        count++;
+      }
+    });
+    return count ? sum / count : 0;
+  });
+
+  if (!aggregateChartDiv) {
+    aggregateChartDiv = document.createElement('div');
+    aggregateChartDiv.style.height = '420px';
+    aggregateChartDiv.style.width = '100%';
+    aggregateDiv.appendChild(aggregateChartDiv);
+  }
+
+  Plotly.react(aggregateChartDiv, [{
+    x: timeAxis,
+    y: aggregateValues,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Aggregate',
+    line: { color: '#d62728', width: 3 }
+  }], {
+    title: { text: '<b>Connection Affinity — Aggregate Score</b>', x: 0.5, xanchor: 'center' },
+    xaxis: { title: 'Time', tickangle: -45  },
+    yaxis: { title: 'Score', range: [-1, 1], tick0: -1, dtick: 0.2 },
+    height: 420,
+    margin: { t: 80, l: 60, r: 60, b: 60 }
+  }, { responsive: true });
 }
 

@@ -112,7 +112,35 @@ void qmgr_t::update_json(const char *str, vector_t v, cJSON *out_obj, bool &alar
         pthread_mutex_unlock(&m_json_lock);
         return;
     }
-    
+    cJSON *ca_obj = cJSON_GetObjectItem(dev_obj, "ConnectionAffinity");
+    if (ca_obj) {
+        cJSON *score_arr = cJSON_GetObjectItem(ca_obj, "Score");
+        if (score_arr) {
+        double last_val = 0.5; // default if array is empty
+
+        int size = cJSON_GetArraySize(score_arr);
+        if (size > 0) {
+            cJSON *last_item = cJSON_GetArrayItem(score_arr, size - 1);
+            last_val = last_item->valuedouble;
+        }
+
+        // Smooth: add small random delta between -0.02 and +0.02
+        double delta = ((rand() % 5) - 2) * 0.01; // -0.02, -0.01, 0, 0.01, 0.02
+        double val = last_val + delta;
+
+        // Clamp between 0 and 1
+        if (val < 0.0) val = 0.0;
+        if (val > 1.0) val = 1.0;
+
+        cJSON_AddItemToArray(score_arr, cJSON_CreateNumber(val));
+        trim_cjson_array(score_arr, MAX_HISTORY);
+    }
+
+    cJSON *time_arr = cJSON_GetObjectItem(ca_obj, "Time");
+    cJSON_AddItemToArray(time_arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
+    trim_cjson_array(time_arr, MAX_HISTORY);
+}
+ 
     arr = cJSON_GetObjectItem(obj, "Alarms");
     cJSON_AddItemToArray(arr, cJSON_CreateString((alarm == true)?get_local_time(tmp, sizeof(tmp),false):""));
     trim_cjson_array(arr, MAX_HISTORY);
@@ -246,7 +274,13 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     ca_obj = cJSON_CreateObject();
     snprintf(tmp, sizeof(tmp), "ConnectionAffinity");
     cJSON_AddItemToObject(obj, tmp, ca_obj);
-    
+       
+      cJSON *score_arr = cJSON_CreateArray();
+      snprintf(tmp, sizeof(tmp), "Time");
+
+      cJSON_AddItemToObject(ca_obj, "Score", score_arr);
+      cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
+
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
     

@@ -322,13 +322,13 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     snprintf(tmp, sizeof(tmp), "ConnectionAffinity");
     cJSON_AddItemToObject(obj, tmp, ca_obj);
        
-    cJSON *score_arr = cJSON_CreateArray();
-    snprintf(tmp, sizeof(tmp), "Time");
-
-    cJSON_AddItemToObject(ca_obj, "Score", score_arr);
-    cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
-
     
+      cJSON *score_arr = cJSON_CreateArray();
+      snprintf(tmp, sizeof(tmp), "Time");
+
+      cJSON_AddItemToObject(ca_obj, "Score", score_arr);
+      cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
+
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
     

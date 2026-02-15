@@ -1,9 +1,13 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
+  <meta name="generator" content=
+  "HTML Tidy for HTML5 for Linux version 5.6.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content=
+  "width=device-width,initial-scale=1">
+  <title>Wi-Fi Telemetry</title>
+  <style>
   .custom-dropdown .dropdown-selected {
     max-width: 140px;
     display: inline-block;
@@ -24,13 +28,13 @@
     width: 100%;
   }
 
-.alarms-container h2 {
+  .alarms-container h2 {
     position: relative; /* Needed for absolute positioning of the dot */
     padding-right: 20px; /* Ensure space for the badge */
     display: inline-block; /* Keeps width tight around text */
-}
+  }
 
-#alarmDot {
+  #alarmDot {
     display: none;               /* Hidden by default */
     position: absolute;          /* Positioned relative to <h2> */
     top: -5px;                   /* Slightly above the text */
@@ -41,7 +45,7 @@
     border-radius: 50%;          /* Circle */
     border: 2px solid white;     /* Optional: white border for contrast */
     box-shadow: 0 0 2px rgba(0,0,0,0.3); /* Optional: subtle shadow */
-}
+  }
 
   table {
     border-collapse: collapse;
@@ -55,96 +59,242 @@
     background-color: #F0F8F5;
     color: black;
   }
-</style>
+  .tab-container {
+  display:flex;
+  margin-top:20px;
+  }
+  .charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  }
 
-<script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+  .tab-btn {
+  padding:10px 25px;
+  cursor:pointer;
+  border:none;
+  background:#e0e0e0;
+  margin-right:5px;
+  border-radius:8px 8px 0 0;
+  }
+
+  .tab-btn.active {
+  background:#fff;
+  font-weight:bold;
+  border-bottom:2px solid #007bff;
+  }
+
+  .tab-content {
+  display:none;
+  padding:20px;
+  }
+
+  </style>
+  <script src="https://cdn.plot.ly/plotly-2.31.1.min.js"></script>
+  <script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+    svg: { fontCache: 'global' }
+  };
+  </script>
+  <script src=
+  "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 </head>
-
 <body>
-<div style="position: relative;">
-<h1>Wi-Fi Telemetry — Link Quality, Connection Affinity & Alarms</h1>
+  <!-- Tabs -->
+  <div class="tab-container">
+    <button id="tab1Btn" class="tab-btn active">Link
+    Quality</button> <button id="tab2Btn" class=
+    "tab-btn">Connection Affinity</button>
+  </div><!-- Tab 1: Link Quality -->
+  <div id="tab1Content" class="tab-content" style=
+  "display:block; position:relative;">
+    <!-- Heading and checkboxes row -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; align-items: flex-start; background: #fff; padding: 8px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; gap: 32px;">
+      <div style="padding-right: 24px;">
+      <h1 style="font-size:22px; line-height:1.2; margin:0 0 8px 0; text-align:left; white-space:nowrap; overflow-x:auto;">
+  Wi-Fi Telemetry — Link Quality
+  <span style="font-size:0.75em; margin-left:12px; vertical-align:middle;">
+  \(
+  \mathbf{
+  Score =
+  \sqrt{
+  \frac{
+  SNR_{norm}^{2}
+  +
+  PHY_{norm}^{2}
+  -
+  PER_{norm}^{2}
+  }{3}
+  }
+  *
+  \left(
+  1 - e^{-4 * \frac{L_t - L_r}{L_t}}
+  \right)
+  }
+  \)
+  </span>
+</h1>
+<div style="font-size:13px; line-height:1.6; margin-top:5px; max-width:900px;">
+  <b>L<sub>t</sub></b> – Total lost samples  during disconnect<br>
+  <b>L<sub>r</sub></b> – Recovered samples in rapid reconnect.
+</div>
+      </div>
+      <div style="display: flex; gap: 32px;">
+        <div style="min-width:120px;">
+          <b>Downlink</b>
+          <div class="custom-dropdown" id="downlinkDropdown">
+            <div class="dropdown-selected" onclick="toggleDropdown('downlinkDropdown')"></div>
+            <div class="dropdown-options">
+              <label><input type="checkbox" value="DOWNLINK_PER"> PER</label><br>
+              <label><input type="checkbox" value="DOWNLINK_SNR"> SNR</label><br>
+              <label><input type="checkbox" value="DOWNLINK_PHY"> PHY Rate</label><br>
+            </div>
+          </div>
+        </div>
+        <div style="min-width:120px;">
+          <b>Uplink</b>
+          <div class="custom-dropdown" id="uplinkDropdown">
+            <div class="dropdown-selected" onclick="toggleDropdown('uplinkDropdown')"></div>
+            <div class="dropdown-options">
+              <label><input type="checkbox" value="UPLINK_PER"> PER</label><br>
+              <label><input type="checkbox" value="UPLINK_SNR"> SNR</label><br>
+              <label><input type="checkbox" value="UPLINK_PHY"> PHY Rate</label><br>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction: column; gap:4px;">
+          <label><input type="checkbox" id="aggregateCheckbox"><b>Aggregate</b></label>
+          <label><input type="checkbox" id="intreconnectCheckbox"><b>Intermittent Reconnect</b></label>
+        </div>
+      </div>
+    </div>
+    <div class="charts-container">
+      <div id="LeftGridContainer" class="charts-grid" style=
+      "margin-top:20px;"></div>
+    </div><!-- Alarms -->
+    <div class="alarms-container">
+      <h2>Alarms <span id="alarmDot"></span></h2>
+      <table id="Alarms">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Description</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div><!-- Tab 2: Connection Affinity -->
+  <!-- Tab 2: Connection Affinity -->
+    <div id="tab2Content" class="tab-content">
+<h1 style="text-align:center; margin-bottom:12px;">
+  Wi-Fi Telemetry — Connection Affinity
+</h1>
+<div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em;">
+    <span style="font-size:1em;">
+\(
+\mathbf{
+\frac{1}{N_{\text{authAttempts}}}*
+\left(
+\frac{
+T_{\text{tcxTotal}} * N_{\text{authSuccess}}
+}{
+T_{\text{tcxTotal}} + T_{\text{dcxTotal}} + T_{\text{sleep}}
+}
+-
+N_{\text{authFailures}}
+\right)
+*
+\left(
+\frac{
+\text{SNR}_{\text{probeMac}}
+}{
+\text{SNR}_{\text{probeMax}} - \text{SNR}_{\text{probeMin}}
+}
+\right)
+}
+\)
+</span>
 
-<div style="position:absolute;top:60px;right:40px;display:flex;gap:32px;z-index:10;background:#fff;padding:8px 16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-<div style="min-width:540px;">
-<div style="display:flex;align-items:center;margin-bottom:8px;">
-<b style="font-size:16px;margin-right:16px;">Link Parameters:</b>
+    <span style="font-size:1em; font-weight:bold;"> &nbsp;|&nbsp; </span>
+    \(
+      \mathbf{
+        A_{\text{Gw}} =
+        \frac{
+          \sum_{i=1}^{N_{\text{Clients}}}
+          A_{\text{Client},i}
+        }{
+          N_{\text{Clients}}
+        }
+      }
+    \)
+  </span>
 </div>
 
-<div style="display:flex;gap:24px;">
-<div>
-<b>Downlink</b>
-<div class="custom-dropdown" id="downlinkDropdown">
-<div class="dropdown-selected" onclick="toggleDropdown('downlinkDropdown')"></div>
-<div class="dropdown-options">
-<label><input type="checkbox" value="DOWNLINK_PER"> PER</label><br>
-<label><input type="checkbox" value="DOWNLINK_SNR"> SNR</label><br>
-<label><input type="checkbox" value="DOWNLINK_PHY"> PHY Rate</label><br>
-</div>
-</div>
-</div>
 
-<div>
-<b>Uplink</b>
-<div class="custom-dropdown" id="uplinkDropdown">
-<div class="dropdown-selected" onclick="toggleDropdown('uplinkDropdown')"></div>
-<div class="dropdown-options">
-<label><input type="checkbox" value="UPLINK_PER"> PER</label><br>
-<label><input type="checkbox" value="UPLINK_SNR"> SNR</label><br>
-<label><input type="checkbox" value="UPLINK_PHY"> PHY Rate</label><br>
-</div>
-</div>
-</div>
-<div style="display:flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-  <label>
-    <input type="checkbox" id="aggregateCheckbox">
-    <b>Aggregate</b>
-  </label>
-  <label>
-    <input type="checkbox" id="intreconnectCheckbox">
-    <b>Intermittent Reconnect</b>
-  </label>
-</div>
 
-</div>
-</div>
-</div>
-</div>
-</div>
+    <div id="affinityChartsWrapper" style=
+    "width:100%; display:flex; flex-direction:column; gap:70px;">
+      <div id="affinityMultiContainer" style="width:100%;"></div>
+      <div id="affinityAggregateChart" style="width:100%;"></div>
+    </div>
+  </div>
+  <script type="module">
+  import {
+  fetchLinkParams as fetchLP,
+  renderLinkQualityChart,
+  renderConnectionAffinityCharts,
+  renderAlarms
+  } from './lq.js';
 
-<div class="charts-container" style="margin-top:200px;"> <!-- increase top margin -->
-  <h2>Link Quality</h2>
-  <div id="LeftGridContainer" class="charts-grid"></div>
-</div>
+  let userEditing = false;
+  let lastLocalChange = 0;
 
-<div class="alarms-container">
-<h2>Alarms <span id="alarmDot"></span></h2>
-<table id="Alarms">
-<tr><th>Device</th><th>Description</th><th>Time</th></tr>
-</table>
-</div>
+  /* ---------------- TAB SWITCHING ---------------- */
+  const tab1Btn = document.getElementById('tab1Btn');
+  const tab2Btn = document.getElementById('tab2Btn');
+  const tab1Content = document.getElementById('tab1Content');
+  const tab2Content = document.getElementById('tab2Content');
 
-<script type="module">
-import { fetchLinkParams as fetchLP, renderLinkQualityChart, renderAlarms } from './lq.js';
+  tab1Btn.onclick = async () => {
+  tab1Content.style.display = 'block';
+  tab2Content.style.display = 'none';
+  tab1Btn.classList.add('active');
+  tab2Btn.classList.remove('active');
 
-let userEditing = false;
-let lastLocalChange = 0;
+  const d = await fetchTelemetry();
+  renderLinkQualityChart(d);
+  };
 
-// Toggle dropdown open/close
-window.toggleDropdown = id => document.getElementById(id).classList.toggle('open');
-function updateDropdownLabel(id) {
+  tab2Btn.onclick = async () => {
+  tab1Content.style.display = 'none';
+  tab2Content.style.display = 'block';
+  tab2Btn.classList.add('active');
+  tab1Btn.classList.remove('active');
+
+  const d = await fetchTelemetry();
+  renderConnectionAffinityCharts(d);
+  };
+
+  /* ---------------- DROPDOWN LOGIC (RESTORED) ---------------- */
+
+  window.toggleDropdown = id =>
+  document.getElementById(id).classList.toggle('open');
+
+  function updateDropdownLabel(id) {
   const d = document.getElementById(id);
-  if (!d) return;   // <-- skip if element not foundi
-    // Get all checked inputs inside this dropdown
-  const values = [...d.querySelectorAll('input:checked')].map(c => c.value);
+  if (!d) return;
+
+  const values = [...d.querySelectorAll('input:checked')]
+                  .map(c => c.value);
+
   const sel = d.querySelector('.dropdown-selected');
   if (sel) sel.textContent = values.join(', ');
+  }
 
-//  const values = [...d.querySelectorAll('input:checked')].map(c => c.value);
-  //d.querySelector('.dropdown-selected').textContent = values.join(', ');
-   return values;
-}
-
-async function postLinkParam(key, value) {
+  async function postLinkParam(key, value) {
   try {
     await fetch('/', {
       method: 'POST',
@@ -154,120 +304,118 @@ async function postLinkParam(key, value) {
   } catch (e) {
     console.error('POST failed', e);
   }
-}
+  }
 
-// Setup event listeners for dropdowns
-function setupDropdown(id, paramName, isAggregate = false) {
+  function setupDropdown(id, paramName) {
   const d = document.getElementById(id);
+  if (!d) return;
 
   d.querySelectorAll('input').forEach(cb => {
-    cb.addEventListener('change', (e) => {
+    cb.addEventListener('change', () => {
       userEditing = true;
       lastLocalChange = Date.now();
 
       updateDropdownLabel(id);
 
-      let value;
-      if (isAggregate) {
-        // Send Yes/No for Aggregate
-        value = e.target.checked ? 'Yes' : 'No';
-      } else {
-        // Send comma-separated checked values for Downlink/Uplink
       const checked = [...d.querySelectorAll('input:checked')]
-                          .map(c => c.value);
+                        .map(c => c.value);
 
-        //IMPORTANT FIX
-        value = checked.length > 0 ? checked.join(',') : 'NONE';
-      }
+      const value = checked.length > 0 ? checked.join(',') : 'NONE';
 
       postLinkParam(paramName, value);
     });
   });
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', e => {
     if (!d.contains(e.target)) d.classList.remove('open');
   });
-}
-
-// Setup all three dropdowns
-setupDropdown('downlinkDropdown', 'downlink');
-setupDropdown('uplinkDropdown', 'uplink');
-
-const aggregateCheckbox = document.getElementById('aggregateCheckbox');
-aggregateCheckbox.addEventListener('change', (e) => {
-  const value = e.target.checked ? 'Yes' : 'No';
-  postLinkParam('aggregate', value);
-});
-const intreconnectCheckbox = document.getElementById('intreconnectCheckbox');
-
-intreconnectCheckbox.addEventListener('change', (e) => {
-  const value = e.target.checked ? 'Yes' : 'No';
-  postLinkParam('intreconnect', value);
-  lastLocalChange = Date.now();
-});
-
-// Apply selections to checkboxes and update label
-function applySelections(id, values, isAggregate = false) {
-  if (!values) values = '';
-
-  // URL-decode
-  const decoded = decodeURIComponent(values);
-
-  if (isAggregate) {
-    const checked = decoded === 'Yes';
-    const cb = document.querySelector(`#${id} input`);
-    if (cb) cb.checked = checked;
-  } else {
-    const list = decoded.split(',');
-    document.querySelectorAll(`#${id} input`).forEach(cb => {
-      cb.checked = list.includes(cb.value);
-    });
   }
 
-  updateDropdownLabel(id);
-}
-function applyCheckbox(id, value) {
-  const cb = document.getElementById(id);
-  if (!cb) return;
-  cb.checked = decodeURIComponent(value) === 'Yes';
-}
+  setupDropdown('downlinkDropdown', 'downlink');
+  setupDropdown('uplinkDropdown', 'uplink');
 
-let lastAggregateChange = 0;
-// Fetch link params from server and apply to UI
-async function updateLinkParams() {
+  document.getElementById('aggregateCheckbox')
+  ?.addEventListener('change', e => {
+    postLinkParam('aggregate', e.target.checked ? 'Yes' : 'No');
+  });
+
+  document.getElementById('intreconnectCheckbox')
+  ?.addEventListener('change', e => {
+    postLinkParam('intreconnect', e.target.checked ? 'Yes' : 'No');
+  });
+
+  /* ---------------- LINK PARAM SYNC ---------------- */
+
+  async function updateLinkParams() {
   const data = await fetchLP();
   if (!data) return;
 
-  // Prevent overwriting user edits for 1s
   if (Date.now() - lastLocalChange < 1000) return;
 
   applySelections('downlinkDropdown', data.downlink);
   applySelections('uplinkDropdown', data.uplink);
-
   applyCheckbox('aggregateCheckbox', data.aggregate);
   applyCheckbox('intreconnectCheckbox', data.intreconnect);
-}
+  }
 
-// Initial fetch & periodic sync
+  function applySelections(id, values) {
+  if (!values) values = '';
+  const decoded = decodeURIComponent(values);
+  const list = decoded.split(',');
+
+  document.querySelectorAll(`#${id} input`).forEach(cb => {
+    cb.checked = list.includes(cb.value);
+  });
+
+  updateDropdownLabel(id);
+  }
+
+  function applyCheckbox(id, value) {
+  const cb = document.getElementById(id);
+  if (!cb) return;
+  cb.checked = decodeURIComponent(value) === 'Yes';
+  }
+
 updateLinkParams();
 setInterval(updateLinkParams, 5000);
 
-// Telemetry
-async function fetchTelemetry() {
-  const scrollY = window.scrollY;
+  /* ---------------- TELEMETRY ---------------- */
+
+  async function fetchTelemetry() {
   try {
     const r = await fetch('/telemetry.json', { cache: 'no-store' });
-    if (!r.ok) return;
-    const d = await r.json();
-    renderLinkQualityChart(d);
-    renderAlarms(d);
-  } catch(e) { console.error(e); }
-  window.scrollTo(0, scrollY);
-}
-fetchTelemetry();
-setInterval(fetchTelemetry, 2000);
-</script>
+    if (!r.ok) return {};
+    return await r.json();  // IMPORTANT: return raw JSON only
+  } catch(e) {
+    console.error(e);
+    return {};
+  }
+  }
+
+  /* ---------------- INIT ---------------- */
+
+  async function init() {
+  const d = await fetchTelemetry();
+  renderLinkQualityChart(d);
+  renderAlarms(d);
+
+  setInterval(async () => {
+    const d = await fetchTelemetry();
+
+    if (tab1Content.style.display !== 'none') {
+      renderLinkQualityChart(d);
+      renderAlarms(d);
+    }
+
+    if (tab2Content.style.display !== 'none') {
+      renderConnectionAffinityCharts(d);
+    }
+
+  }, 2000);
+  }
+
+  init();
+
+  </script>
 </body>
 </html>
-

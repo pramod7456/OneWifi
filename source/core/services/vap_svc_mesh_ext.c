@@ -1889,7 +1889,6 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
     } else if (sta_data->stats.connect_status == wifi_connection_status_ap_not_found || sta_data->stats.connect_status == wifi_connection_status_disconnected) {
         apply_pending_channel_change(svc, sta_data->stats.vap_index);
 
-	wifi_util_dbg_print(WIFI_CTRL, "[DL] %s %d Mac-str : %s\n", __func__, __LINE__, mac_str);
         bssid_mac_str = (char *)malloc(MAC_ADDR_STR_LEN);
         if (bssid_mac_str != NULL) {
             memset(bssid_mac_str, '\0', MAC_ADDR_STR_LEN);

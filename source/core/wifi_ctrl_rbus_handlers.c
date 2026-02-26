@@ -3612,6 +3612,9 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_LINK_QUALITY_FLAGS, bus_element_type_method,
                                     { wifi_get_link_quality_flags, wifi_set_link_quality_flags, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     {bus_data_type_uint32, false, 0, 0, 0, NULL } },
+				{ WIFI_IGNITE_STATUS, bus_element_type_method,
+                                    { NULL, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
+                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
     };
 
     rc = get_bus_descriptor()->bus_open_fn(&ctrl->handle, component_name);

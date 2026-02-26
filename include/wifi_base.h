@@ -83,7 +83,7 @@ extern "C" {
 #define WIFI_QUALITY_LINKREPORT      "Device.WiFi.LinkReport"
 #define WIFI_LINK_QUALITY_DATA      "Device.WiFi.LinkQualityData"
 #define WIFI_LINK_QUALITY_FLAGS     "Device.WiFi.LinkQualityFlags"
-
+#define WIFI_IGNITE_STATUS          "Device.WiFi.EndPoint.1.LinkQualityStatus"
 #ifdef CONFIG_IEEE80211BE
 
 #ifndef MAX_NUM_MLD_LINKS

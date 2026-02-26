@@ -85,9 +85,45 @@ void publish_qmgr_subdoc(const report_batch_t* report)
     return;
 }
 
+#define MAX_STR_LEN     128
+#define MAX_BUFF_LEN    1048
+
 void publish_station_score(const char *str, double score, double threshold)
 {
-    wifi_util_info_print(WIFI_APPS, "%s:%d score =%f threshold=%f\n", __func__, __LINE__,score,threshold);
+    char buff[MAX_BUFF_LEN] = {'\0'};
+    char str[MAX_STR_LEN] = {'\0'};
+    char tmp[MAX_STR_LEN] = {'\0'};
+    char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
+    bus_error_t status;
+    raw_data_t rdata;
+    wifi_util_info_print(WIFI_APPS, "%s:%d str =%s score =%f threshold =%f\n", __func__, __LINE__, str, score, threshold);
+    memset(&rdata, 0, sizeof(raw_data_t));
+    rdata.data_type = bus_data_type_string;
+    if (score < threshold) {
+	snprintf(str, MAX_STR_LEN, "Non-Serviceable");
+	data.raw_data.bytes = (void *)str;
+	rdata.raw_data_len = (strlen(str) + 1);
+    } else if (score > threshold) {
+	snprintf(str, MAX_STR_LEN, "Serviceable");
+	data.raw_data.bytes = (void *)str;
+	rdata.raw_data_len = (strlen(str) + 1);
+    }
+
+    wifi_util_error_print(WIFI_CTRL, "%s:%d: str updated as %s\n", __func__, __LINE__, str);
+    wifi_app = get_app_by_inst(&ctrl->apps_mgr, wifi_app_inst_link_quality);
+    if (wifi_app == NULL) {
+        wifi_util_error_print(WIFI_APPS, "%s:%d NULL Pointer \n", __func__, __LINE__);
+        return;
+    }
+    status = get_bus_descriptor()->bus_event_publish_fn(&wifi_app->ctrl->handle, WIFI_IGNITE_STATUS, &rdata);
+    if (status != bus_error_success) {
+	wifi_util_error_print(WIFI_CTRL, "%s:%d: bus: bus_event_publish_fn Event failed %d\n",  __func__, __LINE__, status);    
+    }
+
+    get_formatted_time(tmp);
+    snprintf(buff, MAX_BUFF_LEN, "%s IGNITE_CONNECTION_SCORE:%f", tmp, score);
+    wifi_util_error_print(WIFI_CTRL, "%s:%d: Buff updated as %s\n", __func__, __LINE__, buff);
+    write_to_file(wifi_health_log, buff);
     return;
 }
 

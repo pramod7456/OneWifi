@@ -88,7 +88,7 @@ void publish_qmgr_subdoc(const report_batch_t* report)
 #define MAX_STR_LEN     128
 #define MAX_BUFF_LEN    1048
 
-void publish_station_score(const char *str, double score, double threshold)
+void publish_station_score(const char *input_str, double score, double threshold)
 {
     char buff[MAX_BUFF_LEN] = {'\0'};
     char str[MAX_STR_LEN] = {'\0'};
@@ -96,16 +96,18 @@ void publish_station_score(const char *str, double score, double threshold)
     char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
     bus_error_t status;
     raw_data_t rdata;
-    wifi_util_info_print(WIFI_APPS, "%s:%d str =%s score =%f threshold =%f\n", __func__, __LINE__, str, score, threshold);
+    wifi_app_t *wifi_app = NULL;
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    wifi_util_info_print(WIFI_APPS, "%s:%d str =%s score =%f threshold =%f\n", __func__, __LINE__, input_str, score, threshold);
     memset(&rdata, 0, sizeof(raw_data_t));
     rdata.data_type = bus_data_type_string;
     if (score < threshold) {
 	snprintf(str, MAX_STR_LEN, "Non-Serviceable");
-	data.raw_data.bytes = (void *)str;
+	rdata.raw_data.bytes = (void *)str;
 	rdata.raw_data_len = (strlen(str) + 1);
     } else if (score > threshold) {
 	snprintf(str, MAX_STR_LEN, "Serviceable");
-	data.raw_data.bytes = (void *)str;
+	rdata.raw_data.bytes = (void *)str;
 	rdata.raw_data_len = (strlen(str) + 1);
     }
 

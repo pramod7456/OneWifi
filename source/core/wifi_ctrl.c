@@ -85,15 +85,22 @@ static int wifi_radio_set_enable(bool status)
     int ret = RETURN_OK;
     uint8_t index = 0;
     uint8_t num_of_radios = getNumberRadios();
-    wifi_radio_operationParam_t temp_wifi_radio_oper_param;
+    wifi_radio_operationParam_t *temp_wifi_radio_oper_param = NULL;
 
-    memset(&temp_wifi_radio_oper_param, 0, sizeof(temp_wifi_radio_oper_param));
+    temp_wifi_radio_oper_param = (wifi_radio_operationParam_t *)malloc(sizeof(wifi_radio_operationParam_t));
+    if (temp_wifi_radio_oper_param == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d: Failed to allocate memory\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+    memset(temp_wifi_radio_oper_param, 0, sizeof(wifi_radio_operationParam_t));
 
     wifi_util_dbg_print(WIFI_CTRL,"%s:%d num_of_radios:%d\n", __func__, __LINE__, num_of_radios);
     for (index = 0; index < num_of_radios; index++) {
         wifi_radio_oper_param = (wifi_radio_operationParam_t *)get_wifidb_radio_map(index);
         if (wifi_radio_oper_param == NULL) {
             wifi_util_error_print(WIFI_CTRL,"%s:%d wrong index for radio map: %d\n", __func__, __LINE__, index);
+            free(temp_wifi_radio_oper_param);
+            temp_wifi_radio_oper_param = NULL;
             return RETURN_ERR;
         }
 
@@ -103,10 +110,10 @@ static int wifi_radio_set_enable(bool status)
             continue;
         }
 
-        memcpy(&temp_wifi_radio_oper_param, wifi_radio_oper_param, sizeof(wifi_radio_operationParam_t));
-        temp_wifi_radio_oper_param.enable = status;
+        memcpy(temp_wifi_radio_oper_param, wifi_radio_oper_param, sizeof(wifi_radio_operationParam_t));
+        temp_wifi_radio_oper_param->enable = status;
         wifi_util_dbg_print(WIFI_CTRL,"%s:%d index: %d radio enable status:%d\n", __func__, __LINE__, index, status);
-        ret = wifi_hal_setRadioOperatingParameters(index, &temp_wifi_radio_oper_param);
+        ret = wifi_hal_setRadioOperatingParameters(index, temp_wifi_radio_oper_param);
         if (ret != RETURN_OK) {
             wifi_util_error_print(WIFI_CTRL,"%s:%d wifi radio parameter set failure: radio_index:%d\n", __func__, __LINE__, index);
         } else {
@@ -115,6 +122,8 @@ static int wifi_radio_set_enable(bool status)
 
     }
 
+    free(temp_wifi_radio_oper_param);
+    temp_wifi_radio_oper_param = NULL;
     return ret;
 }
 
@@ -827,7 +836,7 @@ void stop_gateway_vaps(unsigned int radio_index)
 void stop_extender_vaps(unsigned int radio_index)
 {
     wifi_ctrl_t *ctrl;
-    vap_svc_t *ext_svc;	
+    vap_svc_t *ext_svc; 
 
     ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     ext_svc = get_svc_by_type(ctrl, vap_svc_type_mesh_ext);
@@ -897,7 +906,7 @@ bool get_notify_wifi_from_psm(char *PsmParamName)
     if (rc == bus_error_success) {
         strncpy(psm_notify_get, data.raw_data.bytes, (sizeof(psm_notify_get) - 1));
         wifi_util_dbg_print(WIFI_CTRL, " PSMDB value=%s\n", psm_notify_get);
-        if ((psm_notify_get != NULL) && (strcmp(psm_notify_get, "true") == 0)) {
+        if (strcmp(psm_notify_get, "true") == 0) {
             psm_notify_flag = true;
         } else {
             psm_notify_flag = false;
@@ -1158,7 +1167,7 @@ int mgmt_wifi_frame_recv(int ap_index, wifi_frame_t *frame)
     return RETURN_OK;
 }
 #else
-#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
+#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)
 int mgmt_wifi_frame_recv(int ap_index, mac_address_t sta_mac, uint8_t *frame, uint32_t len, wifi_mgmtFrameType_t type, wifi_direction_t dir, int sig_dbm , int phy_rate, unsigned int recv_freq)
 #else
 int mgmt_wifi_frame_recv(int ap_index, mac_address_t sta_mac, uint8_t *frame, uint32_t len, wifi_mgmtFrameType_t type, wifi_direction_t dir, unsigned int recv_freq)
@@ -1184,7 +1193,7 @@ int mgmt_wifi_frame_recv(int ap_index, mac_address_t sta_mac, uint8_t *frame, ui
     memcpy(mgmt_frame.frame.sta_mac, sta_mac, sizeof(mac_address_t));
     mgmt_frame.frame.type = type;
     mgmt_frame.frame.dir = dir;
-#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
+#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)
     mgmt_frame.frame.sig_dbm = sig_dbm;
     mgmt_frame.frame.phy_rate = phy_rate;
 #endif
@@ -1230,7 +1239,7 @@ int mgmt_wifi_frame_recv(int ap_index, mac_address_t sta_mac, uint8_t *frame, ui
         memcpy(data->u.msg.frame.sta_mac, sta_mac, sizeof(mac_address_t));
         data->u.msg.frame.type = type;
         data->u.msg.frame.dir = dir;
-#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)
+#if defined (_XB7_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)
     mgmt_frame.frame.sig_dbm = sig_dbm;
     mgmt_frame.frame.phy_rate = phy_rate;
 #endif
@@ -1459,7 +1468,7 @@ int init_wifi_ctrl(wifi_ctrl_t *ctrl)
 #if HAL_IPC
 int onewifi_get_ap_assoc_dev_diag_res3(int ap_index, 
                                        wifi_associated_dev3_t *assoc_dev_array, 
-						               unsigned int *output_array_size)
+                                       unsigned int *output_array_size)
 {
     return get_sta_stats_for_vap(ap_index, assoc_dev_array, output_array_size);
 }
@@ -1505,7 +1514,7 @@ typedef int (* app_get_radio_traffic_stats_t) (int radio_index,
 
 typedef struct {
     unsigned int version;
-    app_get_ap_assoc_dev_diag_res3_t app_get_ap_assoc_dev_diag_res3_fn;		
+    app_get_ap_assoc_dev_diag_res3_t app_get_ap_assoc_dev_diag_res3_fn;     
     app_get_neighbor_ap2_t           app_get_neighbor_ap2_fn;
     app_get_radio_channel_stats_t    app_get_radio_channel_stats_fn;
     app_get_radio_traffic_stats_t    app_get_radio_traffic_stats_fn;
@@ -2019,8 +2028,8 @@ int wifi_sched_timeout(void *arg)
             handler_id = sched_id->wifi_acs_sched_handler_id;
             break;
         default:
-            free(args);
             wifi_util_error_print(WIFI_CTRL, "%s:%d: wifi index:%d invalid type:%d\n", __func__, __LINE__, args->index, args->type);
+            free(args);
             return TIMER_TASK_ERROR;
     }
 
@@ -2886,7 +2895,8 @@ int get_sta_ssid_from_radio_config_by_radio_index(unsigned int radio_index, ssid
     for (i = 0; i < map->num_vaps; i++) {
         if (map->vap_array[i].vap_index == index) {
             found = true;
-            strcpy(ssid, map->vap_array[i].u.sta_info.ssid);
+	    wifi_util_error_print(WIFI_CTRL,"[%s %d] ssid name : %s\n", __func__, __LINE__, get_vap_ssid(&map->vap_array[i]));
+	    strcpy(ssid, get_vap_ssid(&map->vap_array[i]));
             break;
         }
     }
@@ -3244,7 +3254,7 @@ CHAR* getVAPName(UINT apIndex)
         for (vapArrayIndex = 0; vapArrayIndex < getNumberVAPsPerRadio(radioIndex); vapArrayIndex++) {
             if (apIndex == wifi_mgr->radio_config[radioIndex].vaps.vap_map.vap_array[vapArrayIndex].vap_index) {
                 //wifi_util_dbg_print(WIFI_CTRL, "%s Input apIndex = %d  found at radioIndex = %d vapArrayIndex = %d\n ", __FUNCTION__, apIndex, radioIndex, vapArrayIndex);
-                if((wifi_mgr->radio_config[radioIndex].vaps.rdk_vap_array[vapArrayIndex].vap_name != NULL) && (strlen((CHAR *)wifi_mgr->radio_config[radioIndex].vaps.rdk_vap_array[vapArrayIndex].vap_name) != 0)) {
+                if (strlen((CHAR *)wifi_mgr->radio_config[radioIndex].vaps.rdk_vap_array[vapArrayIndex].vap_name) != 0) {
                     return (CHAR *)wifi_mgr->radio_config[radioIndex].vaps.rdk_vap_array[vapArrayIndex].vap_name;
                 } else {
                     return unused;

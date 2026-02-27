@@ -1250,16 +1250,22 @@ void set_cac_cache_changed(uint8_t vap_index)
 
 int push_subdoc_to_one_wifidb(uint8_t subdoc)
 {
-    webconfig_subdoc_data_t data;
+    webconfig_subdoc_data_t *data = NULL;
     char *str = NULL;
 
-    memset(&data, 0, sizeof(webconfig_subdoc_data_t));
-    memcpy((unsigned char *)&data.u.decoded.radios, (unsigned char *)&webconfig_dml.radios, get_num_radio_dml()*sizeof(rdk_wifi_radio_t));
-    memcpy((unsigned char *)&data.u.decoded.hal_cap, (unsigned char *)&webconfig_dml.hal_cap, sizeof(wifi_hal_capability_t));
-    data.u.decoded.num_radios = get_num_radio_dml();
+    data = (webconfig_subdoc_data_t *)malloc(sizeof(webconfig_subdoc_data_t));
+    if (data == NULL) {
+        wifi_util_error_print(WIFI_DMCLI, "%s:%d Failed to allocate memory\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
 
-    if (webconfig_encode(&webconfig_dml.webconfig, &data, subdoc) == webconfig_error_none) {
-        str = data.u.encoded.raw;
+    memset(data, 0, sizeof(webconfig_subdoc_data_t));
+    memcpy((unsigned char *)&data->u.decoded.radios, (unsigned char *)&webconfig_dml.radios, get_num_radio_dml()*sizeof(rdk_wifi_radio_t));
+    memcpy((unsigned char *)&data->u.decoded.hal_cap, (unsigned char *)&webconfig_dml.hal_cap, sizeof(wifi_hal_capability_t));
+    data->u.decoded.num_radios = get_num_radio_dml();
+
+    if (webconfig_encode(&webconfig_dml.webconfig, data, subdoc) == webconfig_error_none) {
+        str = data->u.encoded.raw;
         wifi_util_info_print(WIFI_DMCLI, "%s:  VAP DML cache encoded successfully  \n", __FUNCTION__);
         push_event_to_ctrl_queue(str, strlen(str), wifi_event_type_webconfig, wifi_event_webconfig_set_data_dml, NULL);
     } else {
@@ -1269,7 +1275,9 @@ int push_subdoc_to_one_wifidb(uint8_t subdoc)
 
     wifi_util_info_print(WIFI_DMCLI, "%s:  VAP DML cache pushed to queue \n", __FUNCTION__);
 
-    webconfig_data_free(&data);
+    webconfig_data_free(data);
+    free(data);
+    data = NULL;
 
     return RETURN_OK;
 }
@@ -1299,7 +1307,7 @@ int push_wps_pin_dml_to_ctrl_queue(unsigned int vap_index, char *wps_pin)
 
     wifi_util_dbg_print(WIFI_DMCLI, "Inside :%s:%d vap_index:%d wps_pin:%s\r\n", __func__, __LINE__, vap_index, wps_pin);
     wps_config.vap_index = vap_index;
-    strncpy(wps_config.wps_pin, wps_pin, strlen(wps_pin));
+    snprintf(wps_config.wps_pin, sizeof(wps_config.wps_pin), "%s", wps_pin);
     push_event_to_ctrl_queue(&wps_config, sizeof(wps_config), wifi_event_type_command, wifi_event_type_command_wps_pin, NULL);
     return RETURN_OK;
 }
@@ -1826,7 +1834,7 @@ bool wifi_factory_reset(bool factory_reset_all_vaps)
         is_radio_config_changed = TRUE;
     }
 
-    remove(WIFI_STUCK_DETECT_FILE_NAME);
+    (void)remove(WIFI_STUCK_DETECT_FILE_NAME);
     wifi_util_info_print(WIFI_MGR,"%s:%d removed selfHeal wifi stuck file:%s\n", __FUNCTION__,__LINE__, WIFI_STUCK_DETECT_FILE_NAME);
 
     if (factory_reset_all_vaps) {

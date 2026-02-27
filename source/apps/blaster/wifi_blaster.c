@@ -222,6 +222,12 @@ static bool DeviceCpuUtil_DataGet(unsigned int *util_cpu)
         }
 
         hz_total = (hz_user - prev_hz_user) + (hz_nice - prev_hz_nice) + (hz_system - prev_hz_system) + (hz_idle - prev_hz_idle);
+
+        if (hz_total == 0) {
+            *util_cpu = 0;
+            break;
+        }
+
         busy = (1.0 - ((double)(hz_idle - prev_hz_idle) / (double)hz_total)) * 100.0;
         *util_cpu = (unsigned int) (busy + 0.5);
 
@@ -1489,7 +1495,7 @@ void WiFiBlastClient(void)
             active_msmt_log_message(BLASTER_DEBUG_LOG, "\n=========START THE TEST=========\n");
             active_msmt_log_message(BLASTER_INFO_LOG, "Blaster test is initiated for Dest mac [%s]\n", macStr);;
             active_msmt_log_message(BLASTER_INFO_LOG, "Interface [%s], Send Duration: [%d msecs], Packet Size: [%d bytes], Sample count: [%d]\n",
-                    interface_name, GetActiveMsmtSampleDuration(), GetActiveMsmtPktSize(), GetActiveMsmtNumberOfSamples());
+                    (char *)interface_name, GetActiveMsmtSampleDuration(), GetActiveMsmtPktSize(), GetActiveMsmtNumberOfSamples());
 
             /* start blasting the packets to calculate the throughput */
             pkt_gen_blast_client(macStr, interface_name);

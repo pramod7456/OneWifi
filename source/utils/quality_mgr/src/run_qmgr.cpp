@@ -25,6 +25,11 @@
 #include "wifi_util.h"
 #include "qmgr.h"
 #include "run_qmgr.h"
+<<<<<<< HEAD
+=======
+static qmgr_report_cb_t g_qmgr_cb = NULL;
+static qmgr_max_snr_cb_t g_qmgr_snr_cb = NULL;
+>>>>>>> 2bb8a25 (with new formula and new snr normalization)
 
 //Static callback functions
 static qmgr_report_batch_cb_t qmgr_batch_cb = NULL;
@@ -36,11 +41,22 @@ void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb)
     qmgr_batch_cb = cb;
 }
 
+<<<<<<< HEAD
 void qmgr_register_score_callback(qmgr_report_score_cb_t cb)
+=======
+void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb)
+{
+    g_qmgr_snr_cb = cb;
+}
+
+/* Called internally from qmgr_t::run() */
+extern "C" void qmgr_invoke_callback( const report_batch_t* batch)
+>>>>>>> 2bb8a25 (with new formula and new snr normalization)
 {
     qmgr_score_cb = cb;
 }
 
+<<<<<<< HEAD
 //check if callback functions are registered
 
 bool qmgr_is_batch_registered(void)
@@ -68,6 +84,14 @@ extern "C" void qmgr_invoke_score(const char *str, double score,double threshold
 {
     if (qmgr_score_cb)
         qmgr_score_cb(str, score,threshold);
+=======
+extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
+{
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+    if (g_qmgr_snr_cb) 
+        g_qmgr_snr_cb(radio_index,max_snr);
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+>>>>>>> 2bb8a25 (with new formula and new snr normalization)
 }
 
 int run_web_server()
@@ -212,5 +236,14 @@ int get_quality_flags(quality_flags_t *flag)
 {
     wifi_util_info_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
     qmgr_t::get_quality_flags(flag);
+    return 0;
+}
+
+int set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    mgr->set_max_snr_radios(max_snr_val);
     return 0;
 }

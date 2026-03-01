@@ -550,6 +550,12 @@ void qmgr_t::unregister_station_mac(const char* str)
     return;
 }
 
+int qmgr_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    linkq_t::set_max_snr_radios(max_snr_val);
+    return 0;   
+}
+
 qmgr_t::qmgr_t()
 {
     memset(&m_args, 0, sizeof(server_arg_t));

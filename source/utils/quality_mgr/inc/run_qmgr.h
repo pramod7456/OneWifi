@@ -51,6 +51,7 @@ typedef struct {
 typedef struct {
     mac_addr_str_t mac_str;
     unsigned int vap_index;
+    unsigned int radio_index;
     wifi_associated_dev3_t dev;
   } stats_arg_t;
 
@@ -60,6 +61,12 @@ typedef struct {
     unsigned int  err_sent;
     unsigned int  err_recv;
   } window_per_param_t;
+
+typedef struct {
+    int radio_2g_max_snr;
+    int radio_5g_max_snr;
+    int radio_6g_max_snr;
+} radio_max_snr_t;
 
 typedef struct {
     bool downlink_snr;
@@ -86,9 +93,15 @@ bool qmgr_is_score_registered(void);
 void reset_qmgr_score_cb(void);
 void qmgr_invoke_batch(const report_batch_t *batch);
 void qmgr_invoke_score(const char *str, double score,double threshold);
+typedef void (*qmgr_report_cb_t)(const report_batch_t *report);
+typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
 
 int run_web_server();
 int stop_web_server(const char *path);
+
+/* Registration function (called from C main) */
+void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb);
+void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
 
 int add_stats_metrics(stats_arg_t *stats);
 int remove_link_stats(stats_arg_t *stats);
@@ -104,6 +117,7 @@ int get_quality_flags(quality_flags_t *flag);
 void register_station_mac(const char* str);
 void unregister_station_mac(const char* str);
 
+int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 #ifdef __cplusplus
 }
 #endif

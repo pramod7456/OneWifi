@@ -35,6 +35,10 @@ linkq_params_t linkq_t::m_linkq_params[MAX_LINKQ_PARAMS] = {{"DOWNLINK_SNR", tru
 
 mac_addr_str_t linkq_t::ignite_station_mac = "";
 
+#define CONFIG_FILE "/tmp/formula2"
+extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
+
+radio_max_snr_t linkq_t::max_snr_radio_val = {25,25,25};
 linkq_params_t linkq_t::m_score_params[] = {
     // ---------- Aggregate metrics ----------
     { "SNR",   true  },
@@ -63,7 +67,7 @@ linkq_params_t* linkq_t::get_score_params() {
 
 quality_flags_t linkq_t::m_quality_flag = { true, true, true, false, false, false, false,true };
 
-static inline double apply_recovery(double norm,int remaining,
+static inline double apply_rapid_reconnect(double norm,int remaining,
                                     int total)
 {
      double factor = 1.0;
@@ -78,25 +82,16 @@ static inline double apply_recovery(double norm,int remaining,
     if (elapsed <= 0)
         return 0.0;
     
-    if (access("/tmp/log_file", F_OK) == 0) {
-        factor = 1.0 - exp(-log(100.0) * progress);
+        factor = ((1.0 - exp(-4.0 * progress))/(1.0 - exp(-4.0)));
         wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
     }
+    val = norm * factor;
 
-    /* ---------- EULER MODE ---------- */
-    else if (access("/tmp/Euler_file", F_OK) == 0) {
+    wifi_util_info_print(WIFI_APPS,
+        "%s:%d remaining=%d total=%d progress=%f factor=%f val=%f\n",
+        __func__, __LINE__, remaining, total, progress, factor, val);
 
-        // pure Euler: time-based
-        factor = 1.0 - exp(-(double)elapsed);
-         wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
-    }
-
-    /* ---------- DEFAULT MODE ---------- */
-    else {
-        factor = 1.0 - exp(-4.0 * progress);
-        wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
-    }
-    return norm * factor;
+    return val;
 }
 
 vector_t linkq_t::run_algorithm(linkq_data_t data,
@@ -118,6 +113,7 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         is_ignite_station = true;
        
     }
+    double score = 0.0;
     // -------------------------------------------------
     // Fixed vector layout (frontend decides visibility)
     // -------------------------------------------------
@@ -170,7 +166,7 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
                 norm[i] = sum / m_uplink_phy_history.size();
         }
 
-            norm[i] = apply_recovery(norm[i],m_recovery_remaining,m_recovery_total);
+        norm[i] = apply_rapid_reconnect(norm[i],m_recovery_remaining,m_recovery_total);
     }
 
     // -------------------------------------------------
@@ -221,82 +217,136 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     // DOWNLINK Score
     // -------------------------------------------------
     cnt = 0;
+    score = 0.0; 
     if (m_quality_flag.downlink_snr) {
-        v.m_val[9].m_re += m_linkq_params[0].booster
+        if (access(CONFIG_FILE, F_OK) == 0) {
+            score += pow(v.m_val[3].m_re, 2);
+        } else {
+            v.m_val[9].m_re += m_linkq_params[0].booster
             ? pow(v.m_val[3].m_re, 2)
-            : -pow(v.m_val[3].m_re, 2);
+            : (1 - pow(v.m_val[3].m_re, 2));
+        }
         cnt++;
         m_data_sample.snr   = v.m_val[3].m_re;
     }
     if (m_quality_flag.downlink_per) {
-        v.m_val[9].m_re += m_linkq_params[1].booster
+        if (access(CONFIG_FILE, F_OK) == 0) {
+        } else {
+            v.m_val[9].m_re += m_linkq_params[1].booster
             ? pow(v.m_val[4].m_re, 2)
-            : -pow(v.m_val[4].m_re, 2);
-        cnt++;
-        m_data_sample.per   = v.m_val[4].m_re;
+            :(1 - pow(v.m_val[4].m_re, 2));
+            cnt++;
+	}
     }
     if (m_quality_flag.downlink_phy) {
-        v.m_val[9].m_re += m_linkq_params[2].booster
+        if (access(CONFIG_FILE, F_OK) == 0) {
+            score += pow(v.m_val[5].m_re, 2);
+        } else {
+            v.m_val[9].m_re += m_linkq_params[2].booster
             ? pow(v.m_val[5].m_re, 2)
-            : -pow(v.m_val[5].m_re, 2);
-        cnt++;
-        m_data_sample.phy   = v.m_val[5].m_re;
+            : (1 - pow(v.m_val[5].m_re, 2));
+            cnt++;
+	}
     }
-    if (v.m_val[9].m_re < 0.0 || cnt == 0)
-        v.m_val[9].m_re = 0.0;
-    else
-        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%dDownlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
+    if (access(CONFIG_FILE, F_OK) == 0) {
+       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
+       v.m_val[9].m_re = 0;
+       double value = ((score / 2.0) - pow(v.m_val[4].m_re, 2));
+        if (value < 0.0)
+            value = 0.0;
+        v.m_val[9].m_re = sqrt(value);
+        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[4].m_re,v.m_val[9].m_re);
+    } else {
+        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
+        if (v.m_val[9].m_re < 0.0 || cnt == 0)
+            v.m_val[9].m_re = 0.0;
+        else
+            v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt);
+    }
+    wifi_util_error_print(WIFI_APPS,"%s:%dDownlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
 
     // -------------------------------------------------
     // UPLINK Score
     // -------------------------------------------------
     cnt = 0;
+    score = 0.0; 
     if (m_quality_flag.uplink_snr) {
-        v.m_val[10].m_re += m_linkq_params[3].booster
-            ? pow(v.m_val[6].m_re, 2)
-            : -pow(v.m_val[6].m_re, 2);
-        cnt++;
-        m_data_sample.phy   = v.m_val[6].m_re;
+        if (access(CONFIG_FILE, F_OK) == 0) {
+            score += pow(v.m_val[6].m_re, 2);
+        } else {
+            v.m_val[10].m_re += m_linkq_params[3].booster
+                ? pow(v.m_val[6].m_re, 2)
+                : (1 - pow(v.m_val[6].m_re, 2));
+            cnt++;
+	}
     }
     if (m_quality_flag.uplink_per) {
-        v.m_val[10].m_re += m_linkq_params[4].booster
-            ? pow(v.m_val[7].m_re, 2)
-            : -pow(v.m_val[7].m_re, 2);
-        cnt++;
-        m_data_sample.per   = v.m_val[7].m_re;
+        if (access(CONFIG_FILE, F_OK) == 0) {
+        } else {
+            v.m_val[10].m_re += m_linkq_params[4].booster
+                ? pow(v.m_val[7].m_re, 2)
+                : (1 - pow(v.m_val[7].m_re, 2));
+            cnt++;
+        }
     }
     if (m_quality_flag.uplink_phy) {
-        v.m_val[10].m_re += m_linkq_params[5].booster
-            ? pow(v.m_val[8].m_re, 2)
-            : -pow(v.m_val[8].m_re, 2);
-        cnt++;
-        m_data_sample.phy   = v.m_val[8].m_re;
+        if (access(CONFIG_FILE, F_OK) == 0) {
+            score += pow(v.m_val[8].m_re, 2);
+        } else {
+            v.m_val[10].m_re += m_linkq_params[5].booster
+                ? pow(v.m_val[8].m_re, 2)
+                : (1 - pow(v.m_val[8].m_re, 2));
+            cnt++;
+        }
     }
-    if (v.m_val[10].m_re < 0.0 || cnt == 0)
-        v.m_val[10].m_re = 0.0;
-    else
-        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
+    if (access(CONFIG_FILE, F_OK) == 0) {
+       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
+       v.m_val[10].m_re = 0;
+       double value = ((score / 2.0) - pow(v.m_val[7].m_re, 2));
+        if (value < 0.0)
+            value = 0.0;
+        v.m_val[10].m_re = sqrt(value);
+        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[7].m_re,v.m_val[10].m_re);
+    } else {
+        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
+        if (v.m_val[10].m_re < 0.0 || cnt == 0)
+            v.m_val[10].m_re = 0.0;
+        else
+            v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt);
+    }
+     wifi_util_error_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
 
     // -------------------------------------------------
     // Aggregate Score
     // -------------------------------------------------
     cnt = 0;
-    for (int i = 0; i < 3; i++) {
-        if (v.m_val[i].m_re > 0.0) {
-            v.m_val[11].m_re += m_linkq_params[i].booster
-                ? pow(v.m_val[i].m_re, 2)
-                : -pow(v.m_val[i].m_re, 2);
-            cnt++;
+    score = 0.0;
+    if (access(CONFIG_FILE, F_OK) == 0) {
+       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
+       v.m_val[11].m_re = 0;
+       score = pow(v.m_val[0].m_re, 2) + pow(v.m_val[2].m_re, 2);
+       double value = ((score  / 2.0) - pow(v.m_val[1].m_re, 2));
+        if (value < 0.0)
+            value = 0.0;
+        v.m_val[11].m_re = sqrt(value);
+        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[1].m_re,v.m_val[11].m_re);
+    } else {
+        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
+        for (int i = 0; i < 3; i++) {
+            if (v.m_val[i].m_re > 0.0) {
+                v.m_val[11].m_re += m_linkq_params[i].booster
+                    ? pow(v.m_val[i].m_re, 2)
+                    :(1 - pow(v.m_val[i].m_re, 2));
+                cnt++;
+           }
         }
+        if (v.m_val[11].m_re < 0.0 || cnt == 0)
+            v.m_val[11].m_re = 0.0;
+        else
+            v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt);
     }
-    if (v.m_val[11].m_re < 0.0 || cnt == 0)
-        v.m_val[11].m_re = 0.0;
-    else
-        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
-    get_local_time(m_data_sample.time, sizeof(m_data_sample.time),false);
+    wifi_util_error_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
+
     // -------------------------------------------------
     // Alarm logic
     // -------------------------------------------------
@@ -371,7 +421,12 @@ vector_t linkq_t::run_test(bool &alarm, bool update_alarm, bool &rapid_disconnec
 
     // If disconnected, count missed samples
     if (m_disconnected) {
-        m_disconnect_samples++;
+        if (access("/tmp/fixed_recovery", F_OK) == 0) {
+            m_disconnect_samples = 10;
+        
+	} else {
+            m_disconnect_samples++;
+	}
         pthread_mutex_unlock(&m_vec_lock);
         wifi_util_dbg_print(WIFI_APPS,"In disconnect lost %d\n",m_disconnect_samples);
         rapid_disconnect =  true;
@@ -542,6 +597,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
 {
     char *buff, tmp[MAX_LINE_SIZE];
     unsigned int i;
+    int normalize_snr = 0;
     
     m_threshold = threshold;
     m_reporting_mult = reporting_mult;
@@ -578,10 +634,35 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
 	m_disconnected = false;
 
     }
-    
+    switch(m_stats_arr[0].radio_index) {
+        case 0:
+            wifi_util_info_print(WIFI_APPS,"radio index=%d\n",m_stats_arr[0].radio_index);
+            if (m_stats_arr[0].dev.cli_SNR > max_snr_radio_val.radio_2g_max_snr) {
+                max_snr_radio_val.radio_2g_max_snr = m_stats_arr[0].dev.cli_SNR;
+                qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_2g_max_snr);
+            }
+            normalize_snr =  max_snr_radio_val.radio_2g_max_snr;             
+	    break;
+        case 1:
+            wifi_util_info_print(WIFI_APPS,"radio index=%d\n",m_stats_arr[0].radio_index);
+            if (m_stats_arr[0].dev.cli_SNR > max_snr_radio_val.radio_5g_max_snr) {
+                max_snr_radio_val.radio_5g_max_snr = m_stats_arr[0].dev.cli_SNR;
+                qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_5g_max_snr);
+            }
+            normalize_snr =  max_snr_radio_val.radio_5g_max_snr;             
+	    break;
+        case 2:
+            wifi_util_info_print(WIFI_APPS,"radio index=%d\n",m_stats_arr[0].radio_index);
+            if (m_stats_arr[0].dev.cli_SNR > max_snr_radio_val.radio_6g_max_snr) {
+                max_snr_radio_val.radio_6g_max_snr = m_stats_arr[0].dev.cli_SNR;
+                qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_6g_max_snr);
+            }
+            normalize_snr =  max_snr_radio_val.radio_6g_max_snr;             
+	    break;
+    }
     for (i = 0; i < MAX_LINKQ_PARAMS; i++) {
         if (strncmp(m_linkq_params[i].name, "DOWNLINK_SNR", strlen("DOWNLINK_SNR")) == 0) {
-            m_seq[i].set_max(number_t(70, 0));
+            m_seq[i].set_max(number_t(normalize_snr, 0));
             m_seq[i].set_min(number_t(0, 0));
         } else if (strncmp(m_linkq_params[i].name, "DOWNLINK_PER", strlen("DOWNLINK_PER")) == 0) {
             m_seq[i].set_max(number_t(25, 0));
@@ -590,7 +671,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
             m_seq[i].set_max(number_t( m_stats_arr[0].dev.cli_MaxDownlinkRate, 0));
             m_seq[i].set_min(number_t(0, 0));
         } else if (strncmp(m_linkq_params[i].name, "UPLINK_SNR", strlen("UPLINK_SNR")) == 0) {
-            m_seq[i].set_max(number_t(70, 0));
+            m_seq[i].set_max(number_t(normalize_snr, 0));
             m_seq[i].set_min(number_t(0, 0));
         } else if (strncmp(m_linkq_params[i].name, "UPLINK_PER", strlen("UPLINK_PER")) == 0) {
             m_seq[i].set_max(number_t( 25, 0));
@@ -600,7 +681,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
             m_seq[i].set_min(number_t(0, 0));
         }
     }
-    wifi_util_dbg_print(WIFI_APPS," %s:%d  m_recs =%d m_current=%d m_max_phy=%d\n",__func__,__LINE__,m_recs,m_current,m_stats_arr[0].dev.cli_MaxDownlinkRate); 
+    wifi_util_error_print(WIFI_APPS," %s:%d  m_recs =%d m_current=%d m_max_phy=%d normalize_snr=%d\n",__func__,__LINE__,m_recs,m_current,m_stats_arr[0].dev.cli_MaxDownlinkRate,normalize_snr); 
     return 0;
 }
 
@@ -649,6 +730,15 @@ void linkq_t::unregister_station_mac(const char* str)
         memset(ignite_station_mac, '\0', sizeof(ignite_station_mac));
     }
     return;
+}
+
+int linkq_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    wifi_util_error_print(WIFI_APPS,"Pramod %s:%d\n",__func__,__LINE__);
+    max_snr_radio_val = *max_snr_val;
+    wifi_util_error_print(WIFI_APPS,"Pramod %s:%d %d:%d:%d\n", __func__,__LINE__,max_snr_radio_val.radio_2g_max_snr,max_snr_radio_val.radio_5g_max_snr,
+	    max_snr_radio_val.radio_6g_max_snr);
+    return 0;
 }
 
 linkq_t::linkq_t(mac_addr_str_t mac,unsigned int vap_index)

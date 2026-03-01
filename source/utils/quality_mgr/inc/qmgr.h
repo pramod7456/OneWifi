@@ -62,6 +62,10 @@ public:
     static qmgr_t* get_instance();
     char *get_local_time(char *buff, unsigned int len,bool flag);
     cJSON *create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index);
+<<<<<<< HEAD
+=======
+    static int set_max_snr_radios(radio_max_snr_t *max_snr_val);    
+>>>>>>> 2bb8a25 (with new formula and new snr normalization)
     void update_json(const char *str, vector_t v, cJSON *out_obj, bool &alarm);
     void register_station_mac(const char* str);
     void unregister_station_mac(const char* str);

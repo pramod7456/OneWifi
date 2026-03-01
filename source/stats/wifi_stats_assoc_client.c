@@ -287,8 +287,9 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                 to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
                 link_data[i].stats.dev = dev_array[i];
                 link_data[i].stats.vap_index = args->vap_index ;
-                wifi_util_dbg_print(WIFI_MON,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  cli_MaxDownlinkRate=%d vap_index=%d\n",
-                    dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,dev_array[i].cli_MaxDownlinkRate,link_data[i].stats.vap_index);
+                link_data[i].stats.radio_index = getRadioIndexFromAp(args->vap_index);
+                wifi_util_dbg_print(WIFI_MON,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  cli_MaxDownlinkRate=%d radio_index=%d\n",
+                    dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,dev_array[i].cli_MaxDownlinkRate,link_data[i].stats.radio_index);
             }
 
     } 

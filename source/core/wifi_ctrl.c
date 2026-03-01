@@ -2825,6 +2825,12 @@ wifi_rfc_dml_parameters_t *get_ctrl_rfc_parameters(void)
         g_wifi_mgr->rfc_dml_parameters.csi_analytics_enabled_rfc;
     g_wifi_mgr->ctrl.rfc_params.link_quality_rfc =
         g_wifi_mgr->rfc_dml_parameters.link_quality_rfc;
+    g_wifi_mgr->ctrl.rfc_params.radio_2g_observed_max_snr =
+        g_wifi_mgr->rfc_dml_parameters.radio_2g_observed_max_snr;
+    g_wifi_mgr->ctrl.rfc_params.radio_5g_observed_max_snr =
+        g_wifi_mgr->rfc_dml_parameters.radio_5g_observed_max_snr;
+    g_wifi_mgr->ctrl.rfc_params.radio_6g_observed_max_snr =
+        g_wifi_mgr->rfc_dml_parameters.radio_6g_observed_max_snr;
     strcpy(g_wifi_mgr->ctrl.rfc_params.rfc_id, g_wifi_mgr->rfc_dml_parameters.rfc_id);
     return &g_wifi_mgr->ctrl.rfc_params;
 }

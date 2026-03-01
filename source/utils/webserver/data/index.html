@@ -115,30 +115,28 @@
       <div style="padding-right: 24px;">
       <h1 style="font-size:22px; line-height:1.2; margin:0 0 8px 0; text-align:left; white-space:nowrap; overflow-x:auto;">
   Wi-Fi Telemetry — Link Quality
-  <span style="font-size:0.75em; margin-left:12px; vertical-align:middle;">
-  \(
-  \mathbf{
-  Score =
-  \sqrt{
-  \frac{
-  SNR_{norm}^{2}
-  +
-  PHY_{norm}^{2}
-  -
-  PER_{norm}^{2}
-  }{3}
-  }
-  *
-  \left(
-  1 - e^{-4 * \frac{L_t - L_r}{L_t}}
-  \right)
-  }
-  \)
-  </span>
+<span style="font-size:0.5em; margin-left:8px; vertical-align:middle;"">
+\(
+\mathbf{
+Score =
+\sqrt{ 
+        \frac{SNR_{norm}^{2} + PHY_{norm}^{2} +(1 - PER_{norm}^{2})}{3}
+} 
+\; * \;
+\left(
+\frac{
+    1 - e^{-4 * \frac{L_t - L_r}{L_t}}
+}{
+    1 - e^{-4}
+}
+\right)
+}
+\)
+</span>
 </h1>
 <div style="font-size:13px; line-height:1.6; margin-top:5px; max-width:900px;">
-  <b>L<sub>t</sub></b> – Total lost samples  during disconnect<br>
-  <b>L<sub>r</sub></b> – Recovered samples in rapid reconnect.
+  <b>L<sub>t</sub></b> – Total time lost for station  during disconnect<br>
+  <b>L<sub>r</sub></b> – Recovered time for station  after reconnect.
 </div>
       </div>
       <div style="display: flex; gap: 32px;">

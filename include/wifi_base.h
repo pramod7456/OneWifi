@@ -518,6 +518,9 @@ typedef struct {
     bool memwraptool_app_rfc;
     bool csi_analytics_enabled_rfc;
     bool link_quality_rfc;
+    int radio_2g_observed_max_snr;
+    int radio_5g_observed_max_snr;
+    int radio_6g_observed_max_snr;
 } wifi_rfc_dml_parameters_t;
 
 typedef struct {

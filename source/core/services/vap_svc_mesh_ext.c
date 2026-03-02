@@ -1810,7 +1810,7 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                 } else {
                     wifi_util_info_print(WIFI_CTRL,"IGNITE_RF_DOWN: Connect status sent successfully to the WM\n");
                 }
-		wifi_util_dbg_print(WIFI_CTRL, "[DL] %s %d Mac-str : %s\n", __func__, __LINE__, mac_str);
+        wifi_util_dbg_print(WIFI_CTRL, "[DL] %s %d Mac-str : %s\n", __func__, __LINE__, mac_str);
                 // Freed as part of destroy_wifi_event
                 bssid_mac_str = (char *)malloc(MAC_ADDR_STR_LEN);
                 if (bssid_mac_str != NULL) {
@@ -1888,6 +1888,17 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
         }
     } else if (sta_data->stats.connect_status == wifi_connection_status_ap_not_found || sta_data->stats.connect_status == wifi_connection_status_disconnected) {
         apply_pending_channel_change(svc, sta_data->stats.vap_index);
+
+        // copy the bss bssid info to global chache
+        memcpy (temp_vap_info->u.sta_info.bssid, sta_data->bss_info.bssid, sizeof(temp_vap_info->u.sta_info.bssid));
+
+        wifi_util_dbg_print(WIFI_CTRL,
+                "%s:%d MAC : %02x:%02x:%02x:%02x:%02x:%02x\n",
+                __func__, __LINE__, temp_vap_info->u.sta_info.mac[0],
+                temp_vap_info->u.sta_info.mac[1], temp_vap_info->u.sta_info.mac[2],
+                temp_vap_info->u.sta_info.mac[3], temp_vap_info->u.sta_info.mac[4],
+                temp_vap_info->u.sta_info.mac[5]);
+
 
         bssid_mac_str = (char *)malloc(MAC_ADDR_STR_LEN);
         if (bssid_mac_str != NULL) {

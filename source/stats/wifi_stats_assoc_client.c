@@ -296,8 +296,9 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                 link_data[i].stats.dev = dev_array[i];
                 link_data[i].stats.vap_index = args->vap_index ;
                 link_data[i].stats.radio_index = getRadioIndexFromAp(args->vap_index);
-                wifi_util_dbg_print(WIFI_MON,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  cli_MaxDownlinkRate=%d radio_index=%d\n",
-                    dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,dev_array[i].cli_MaxDownlinkRate,link_data[i].stats.radio_index);
+                get_radio_channel_utilization(link_data[i].stats.radio_index,&link_data[i].stats.channel_utilization);
+                wifi_util_dbg_print(WIFI_MON,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  cli_MaxDownlinkRate=%d radio_index=%d link_data[i].stats.channel_utilization=%d \n",
+                    dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,dev_array[i].cli_MaxDownlinkRate,link_data[i].stats.radio_index,link_data[i].stats.channel_utilization);
             }
 
         if (link_data && ((link_quality_measurement) || (rf_down_mesh_sta))) {

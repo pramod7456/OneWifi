@@ -284,7 +284,6 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     if (rfc_param->link_quality_rfc) {
           wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
     }
-   #if 0
     if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0|| 
         rfc_param->radio_6g_observed_max_snr == 0) {
         if (rfc_param->radio_2g_observed_max_snr == 0) {
@@ -309,14 +308,11 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
 
           wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
     } else {
-    #endif
 	max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
 	max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
         max_snr.radio_6g_max_snr = rfc_param->radio_6g_observed_max_snr;
         wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
-  #if 0  
     }
-    #endif
     
     wifi_util_info_print(WIFI_APPS, "%s:%d %d:%d:%d \n", __func__, __LINE__,
     max_snr.radio_2g_max_snr,max_snr.radio_5g_max_snr,max_snr.radio_6g_max_snr);

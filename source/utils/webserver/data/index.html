@@ -116,27 +116,27 @@
       <h1 style="font-size:22px; line-height:1.2; margin:0 0 8px 0; text-align:left; white-space:nowrap; overflow-x:auto;">
   Wi-Fi Telemetry — Link Quality
 <span style="font-size:0.5em; margin-left:8px; vertical-align:middle;"">
-\(
+\[
 \mathbf{
 Score =
-\sqrt{ 
-        \frac{SNR_{norm}^{2} + PHY_{norm}^{2} +(1 - PER_{norm}^{2})}{3}
-} 
-\; * \;
-\left(
+\sqrt{
 \frac{
-    1 - e^{-4 * \frac{L_t - L_r}{L_t}}
-}{
-    1 - e^{-4}
-}
+SNR_{norm}^{2} + PHY_{norm}^{2} + \left(1 - PER_{norm}^{2}\right)
+}{3}
+}*
+\left(
+1 - e^{-4 \frac{T_D - T_R}{T_D}}
+\right) *
+\left(
+1 - \frac{w}{1 + e^{-\left(b_0 + b_1 + CU\right)}}
 \right)
 }
-\)
+\]
 </span>
 </h1>
 <div style="font-size:13px; line-height:1.6; margin-top:5px; max-width:900px;">
-  <b>L<sub>t</sub></b> – Total time lost for station  during disconnect<br>
-  <b>L<sub>r</sub></b> – Recovered time for station  after reconnect.
+  <b>T<sub>D</sub></b> – Amount of time client was disconnected<br>
+  <b>T<sub>R</sub></b> – Time since the client is connected back.
 </div>
       </div>
       <div style="display: flex; gap: 32px;">
@@ -187,52 +187,40 @@ Score =
   </div><!-- Tab 2: Connection Affinity -->
   <!-- Tab 2: Connection Affinity -->
     <div id="tab2Content" class="tab-content">
-<h1 style="text-align:center; margin-bottom:12px;">
+<h1 style="text-align:center; margin-bottom:8px;">
   Wi-Fi Telemetry — Connection Affinity
 </h1>
-<div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em;">
-    <span style="font-size:1em;">
-\(
+    <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em;">
+  <span style="font-size:0.8em;">
+  \[
 \mathbf{
-\frac{1}{N_{\text{authAttempts}}}*
+CAA_{MAC} =
 \left(
-\frac{
-T_{\text{tcxTotal}} * N_{\text{authSuccess}}
-}{
-T_{\text{tcxTotal}} + T_{\text{dcxTotal}} + T_{\text{sleep}}
-}
--
-N_{\text{authFailures}}
-\right)
-*
+1
+- \left(\frac{auth_{failures}}{auth_{attempts}}
++ \frac{assoc_{failures}}{assoc_{attempts}}
++ \frac{dhcp_{failures}}{dhcp_{attempts}}\right)* SNR_{assoc}^{2}
+\right) *
 \left(
-\frac{
-\text{SNR}_{\text{probeMac}}
-}{
-\text{SNR}_{\text{probeMax}} - \text{SNR}_{\text{probeMin}}
-}
+\frac{1}{1 + e^{-\left(b_0 + b_1 * CU\right)}}
 \right)
 }
-\)
-</span>
-
-    <span style="font-size:1em; font-weight:bold;"> &nbsp;|&nbsp; </span>
-    \(
-      \mathbf{
-        A_{\text{Gw}} =
-        \frac{
-          \sum_{i=1}^{N_{\text{Clients}}}
-          A_{\text{Client},i}
-        }{
-          N_{\text{Clients}}
-        }
-      }
-    \)
+\quad
+\mathbf{|}
+\quad
+\mathbf{
+CAA_{Home} =
+\sqrt{
+\frac{
+\sum_{1}^{N} CAA_{MAC}^{2}
+}{
+N
+}
+}
+}
+\]
   </span>
 </div>
-
-
-
     <div id="affinityChartsWrapper" style=
     "width:100%; display:flex; flex-direction:column; gap:70px;">
       <div id="affinityMultiContainer" style="width:100%;"></div>

@@ -622,7 +622,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
     sample.err_recv = m_stats_arr[0].dev.cli_RxRetries;
     wifi_util_dbg_print(WIFI_APPS,"DOWNLINK_PER sample.pkt_sent=%dsample.err_sent=%d\n",sample.pkt_sent,sample.err_sent);
     // Push latest sample
-
+    wifi_util_info_print(WIFI_APPS,"Pramod channel_utilization = %d\n",m_stats_arr[0].channel_utilization);
     pthread_mutex_lock(&m_deque_lock);
 
     // Maintain fixed window size

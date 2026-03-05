@@ -369,11 +369,7 @@ WiFi_GetParamBoolValue
         *pBool = rfc_pcfg->csi_analytics_enabled_rfc;
         return TRUE;
     }
-<<<<<<< HEAD
     if (AnscEqualString(ParamName, "LinkQuality", TRUE))
-=======
-    if (AnscEqualString(ParamName, "LinkQuality_RFC", TRUE))
->>>>>>> a18c18c (Quality_mgr and webserver application)
     {
         *pBool = rfc_pcfg->link_quality_rfc;
         return TRUE;
@@ -1198,11 +1194,7 @@ WiFi_SetParamBoolValue
 
         return TRUE;
     }
-<<<<<<< HEAD
     if (AnscEqualString(ParamName, "LinkQuality", TRUE))
-=======
-    if (AnscEqualString(ParamName, "LinkQuality_RFC", TRUE))
->>>>>>> a18c18c (Quality_mgr and webserver application)
     {
         if(bValue != rfc_pcfg->link_quality_rfc) {
             push_rfc_dml_cache_to_one_wifidb(bValue, wifi_event_type_link_quality_rfc);

@@ -72,7 +72,7 @@ class linkq_t {
     static radio_max_snr_t max_snr_radio_val;
 public:
     vector_t run_test(bool &alarm,bool update_alarm,bool &rapid_disconnect);
-    vector_t run_algorithm(linkq_data_t data, bool &alarm, bool update_alarm);
+    vector_t run_algorithm(linkq_data_t data, bool &alarm, bool update_alarm,int channel_util);
     int init(double threshold, unsigned int reporting_mult,stats_arg_t *stats);
     size_t get_window_samples(sample_t **out_samples); 
     int reinit(server_arg_t *arg);

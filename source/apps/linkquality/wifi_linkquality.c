@@ -339,7 +339,7 @@ int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
     return RETURN_OK;
 }
 
-int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg, int len)
+int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg)
 {
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
@@ -436,7 +436,7 @@ int link_quality_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
     return RETURN_OK;
 }
 
-int link_quality_hal_disconnect(wifi_app_t *apps, void *arg, int len)
+int link_quality_hal_disconnect(wifi_app_t *apps, void *arg)
  {           
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
@@ -570,19 +570,46 @@ int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
     }
     return RETURN_OK;
 }
-int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg, int len)
+int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg)
 {
     switch (sub_type) {
         case wifi_event_exec_start:
             break;
 
         case wifi_event_exec_stop:
-            link_quality_hal_disconnect(apps, arg,len);
+            link_quality_hal_disconnect(apps, arg);
             break;
 
         case wifi_event_exec_timeout:
-            link_quality_hal_rapid_connect(apps, arg,len);
+            link_quality_hal_rapid_connect(apps, arg);
             break;
+
+        case wifi_event_hal_auth_frame:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+     
+        case wifi_event_hal_assoc_req_frame:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+ 
+        case wifi_event_hal_assoc_rsp_frame:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+
+        case wifi_event_hal_reassoc_req_frame:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+        case wifi_event_hal_reassoc_rsp_frame:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+     
+        case wifi_event_hal_sta_conn_status:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+        case wifi_event_hal_disassoc_device:
+            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
+            break;
+        
         default:
             wifi_util_error_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
             wifi_event_subtype_to_string(sub_type));
@@ -603,7 +630,7 @@ int link_quality_event(wifi_app_t *app, wifi_event_t *event)
             break;
 
         case wifi_event_type_hal_ind:
-            exec_event_hal_ind(app, event->sub_type, event->u.core_data.msg, event->u.core_data.len);
+            exec_event_hal_ind(app, event->sub_type, event->u.core_data.msg);
             break;
 
         default:

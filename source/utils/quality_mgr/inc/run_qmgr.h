@@ -28,7 +28,7 @@ extern "C" {
 #define MAX_SCORE_PARAMS    12
 #define THRESHOLD 0.4
 #define SAMPLING_INTERVAL 5
-#define REPORTING_INTERVAL 10
+#define REPORTING_INTERVAL 5
 #include "wifi_base.h"
 
 #define LINKQ_DL_SNR        (1 << 0)
@@ -41,7 +41,8 @@ extern "C" {
 #define LINKQ_INT_RECONN    (1 << 7)
 
 #define LINKQ_VALID_MASK    0xFF   /* Only first 8 bits valid */
-
+#define LINK_QTY_B0  1.386
+#define LINK_QTY_B1  0.02
 typedef struct {
     char path[MAX_FILE_NAME_SZ];
     char output_file[MAX_FILE_NAME_SZ];

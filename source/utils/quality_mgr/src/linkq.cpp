@@ -35,7 +35,6 @@ linkq_params_t linkq_t::m_linkq_params[MAX_LINKQ_PARAMS] = {{"DOWNLINK_SNR", tru
 
 mac_addr_str_t linkq_t::ignite_station_mac = "";
 
-#define CONFIG_FILE "/tmp/formula2"
 extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
 
 radio_max_snr_t linkq_t::max_snr_radio_val = {25,25,25};
@@ -70,21 +69,20 @@ quality_flags_t linkq_t::m_quality_flag = { true, true, true, false, false, fals
 static inline double apply_rapid_reconnect(double norm,int remaining,
                                     int total)
 {
-     double factor = 1.0;
-    if (total <= 0 || remaining <= 0)
-        return norm;
-
-    double progress = (double)(total - remaining) / (double)total;
-
+    double factor = 1.0;
+    double progress = 0.0;
+    double val = 0.0;
+    if (total <= 0) {
+        progress = 1.0;
+    } else {
+        progress = (double)(total - remaining) / (double)total;
+    }
+     
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
-    int elapsed = (total * 5) - (remaining * 5);
-    if (elapsed <= 0)
-        return 0.0;
     
-        factor = ((1.0 - exp(-4.0 * progress))/(1.0 - exp(-4.0)));
-        wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
-    }
+    factor = ((1.0 - exp(-4.0 * progress))/(1.0 - exp(-4.0)));
+    wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
     val = norm * factor;
 
     wifi_util_info_print(WIFI_APPS,
@@ -96,7 +94,7 @@ static inline double apply_rapid_reconnect(double norm,int remaining,
 
 vector_t linkq_t::run_algorithm(linkq_data_t data,
                                 bool &alarm,
-                                bool update_alarm)
+                                bool update_alarm,int channel_utilization)
 {
     vector_t v;
     alarm = false;
@@ -237,9 +235,13 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     }
     if (v.m_val[9].m_re < 0.0 || cnt == 0)
         v.m_val[9].m_re = 0.0;
-    else
-        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt);
-    wifi_util_error_print(WIFI_APPS,"%s:%dDownlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
+    else {
+        wifi_util_error_print(WIFI_APPS,"Pramod earlier score =%f and multiplied by %f\n",sqrt(v.m_val[9].m_re / cnt),
+	(1 - 1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
+        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * 
+            (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
+    }
+    wifi_util_error_print(WIFI_APPS,"%s:%d Pramod now Downlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
 
     // -------------------------------------------------
     // UPLINK Score
@@ -265,9 +267,11 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     }
     if (v.m_val[10].m_re < 0.0 || cnt == 0)
         v.m_val[10].m_re = 0.0;
-    else
-        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt);
-     wifi_util_error_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
+    else {
+        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt) *
+            (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
+    }
+    wifi_util_error_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
 
     // -------------------------------------------------
     // Aggregate Score
@@ -283,8 +287,10 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     }
     if (v.m_val[11].m_re < 0.0 || cnt == 0)
         v.m_val[11].m_re = 0.0;
-    else
-        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt);
+    else {
+        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt) *
+            (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
+    }
     wifi_util_error_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
 
     // -------------------------------------------------
@@ -361,12 +367,7 @@ vector_t linkq_t::run_test(bool &alarm, bool update_alarm, bool &rapid_disconnec
 
     // If disconnected, count missed samples
     if (m_disconnected) {
-        if (access("/tmp/fixed_recovery", F_OK) == 0) {
-            m_disconnect_samples = 10;
-        
-	} else {
-            m_disconnect_samples++;
-	}
+        m_disconnect_samples++;
         pthread_mutex_unlock(&m_vec_lock);
         wifi_util_dbg_print(WIFI_APPS,"In disconnect lost %d\n",m_disconnect_samples);
         rapid_disconnect =  true;
@@ -411,7 +412,7 @@ vector_t linkq_t::run_test(bool &alarm, bool update_alarm, bool &rapid_disconnec
         }
     }
 
-    v = run_algorithm(data, alarm, update_alarm);
+    v = run_algorithm(data, alarm, update_alarm,stat.channel_utilization);
 
     // One recovery step per successful sample
     if (m_recovery_remaining > 0) {

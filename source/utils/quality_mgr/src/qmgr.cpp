@@ -202,8 +202,8 @@ int qmgr_t::push_reporting_subdoc()
 void qmgr_t::update_graph( cJSON *out_obj)
 {
     pthread_mutex_lock(&m_json_lock);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
     char *json = cJSON_PrintUnformatted(out_obj);
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d %s\n",__func__,__LINE__,json); 
     FILE *fp = fopen(m_args.output_file, "w");
     if (fp) {
         fputs(json, fp);
@@ -330,7 +330,7 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
       cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
 
     snprintf(tmp, sizeof(tmp), "Alarms");
-    cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
+    cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
     
     snprintf(tmp, sizeof(tmp), "Time");
     cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
@@ -562,6 +562,8 @@ qmgr_t::qmgr_t()
     m_args.threshold = THRESHOLD;
     m_args.sampling = SAMPLING_INTERVAL;
     m_args.reporting = REPORTING_INTERVAL;
+    snprintf(m_args.output_file, sizeof(m_args.output_file), "%s", "/www/data/telemetry.json");
+    snprintf(m_args.path, sizeof(m_args.path), "%s", "/www/data");
     m_link_map = hash_map_create();
     out_obj = cJSON_CreateObject();
     m_bg_running = false;

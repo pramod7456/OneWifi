@@ -113,7 +113,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         is_ignite_station = true;
        
     }
-    double score = 0.0;
     // -------------------------------------------------
     // Fixed vector layout (frontend decides visibility)
     // -------------------------------------------------
@@ -217,134 +216,75 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     // DOWNLINK Score
     // -------------------------------------------------
     cnt = 0;
-    score = 0.0; 
     if (m_quality_flag.downlink_snr) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-            score += pow(v.m_val[3].m_re, 2);
-        } else {
-            v.m_val[9].m_re += m_linkq_params[0].booster
+        v.m_val[9].m_re += m_linkq_params[0].booster
             ? pow(v.m_val[3].m_re, 2)
             : (1 - pow(v.m_val[3].m_re, 2));
-        }
         cnt++;
         m_data_sample.snr   = v.m_val[3].m_re;
     }
     if (m_quality_flag.downlink_per) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-        } else {
-            v.m_val[9].m_re += m_linkq_params[1].booster
+        v.m_val[9].m_re += m_linkq_params[1].booster
             ? pow(v.m_val[4].m_re, 2)
             :(1 - pow(v.m_val[4].m_re, 2));
-            cnt++;
-	}
+        cnt++;
     }
     if (m_quality_flag.downlink_phy) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-            score += pow(v.m_val[5].m_re, 2);
-        } else {
-            v.m_val[9].m_re += m_linkq_params[2].booster
+        v.m_val[9].m_re += m_linkq_params[2].booster
             ? pow(v.m_val[5].m_re, 2)
             : (1 - pow(v.m_val[5].m_re, 2));
-            cnt++;
-	}
+        cnt++;
     }
-    if (access(CONFIG_FILE, F_OK) == 0) {
-       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
-       v.m_val[9].m_re = 0;
-       double value = ((score / 2.0) - pow(v.m_val[4].m_re, 2));
-        if (value < 0.0)
-            value = 0.0;
-        v.m_val[9].m_re = sqrt(value);
-        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[4].m_re,v.m_val[9].m_re);
-    } else {
-        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
-        if (v.m_val[9].m_re < 0.0 || cnt == 0)
-            v.m_val[9].m_re = 0.0;
-        else
-            v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt);
-    }
+    if (v.m_val[9].m_re < 0.0 || cnt == 0)
+        v.m_val[9].m_re = 0.0;
+    else
+        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt);
     wifi_util_error_print(WIFI_APPS,"%s:%dDownlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
 
     // -------------------------------------------------
     // UPLINK Score
     // -------------------------------------------------
     cnt = 0;
-    score = 0.0; 
     if (m_quality_flag.uplink_snr) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-            score += pow(v.m_val[6].m_re, 2);
-        } else {
-            v.m_val[10].m_re += m_linkq_params[3].booster
-                ? pow(v.m_val[6].m_re, 2)
-                : (1 - pow(v.m_val[6].m_re, 2));
-            cnt++;
-	}
+        v.m_val[10].m_re += m_linkq_params[3].booster
+            ? pow(v.m_val[6].m_re, 2)
+            : (1 - pow(v.m_val[6].m_re, 2));
+        cnt++;
     }
     if (m_quality_flag.uplink_per) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-        } else {
-            v.m_val[10].m_re += m_linkq_params[4].booster
-                ? pow(v.m_val[7].m_re, 2)
-                : (1 - pow(v.m_val[7].m_re, 2));
+        v.m_val[10].m_re += m_linkq_params[4].booster
+            ? pow(v.m_val[7].m_re, 2)
+            : (1 - pow(v.m_val[7].m_re, 2));
             cnt++;
-        }
     }
     if (m_quality_flag.uplink_phy) {
-        if (access(CONFIG_FILE, F_OK) == 0) {
-            score += pow(v.m_val[8].m_re, 2);
-        } else {
-            v.m_val[10].m_re += m_linkq_params[5].booster
-                ? pow(v.m_val[8].m_re, 2)
-                : (1 - pow(v.m_val[8].m_re, 2));
-            cnt++;
-        }
+        v.m_val[10].m_re += m_linkq_params[5].booster
+            ? pow(v.m_val[8].m_re, 2)
+            : (1 - pow(v.m_val[8].m_re, 2));
+        cnt++;
     }
-    if (access(CONFIG_FILE, F_OK) == 0) {
-       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
-       v.m_val[10].m_re = 0;
-       double value = ((score / 2.0) - pow(v.m_val[7].m_re, 2));
-        if (value < 0.0)
-            value = 0.0;
-        v.m_val[10].m_re = sqrt(value);
-        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[7].m_re,v.m_val[10].m_re);
-    } else {
-        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
-        if (v.m_val[10].m_re < 0.0 || cnt == 0)
-            v.m_val[10].m_re = 0.0;
-        else
-            v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt);
-    }
+    if (v.m_val[10].m_re < 0.0 || cnt == 0)
+        v.m_val[10].m_re = 0.0;
+    else
+        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt);
      wifi_util_error_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
 
     // -------------------------------------------------
     // Aggregate Score
     // -------------------------------------------------
     cnt = 0;
-    score = 0.0;
-    if (access(CONFIG_FILE, F_OK) == 0) {
-       wifi_util_info_print(WIFI_APPS,"In formula2 \n");
-       v.m_val[11].m_re = 0;
-       score = pow(v.m_val[0].m_re, 2) + pow(v.m_val[2].m_re, 2);
-       double value = ((score  / 2.0) - pow(v.m_val[1].m_re, 2));
-        if (value < 0.0)
-            value = 0.0;
-        v.m_val[11].m_re = sqrt(value);
-        wifi_util_info_print(WIFI_APPS,"In formula2 phy_snr=%f,per=%f,RMS score=%f\n",score,v.m_val[1].m_re,v.m_val[11].m_re);
-    } else {
-        wifi_util_info_print(WIFI_APPS,"In formula1 \n");
-        for (int i = 0; i < 3; i++) {
-            if (v.m_val[i].m_re > 0.0) {
-                v.m_val[11].m_re += m_linkq_params[i].booster
-                    ? pow(v.m_val[i].m_re, 2)
-                    :(1 - pow(v.m_val[i].m_re, 2));
-                cnt++;
-           }
+    for (int i = 0; i < 3; i++) {
+        if (v.m_val[i].m_re > 0.0) {
+            v.m_val[11].m_re += m_linkq_params[i].booster
+                ? pow(v.m_val[i].m_re, 2)
+                :(1 - pow(v.m_val[i].m_re, 2));
+            cnt++;
         }
-        if (v.m_val[11].m_re < 0.0 || cnt == 0)
-            v.m_val[11].m_re = 0.0;
-        else
-            v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt);
     }
+    if (v.m_val[11].m_re < 0.0 || cnt == 0)
+        v.m_val[11].m_re = 0.0;
+    else
+        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt);
     wifi_util_error_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
 
     // -------------------------------------------------

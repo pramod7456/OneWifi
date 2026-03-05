@@ -84,7 +84,7 @@ public:
     const char * get_mac_addr() const{ return m_mac; }
     unsigned int get_vap_index() const{ return m_vapindex; }
     bool get_alarm() const{ return m_alarm; }
-    void clear_window_samples(); 
+    void clear_window_samples();
     static void register_station_mac(const char* str);
     static void unregister_station_mac(const char* str);
     static int set_max_snr_radios(radio_max_snr_t *max_snr_val);

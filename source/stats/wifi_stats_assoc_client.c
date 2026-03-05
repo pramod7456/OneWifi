@@ -561,7 +561,6 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                     apps_mgr_link_quality_event(&ctrl->apps_mgr,wifi_event_type_hal_ind, wifi_event_exec_stop, link_data, 0);
                 }
             }
-	    }
             if (send_disconnect_event == 1) {
                 mac_addr = (unsigned char *)malloc(sizeof(mac_address_t));
                 if (mac_addr != NULL) {

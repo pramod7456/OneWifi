@@ -398,7 +398,7 @@ int web_t::server(int sock)
            quality.int_reconn = false;
         
 	pthread_mutex_unlock(&m_param_lock);
-        linkq_t::set_quality_params(&quality);
+        linkq_t::set_quality_flags(&quality);
         FILE *f = fopen("/www/data/linkparams.json","w");
         if(f) {
             fprintf(f, "{ \"downlink\":\"%s\", \"uplink\":\"%s\", \"aggregate\":\"%s\", \"intreconnect\":\"%s\" }",
@@ -591,7 +591,7 @@ web_t::web_t(const char *path)
     quality.downlink_phy =  true;
     quality.downlink_per =  true;
     quality.int_reconn =  true;
-    linkq_t::set_quality_params(&quality);
+    linkq_t::set_quality_flags(&quality);
     FILE *f = fopen("/www/data/linkparams.json","w");
     if(f) {
         fprintf(f, "{ \"downlink\":\"%s\", \"uplink\":\"%s\", \"aggregate\":\"%s\",\"intreconnect\":\"%s\" }",

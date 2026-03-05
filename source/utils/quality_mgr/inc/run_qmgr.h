@@ -43,6 +43,8 @@ extern "C" {
 #define LINKQ_VALID_MASK    0xFF   /* Only first 8 bits valid */
 
 typedef struct {
+    char path[MAX_FILE_NAME_SZ];
+    char output_file[MAX_FILE_NAME_SZ];
     double threshold;
     unsigned int sampling;
     unsigned int reporting;
@@ -83,10 +85,12 @@ typedef struct {
 
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
 typedef void (*qmgr_report_score_cb_t)(const char *str, double score,double threshold);
+typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
 
 /* Registration function (called from C main) */
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb);
 void qmgr_register_score_callback(qmgr_report_score_cb_t cb);
+void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb);
 
 bool qmgr_is_batch_registered(void);
 bool qmgr_is_score_registered(void);
@@ -94,15 +98,11 @@ bool qmgr_is_score_registered(void);
 void reset_qmgr_score_cb(void);
 void qmgr_invoke_batch(const report_batch_t *batch);
 void qmgr_invoke_score(const char *str, double score,double threshold);
-typedef void (*qmgr_report_cb_t)(const report_batch_t *report);
-typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
+void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
 
 int run_web_server();
-int stop_web_server(const char *path);
+int stop_web_server();
 
-/* Registration function (called from C main) */
-void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb);
-void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
 
 int add_stats_metrics(stats_arg_t *stats);
 int remove_link_stats(stats_arg_t *stats);

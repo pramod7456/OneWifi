@@ -526,7 +526,6 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                     wifi_util_dbg_print(WIFI_MON, "%s:%d:  diag client disassociated  sta mac=%s:\n", __func__, __LINE__,link_data->stats.mac_str);
                 }
             }
-	    }
             if (send_disconnect_event == 1) {
                 mac_addr = (unsigned char *)malloc(sizeof(mac_address_t));
                 if (mac_addr != NULL) {

@@ -330,7 +330,7 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
       cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
 
     snprintf(tmp, sizeof(tmp), "Alarms");
-    cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
+    cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
     
     snprintf(tmp, sizeof(tmp), "Time");
     cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());

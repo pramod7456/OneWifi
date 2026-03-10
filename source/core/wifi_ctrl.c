@@ -344,6 +344,7 @@ void ctrl_queue_loop(wifi_ctrl_t *ctrl)
                         break;
 
                     case wifi_event_type_hal_ind:
+                        wifi_util_dbg_print(WIFI_CTRL,"[%s]:%d Pramod %d\r\n",__FUNCTION__,__LINE__, event->event_type);
                         handle_hal_indication(ctrl, event->u.core_data.msg, event->u.core_data.len, event->sub_type);
                         break;
 
@@ -369,6 +370,7 @@ void ctrl_queue_loop(wifi_ctrl_t *ctrl)
                 if (event->event_type != wifi_event_type_webconfig) {
                     // now forward the event to apps manager
                     apps_mgr_event(&ctrl->apps_mgr, event);
+                    wifi_util_dbg_print(WIFI_CTRL,"[%s]:%d Pramod %d\r\n",__FUNCTION__,__LINE__, event->event_type);
                 }
 
                 destroy_wifi_event(event);

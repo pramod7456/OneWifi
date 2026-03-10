@@ -446,7 +446,7 @@ int set_auth_req_frame_data(frame_data_t *msg) {
         wifi_util_error_print(WIFI_MON, "%s:%d mac str convert failure\r\n", __func__, __LINE__);
         return RETURN_ERR;
     }
-    wifi_util_dbg_print(WIFI_MON, "%s:%d wifi mgmt frame message: ap_index:%d length:%d type:%d dir:%d src mac:%s rssi:%d\r\n", __func__, __LINE__, msg->frame.ap_index, msg->frame.len, msg->frame.type, msg->frame.dir, str, msg->frame.sig_dbm);
+    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Pramod wifi mgmt frame message: ap_index:%d length:%d type:%d dir:%d src mac:%s rssi:%d\r\n", __func__, __LINE__, msg->frame.ap_index, msg->frame.len, msg->frame.type, msg->frame.dir, str, msg->frame.sig_dbm);
     wifi_front_haul_bss_t *vap_bss_info = Get_wifi_object_bss_parameter(msg->frame.ap_index);
     if (vap_bss_info == NULL) {
 	  wifi_util_dbg_print(WIFI_MON, "%s:%d vap_bss_info is null for vap_idex:%d \r\n", __func__, __LINE__, msg->frame.ap_index);

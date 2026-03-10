@@ -2362,6 +2362,15 @@
             "min": 0,
             "max": 1
           }
+        },
+        "ignite_link_quality_threshold": {
+          "type": {
+            "key": {
+              "type": "string"
+            },
+            "min": 0,
+            "max": 1
+          }
         }
      },
      "isRoot": true

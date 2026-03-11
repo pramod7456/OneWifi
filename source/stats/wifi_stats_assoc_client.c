@@ -232,6 +232,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
         link_quality_measurement = true;
     }
+        link_quality_measurement = true;
 
     if (ctrl->rf_status_down && isVapSTAMesh(args->vap_index)) {
         rf_down_mesh_sta = true;
@@ -307,12 +308,15 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
             link_data[i].stats.dev = dev_array[i];
             link_data[i].stats.vap_index = args->vap_index;
-            wifi_util_dbg_print(WIFI_MON,
+	    link_data[i].stats.vap_index = args->vap_index ;
+	    link_data[i].stats.radio_index = getRadioIndexFromAp(args->vap_index);
+            get_radio_channel_utilization(link_data[i].stats.radio_index,&link_data[i].stats.channel_utilization);
+	    wifi_util_dbg_print(WIFI_MON,
                 "cli_SNR:%d cli_PacketsSent:%lu cli_ErrorsSent:%lu cli_LastDataDownlinkRate:%d "
-                "cli_MaxDownlinkRate=%d vap_index=%d\n",
+                "cli_MaxDownlinkRate=%d vap_index=%d radio_index=%d link_data[i].stats.channel_utilization=%d \n",
                 dev_array[i].cli_SNR, dev_array[i].cli_PacketsSent, dev_array[i].cli_ErrorsSent,
                 dev_array[i].cli_LastDataDownlinkRate, dev_array[i].cli_MaxDownlinkRate,
-                link_data[i].stats.vap_index);
+                link_data[i].stats.vap_index,link_data[i].stats.radio_index,link_data[i].stats.channel_utilization);
         }
     }
     if (link_data && num_devs != 0 && ((link_quality_measurement) || (rf_down_mesh_sta))) {

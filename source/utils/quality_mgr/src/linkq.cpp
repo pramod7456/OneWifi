@@ -236,8 +236,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     if (v.m_val[9].m_re < 0.0 || cnt == 0)
         v.m_val[9].m_re = 0.0;
     else {
-        wifi_util_error_print(WIFI_APPS,"Pramod earlier score =%f and multiplied by %f\n",sqrt(v.m_val[9].m_re / cnt),
-	(1 - 1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
         v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * 
             (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
     }
@@ -668,7 +666,7 @@ void linkq_t::unregister_station_mac(const char* str)
     if (!str)
         return;
     if (strncmp(ignite_station_mac, str, sizeof(ignite_station_mac)) == 0) {
-        memset(ignite_station_mac, '\0', sizeof(ignite_station_mac));
+        ignite_station_mac[0] = '\0';
     }
     return;
 }

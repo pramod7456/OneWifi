@@ -340,7 +340,6 @@ void ctrl_queue_loop(wifi_ctrl_t *ctrl)
                         break;
 
                     case wifi_event_type_hal_ind:
-                        wifi_util_dbg_print(WIFI_CTRL,"[%s]:%d Pramod %d\r\n",__FUNCTION__,__LINE__, event->event_type);
                         handle_hal_indication(ctrl, event->u.core_data.msg, event->u.core_data.len, event->sub_type);
                         break;
 
@@ -366,7 +365,6 @@ void ctrl_queue_loop(wifi_ctrl_t *ctrl)
                 if (event->event_type != wifi_event_type_webconfig) {
                     // now forward the event to apps manager
                     apps_mgr_event(&ctrl->apps_mgr, event);
-                    wifi_util_dbg_print(WIFI_CTRL,"[%s]:%d Pramod %d\r\n",__FUNCTION__,__LINE__, event->event_type);
                 }
 
                 destroy_wifi_event(event);
@@ -1869,17 +1867,19 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
 #ifdef ONEWIFI_CAC_APP_SUPPORT
     apps_mgr_cac_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
 #endif
+#if 0
     wifi_rfc_dml_parameters_t *rfc_param = get_ctrl_rfc_parameters();
     if (rfc_param->link_quality_rfc || ctrl->network_mode == rdk_dev_mode_type_em_node 
      || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node || ctrl->rf_status_down == true) {
         wifi_util_error_print(WIFI_CTRL,"%s:%d LinkQuality RFC is enabled \n", __func__, __LINE__);
-        run_web_server();
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
     } else {
         wifi_util_error_print(WIFI_CTRL, "%s:%d LinkQuality RFC is disabled \n", __func__, __LINE__);
         stop_web_server();
         apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_stop, NULL, 0);
     }
+    #endif
+        run_web_server();
+        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
 
     ctrl_queue_timeout_scheduler_tasks(ctrl);
     ctrl->webconfig_state = ctrl_webconfig_state_associated_clients_full_cfg_rsp_pending;

@@ -587,29 +587,22 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             break;
 
         case wifi_event_hal_auth_frame:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
      
         case wifi_event_hal_assoc_req_frame:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
  
         case wifi_event_hal_assoc_rsp_frame:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
 
         case wifi_event_hal_reassoc_req_frame:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
         case wifi_event_hal_reassoc_rsp_frame:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
      
         case wifi_event_hal_sta_conn_status:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
         case wifi_event_hal_disassoc_device:
-            wifi_util_info_print(WIFI_APPS," Pramod %s:%d\n",__func__,__LINE__);
             break;
         
         default:

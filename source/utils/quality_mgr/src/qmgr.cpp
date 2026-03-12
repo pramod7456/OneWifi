@@ -103,34 +103,6 @@ void qmgr_t::update_json(const char *str, vector_t v, cJSON *out_obj, bool &alar
         pthread_mutex_unlock(&m_json_lock);
         return;
     }
-    cJSON *ca_obj = cJSON_GetObjectItem(dev_obj, "ConnectionAffinity");
-    if (ca_obj) {
-        cJSON *score_arr = cJSON_GetObjectItem(ca_obj, "Score");
-        if (score_arr) {
-        double last_val = 0.5; // default if array is empty
-
-        int size = cJSON_GetArraySize(score_arr);
-        if (size > 0) {
-            cJSON *last_item = cJSON_GetArrayItem(score_arr, size - 1);
-            last_val = last_item->valuedouble;
-        }
-
-        // Smooth: add small random delta between -0.02 and +0.02
-        double delta = ((rand() % 5) - 2) * 0.01; // -0.02, -0.01, 0, 0.01, 0.02
-        double val = last_val + delta;
-
-        // Clamp between 0 and 1
-        if (val < 0.0) val = 0.0;
-        if (val > 1.0) val = 1.0;
-
-        cJSON_AddItemToArray(score_arr, cJSON_CreateNumber(val));
-        trim_cjson_array(score_arr, MAX_HISTORY);
-    }
-
-    cJSON *time_arr = cJSON_GetObjectItem(ca_obj, "Time");
-    cJSON_AddItemToArray(time_arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
-    trim_cjson_array(time_arr, MAX_HISTORY);
-}
  
     arr = cJSON_GetObjectItem(obj, "Alarms");
     cJSON_AddItemToArray(arr, cJSON_CreateString((alarm == true)?get_local_time(tmp, sizeof(tmp),false):""));
@@ -289,7 +261,7 @@ int qmgr_t::run()
 
 cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index)
 {
-    cJSON *obj, *lq_obj, *ca_obj;
+    cJSON *obj, *lq_obj;
     char tmp[MAX_LINE_SIZE];
     unsigned int i;
     linkq_params_t *params;
@@ -318,19 +290,6 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(lq_obj, tmp, cJSON_CreateArray());
     
-    ca_obj = cJSON_CreateObject();
-    snprintf(tmp, sizeof(tmp), "ConnectionAffinity");
-    cJSON_AddItemToObject(obj, tmp, ca_obj);
-       
-    
-      cJSON *score_arr = cJSON_CreateArray();
-      snprintf(tmp, sizeof(tmp), "Time");
-
-      cJSON_AddItemToObject(ca_obj, "Score", score_arr);
-      cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
-
-    snprintf(tmp, sizeof(tmp), "Alarms");
-    cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
     
     snprintf(tmp, sizeof(tmp), "Time");
     cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
@@ -398,6 +357,109 @@ int qmgr_t::reinit(server_arg_t *args)
             count--;
         }
     }
+    return 0;
+}
+int qmgr_t::update_affinity_stats(affinity_arg_t *arg, bool create_flag)
+{
+    mac_addr_str_t mac_str;
+    strncpy(mac_str, arg->mac_str, sizeof(mac_str) - 1);
+    mac_str[sizeof(mac_str) - 1] = '\0';
+
+    pthread_mutex_lock(&m_json_lock);
+
+    /* ---------- CHECK MAP FOR EXISTING MAC ---------- */
+    std::unordered_map<const char*, affinity_arg_t>::iterator it;
+    bool map_exists = false;
+
+    for (it = m_affinity_map.begin(); it != m_affinity_map.end(); ++it) {
+        if (strcmp(it->first, mac_str) == 0) {
+            map_exists = true;
+            break;
+        }
+    }
+
+    /* ---------- GET / CREATE JSON ROOT ---------- */
+    cJSON *affinity_root = cJSON_GetObjectItem(affinity_obj, "AffinityScore");
+
+    if (!affinity_root) {
+        affinity_root = cJSON_CreateObject();
+        cJSON_AddItemToObject(affinity_obj, "AffinityScore", affinity_root);
+
+        cJSON_AddItemToObject(affinity_root, "Connected_client", cJSON_CreateArray());
+        cJSON_AddItemToObject(affinity_root, "UnConnected_client", cJSON_CreateArray());
+    }
+
+    cJSON *connected_arr =
+        cJSON_GetObjectItem(affinity_root, "Connected_client");
+
+    cJSON *unconnected_arr =
+        cJSON_GetObjectItem(affinity_root, "UnConnected_client");
+
+    /* ---------- DELETE CLIENT ---------- */
+    if (!create_flag) {
+
+        /* remove from map */
+        for (it = m_affinity_map.begin(); it != m_affinity_map.end(); ++it) {
+            if (strcmp(it->first, mac_str) == 0) {
+                free((void*)it->first);
+                m_affinity_map.erase(it);
+                break;
+            }
+        }
+
+        /* remove from JSON arrays */
+
+        if (connected_arr) {
+            for (int i = 0; i < cJSON_GetArraySize(connected_arr); i++) {
+                cJSON *dev = cJSON_GetArrayItem(connected_arr, i);
+                const char *existing_mac =
+                    cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+
+                if (existing_mac && strcmp(existing_mac, mac_str) == 0) {
+                    cJSON_DeleteItemFromArray(connected_arr, i);
+                    break;
+                }
+            }
+        }
+
+        if (unconnected_arr) {
+            for (int i = 0; i < cJSON_GetArraySize(unconnected_arr); i++) {
+                cJSON *dev = cJSON_GetArrayItem(unconnected_arr, i);
+                const char *existing_mac =
+                    cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+
+                if (existing_mac && strcmp(existing_mac, mac_str) == 0) {
+                    cJSON_DeleteItemFromArray(unconnected_arr, i);
+                    break;
+                }
+            }
+        }
+
+        wifi_util_info_print(WIFI_APPS,
+            "Removed client %s from affinity stats\n", mac_str);
+
+        pthread_mutex_unlock(&m_json_lock);
+        return 0;
+    }
+
+    /* ---------- ADD CLIENT ---------- */
+
+    if (!map_exists) {
+
+        /* create JSON entry using helper */
+        cJSON *client = create_affinity_template(mac_str,arg->vap_index);
+
+        cJSON_AddItemToArray(connected_arr, client);
+
+        /* insert into map */
+        char *key = strdup(mac_str);
+        m_affinity_map[key] = *arg;
+
+        wifi_util_info_print(WIFI_APPS,
+            "Added client %s to Connected_client\n", mac_str);
+    }
+
+    pthread_mutex_unlock(&m_json_lock);
     return 0;
 }
 
@@ -616,3 +678,18 @@ qmgr_t::~qmgr_t()
 {
 }
 
+cJSON* qmgr_t::create_affinity_template(mac_addr_str_t mac_str,
+                                unsigned int vap_index)
+{
+    char tmp[MAX_LINE_SIZE];
+    cJSON* obj = cJSON_CreateObject();
+    cJSON_AddItemToObject(obj, "MAC", cJSON_CreateString(mac_str));
+    cJSON_AddItemToObject(obj, "vapIndex", cJSON_CreateNumber(vap_index));
+    
+    snprintf(tmp, sizeof(tmp), "Score");
+    cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
+    
+    snprintf(tmp, sizeof(tmp), "Time");
+    cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
+    return obj;
+}

@@ -665,7 +665,8 @@ void linkq_t::unregister_station_mac(const char* str)
     wifi_util_error_print(WIFI_APPS,"%s:%d str=%s\n",__func__,__LINE__,str);
     if (!str)
         return;
-    if (strncmp(ignite_station_mac, str, sizeof(ignite_station_mac)) == 0) {
+    if(strncmp(ignite_station_mac, str, sizeof(ignite_station_mac)) == 0) 
+    {
         ignite_station_mac[0] = '\0';
     }
     return;

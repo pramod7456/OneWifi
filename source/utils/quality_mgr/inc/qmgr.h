@@ -22,10 +22,14 @@
 #include <pthread.h>
 #include <cjson/cJSON.h>
 #include "collection.h"
-#include "linkq.h"
 #include "run_qmgr.h"
 #include <vector>
 #include <algorithm>
+#include <string>
+#include <unordered_map>
+#include "linkq.h"
+#include "caffinity.h"
+
 #define MAX_FILE_NAME_SZ 1024
 #define MAX_PATH_SZ MAX_FILE_NAME_SZ
 #define MAX_HISTORY 15
@@ -47,6 +51,10 @@ class qmgr_t {
     bool m_run_started;
     bool m_bg_running;
     cJSON *out_obj;
+    cJSON *affinity_obj;
+    std::unordered_map<const char*, affinity_arg_t> m_affinity_map;
+
+    cJSON* create_affinity_template(mac_addr_str_t mac_str,unsigned int vap_index);
 public:
     int init(stats_arg_t *arg,bool create_flag);
     int rapid_disconnect(stats_arg_t *arg);
@@ -70,6 +78,7 @@ public:
     static int set_quality_flags(quality_flags_t *flag);
     static int get_quality_flags(quality_flags_t *flag);
     void update_graph( cJSON *out_obj);
+    int update_affinity_stats(affinity_arg_t *arg,bool flag);
     ~qmgr_t();
 };
 

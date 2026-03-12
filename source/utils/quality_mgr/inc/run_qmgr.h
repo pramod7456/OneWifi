@@ -84,6 +84,15 @@ typedef struct {
 
   } quality_flags_t;
 
+typedef struct {
+    mac_addr_str_t mac_str;
+    unsigned int vap_index;
+    unsigned int radio_index;
+    int channel_utilization;
+    int event;
+  } affinity_arg_t;
+
+
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
 typedef void (*qmgr_report_score_cb_t)(const char *str, double score,double threshold);
 typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
@@ -119,7 +128,11 @@ int get_quality_flags(quality_flags_t *flag);
 void register_station_mac(const char* str);
 void unregister_station_mac(const char* str);
 
+/* Sets the max_snr per radios after its learnt */
 int set_max_snr_radios(radio_max_snr_t *max_snr_val);
+
+/* Connection Affinity related helper functions */
+int update_affinity_stats(affinity_arg_t *arg,bool flag);
 #ifdef __cplusplus
 }
 #endif

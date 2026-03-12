@@ -240,3 +240,12 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val)
     mgr->set_max_snr_radios(max_snr_val);
     return 0;
 }
+
+int update_affinity_stats(affinity_arg_t *arg,bool flag)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    mgr->update_affinity_stats(arg,flag);
+    return 0;
+}

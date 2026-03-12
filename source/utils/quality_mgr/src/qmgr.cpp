@@ -203,7 +203,6 @@ void qmgr_t::update_graph( cJSON *out_obj)
 {
     pthread_mutex_lock(&m_json_lock);
     char *json = cJSON_PrintUnformatted(out_obj);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d %s\n",__func__,__LINE__,json); 
     FILE *fp = fopen(m_args.output_file, "w");
     if (fp) {
         fputs(json, fp);

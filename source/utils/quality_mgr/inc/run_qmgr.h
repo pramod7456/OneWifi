@@ -41,8 +41,13 @@ extern "C" {
 #define LINKQ_INT_RECONN    (1 << 7)
 
 #define LINKQ_VALID_MASK    0xFF   /* Only first 8 bits valid */
+/* Holds good for connection affinity
 #define LINK_QTY_B0  1.386
-#define LINK_QTY_B1  0.02
+#define LINK_QTY_B1  0.02 */
+
+#define LINK_QTY_B0  -9.495604
+#define LINK_QTY_B1  0.081093
+
 typedef struct {
     char path[MAX_FILE_NAME_SZ];
     char output_file[MAX_FILE_NAME_SZ];

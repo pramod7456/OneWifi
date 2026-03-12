@@ -118,7 +118,14 @@ export function renderLinkQualityChart(data) {
   const scrollTop = container.scrollTop;
 
   if (!data || !data.Devices) return;
-
+  
+  // --- Remove disconnected device charts ---
+  const currentMACs = data.Devices.map(d => d.MAC);
+  [...container.querySelectorAll('.chartDiv')].forEach(div => {
+    if (!currentMACs.includes(div.dataset.mac)) {
+      container.removeChild(div);
+    }
+  });
   // Read user selections
   const selected = {
     downlink: [...document.querySelectorAll('#downlinkDropdown input:checked')].map(cb => cb.value),
@@ -331,6 +338,14 @@ export function renderConnectionAffinityCharts(data) {
   const multiContainer = document.getElementById('affinityMultiContainer');
   const aggregateDiv = document.getElementById('affinityAggregateChart');
   if (!multiContainer || !aggregateDiv || !data) return;
+
+ // --- Remove disconnected client divs ---
+  const currentMACs = (data.Devices || []).map(d => d.MAC);
+  [...multiContainer.children].forEach(div => {
+    if (!currentMACs.some(mac => div.innerHTML.includes(mac))) {
+      multiContainer.removeChild(div);
+    }
+  });
 
   const COLORS = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
 

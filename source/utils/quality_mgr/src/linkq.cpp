@@ -626,12 +626,14 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
 
 int linkq_t::rapid_disconnect(stats_arg_t *stats)
 {
-    wifi_util_error_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
-    if(!m_disconnected) {
+    wifi_util_error_print(WIFI_APPS," %s:%d vap_index=%d and m_vapindex=%d\n",
+        __func__,__LINE__,stats->vap_index,m_vapindex);
+    if(!m_disconnected && stats->vap_index == m_vapindex) {
         m_disconnected = true;
         m_disconnect_samples++;
         m_recovery_remaining = 0;
         m_recovery_total = 0;
+        m_per_window.clear(); 
         wifi_util_error_print(WIFI_APPS," %s:%d m_disconnected =%d,m_disconnect_samples=%d\n",__func__,__LINE__,m_disconnected,m_disconnect_samples);
     }
     return 0;

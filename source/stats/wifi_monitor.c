@@ -44,6 +44,7 @@
 #endif
 #include <sched.h>
 #include "scheduler.h"
+#include "wifi_linkquality.h"
 #include "timespec_macro.h"
 #include <netinet/tcp.h>    //Provides declarations for tcp header
 #include <netinet/ip.h> //Provides declarations for ip header
@@ -2967,8 +2968,19 @@ int vapstatus_callback(int apIndex, wifi_vapstatus_t status)
     hash_map_t *temp_sta_map = NULL;
     sta_data_t *sta          = NULL;
     sta_key_t  sta_key;
+    linkquality_data_t *link_data = NULL;
+    bool link_quality_measurement = false;
+    int num_devs = 0, idx = 0;
+    wifi_rfc_dml_parameters_t *rfc_param = NULL;
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
 
     wifi_util_dbg_print(WIFI_MON,"%s called for %d and status %d \n",__func__, apIndex, status);
+    rfc_param = get_ctrl_rfc_parameters();
+    if (rfc_param->link_quality_rfc || ctrl->network_mode == rdk_dev_mode_type_em_node
+        || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
+        link_quality_measurement = true;
+    }
+    link_quality_measurement =  true;
     g_monitor_module.bssid_data[apIndex].ap_params.ap_status = status;
 
     if (status != wifi_vapstatus_down) {
@@ -2994,17 +3006,28 @@ int vapstatus_callback(int apIndex, wifi_vapstatus_t status)
     hash_map_cleanup(sta_map);
 
     pthread_mutex_unlock(&g_monitor_module.data_lock);
-
+    if (link_quality_measurement) {
+        num_devs = hash_map_count(temp_sta_map);
+        link_data =(linkquality_data_t *) calloc (num_devs , sizeof(linkquality_data_t));
+    }
     if (temp_sta_map != NULL) {
         sta = hash_map_get_first(temp_sta_map);
         while (sta != NULL) {
             to_sta_key(sta->sta_mac, sta_key);
+
+            if (link_quality_measurement && link_data && idx < num_devs) {
+                 to_sta_key(sta->sta_mac, link_data[idx].stats.mac_str);
+		 link_data[idx].stats.vap_index = apIndex;
+		idx++;
+            }
             send_wifi_disconnect_event_to_ctrl(sta->sta_mac, apIndex);
             wifi_util_info_print(WIFI_MON, "%s:%d ClientMac:%s disconnected from ap:%d\n", __func__, __LINE__, sta_key, apIndex);
             sta = hash_map_get_next(temp_sta_map, sta);
         }
         hash_map_destroy(temp_sta_map);
     }
+    apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_hal_ind, wifi_event_exec_stop, link_data, num_devs);
+    wifi_util_info_print(WIFI_MON, "%s:%d %d clients disconnected from ap:%d\n", __func__, __LINE__, num_devs, apIndex);
 
     return 0;
 }

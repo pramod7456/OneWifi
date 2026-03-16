@@ -436,7 +436,7 @@ int link_quality_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
     return RETURN_OK;
 }
 
-int link_quality_hal_disconnect(wifi_app_t *apps, void *arg)
+int link_quality_hal_disconnect(wifi_app_t *apps, void *arg,int len)
  {           
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
@@ -444,19 +444,23 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg)
     }
 
     linkquality_data_t *data = (linkquality_data_t *)arg;
-    stats_arg_t *stats = &data->stats;
-    wifi_util_error_print( WIFI_CTRL,
-         "%s:%d  mac=%s  snr=%d phy=%d\n",
-         __func__, __LINE__,
-         stats->mac_str,
-         stats->dev.cli_SNR,
-         stats->dev.cli_LastDataDownlinkRate
-    );      
+    /* The number of devices is stored in the first element */
+    int num_devs = len;
+            
+    for (int i = 0; i < num_devs; i++) {        
+        stats_arg_t *stats = &data[i].stats; 
+        wifi_util_error_print( WIFI_CTRL,
+             "%s:%d  mac=%s  vap_index=%d ",
+             __func__, __LINE__,
+            stats->mac_str,
+            stats->vap_index
+        );      
  
-    remove_link_stats(stats);
+        remove_link_stats(stats);
+    }
     return RETURN_OK;
              
- } 
+} 
 
 int link_quality_ignite_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
 {
@@ -571,7 +575,7 @@ int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
     }
     return RETURN_OK;
 }
-int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg)
+int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg,int len)
 {
     wifi_util_info_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
     switch (sub_type) {
@@ -579,7 +583,7 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             break;
 
         case wifi_event_exec_stop:
-            link_quality_hal_disconnect(apps, arg);
+            link_quality_hal_disconnect(apps, arg,len);
             break;
 
         case wifi_event_exec_timeout:
@@ -625,7 +629,7 @@ int link_quality_event(wifi_app_t *app, wifi_event_t *event)
             break;
 
         case wifi_event_type_hal_ind:
-            exec_event_hal_ind(app, event->sub_type, event->u.core_data.msg);
+            exec_event_hal_ind(app, event->sub_type, event->u.core_data.msg, event->u.core_data.len);
             break;
 
         default:

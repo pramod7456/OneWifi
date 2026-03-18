@@ -28,11 +28,17 @@
 //Static callback functions
 static qmgr_report_batch_cb_t qmgr_batch_cb = NULL;
 static qmgr_report_score_cb_t qmgr_score_cb = NULL;
+static qmgr_max_snr_cb_t g_qmgr_snr_cb = NULL;
 
 //Register callback functions
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb)
 {
     qmgr_batch_cb = cb;
+}
+
+void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb)
+{
+    g_qmgr_snr_cb = cb;
 }
 
 void qmgr_register_score_callback(qmgr_report_score_cb_t cb)
@@ -67,6 +73,15 @@ extern "C" void qmgr_invoke_score(const char *str, double score,double threshold
 {
     if (qmgr_score_cb)
         qmgr_score_cb(str, score,threshold);
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+}
+extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
+{
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+    if (g_qmgr_snr_cb) 
+        g_qmgr_snr_cb(radio_index,max_snr);
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+
 }
 
 
@@ -151,7 +166,7 @@ int stop_link_metrics()
 int add_stats_metrics(stats_arg_t *stats)
 {
     qmgr_t *qmgr;
-    wifi_util_dbg_print(WIFI_APPS,"mac_address=%s  snr=%d and phy=%d\n",stats->mac_str,stats->dev.cli_SNR,stats->dev.cli_LastDataDownlinkRate); 
+    //wifi_util_dbg_print(WIFI_APPS,"mac_address=%s  snr=%d and phy=%d\n",stats->mac_str,stats->dev.cli_SNR,stats->dev.cli_LastDataDownlinkRate); 
     
     qmgr = qmgr_t::get_instance();   // always returns SAME instance
 
@@ -190,5 +205,14 @@ int get_quality_flags(quality_flags_t *flag)
 {
     wifi_util_info_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
     qmgr_t::get_quality_flags(flag);
+    return 0;
+}
+
+int set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    mgr->set_max_snr_radios(max_snr_val);
     return 0;
 }

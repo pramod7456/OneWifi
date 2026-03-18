@@ -256,7 +256,7 @@ int qmgr_t::run()
                 }
                 strncpy(mac_str, lq->get_mac_addr(), sizeof(mac_str) - 1);
                 mac_str[sizeof(mac_str) - 1] = '\0';
-                update_json(mac_str, v, out_obj, alarm);
+                //update_json(mac_str, v, out_obj, alarm);
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             count = hash_map_count(m_link_map);
@@ -453,7 +453,7 @@ int qmgr_t::init(stats_arg_t *stats, bool create_flag)
         hash_map_put(m_link_map, strdup(mac_str), lq);
     }
 
-    wifi_util_dbg_print(WIFI_APPS,"Initializing linkq for %s\n", mac_str);
+    //wifi_util_dbg_print(WIFI_APPS,"Initializing linkq for %s\n", mac_str);
     lq->init(m_args.threshold,
              m_args.reporting ,
              stats);
@@ -538,6 +538,12 @@ void qmgr_t::unregister_station_mac(const char* str)
     linkq_t::unregister_station_mac(str);
     reset_qmgr_score_cb();
     return;
+}
+
+int qmgr_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    linkq_t::set_max_snr_radios(max_snr_val);
+    return 0;   
 }
 
 qmgr_t::qmgr_t()

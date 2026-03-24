@@ -1879,7 +1879,6 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
 #ifdef ONEWIFI_CAC_APP_SUPPORT
     apps_mgr_cac_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
 #endif
-#if 0
     wifi_rfc_dml_parameters_t *rfc_param = get_ctrl_rfc_parameters();
     if (rfc_param->link_quality_rfc || ctrl->network_mode == rdk_dev_mode_type_em_node 
      || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node || ctrl->rf_status_down == true) {
@@ -1888,8 +1887,6 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
     } else {
         wifi_util_error_print(WIFI_CTRL, "%s:%d LinkQuality RFC is disabled \n", __func__, __LINE__);
     }
- #endif
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
 
     ctrl_queue_timeout_scheduler_tasks(ctrl);
     ctrl->webconfig_state = ctrl_webconfig_state_associated_clients_full_cfg_rsp_pending;
@@ -2860,6 +2857,18 @@ wifi_rfc_dml_parameters_t *get_ctrl_rfc_parameters(void)
         g_wifi_mgr->rfc_dml_parameters.wifi_offchannelscan_sm_rfc;
     g_wifi_mgr->ctrl.rfc_params.tcm_enabled_rfc =
         g_wifi_mgr->rfc_dml_parameters.tcm_enabled_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_open_2g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_open_2g_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_open_5g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_open_5g_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_open_6g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_open_6g_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_secure_2g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_secure_2g_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_secure_5g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_secure_5g_rfc;
+    g_wifi_mgr->ctrl.rfc_params.tcm_secure_6g_rfc =
+        g_wifi_mgr->rfc_dml_parameters.tcm_secure_6g_rfc;
     g_wifi_mgr->ctrl.rfc_params.wpa3_compatibility_enable =
         g_wifi_mgr->rfc_dml_parameters.wpa3_compatibility_enable;
     g_wifi_mgr->ctrl.rfc_params.csi_analytics_enabled_rfc =

@@ -249,3 +249,10 @@ int update_affinity_stats(affinity_arg_t *arg,bool flag)
     mgr->update_affinity_stats(arg,flag);
     return 0;
 }
+
+bool is_client_connected(const char *mac_str)
+{
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    return mgr->is_client_connected(mac_str);
+}

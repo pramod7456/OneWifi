@@ -84,12 +84,22 @@ typedef struct {
 
   } quality_flags_t;
 
+/* DHCP event flag for affinity updates */
+#define DHCP_EVENT_UPDATE    1
+
 typedef struct {
     mac_addr_str_t mac_str;
     unsigned int vap_index;
     unsigned int radio_index;
     int channel_utilization;
     int event;
+    unsigned int status_code;  // For assoc/reassoc response frames
+    int sig_dbm;  // RSSI from management frame, in dBm
+    int dhcp_event;  // Set to DHCP_EVENT_UPDATE when updating DHCP stats
+    uint32_t dhcp_attempts;  // DHCP attempts count
+    uint32_t dhcp_failures;  // DHCP failures count
+    struct timespec connected_time;    // total_connected_time from sta_data_t (assoc success)
+    struct timespec disconnected_time; // total_disconnected_time from sta_data_t (deauth)
   } affinity_arg_t;
 
 
@@ -133,6 +143,10 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 
 /* Connection Affinity related helper functions */
 int update_affinity_stats(affinity_arg_t *arg,bool flag);
+
+/* Check if a client is connected using caffinity tracking */
+bool is_client_connected(const char *mac_str);
+
 #ifdef __cplusplus
 }
 #endif

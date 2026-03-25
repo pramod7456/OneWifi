@@ -106,7 +106,8 @@
   <div class="tab-container">
     <button id="tab1Btn" class="tab-btn active">Link
     Quality</button> <button id="tab2Btn" class=
-    "tab-btn">Connection Affinity</button>
+    "tab-btn">Connection Affinity</button> <button id="tab3Btn" class=
+    "tab-btn">Unconnected Clients</button>
   </div><!-- Tab 1: Link Quality -->
   <div id="tab1Content" class="tab-content" style=
   "display:block; position:relative;">
@@ -188,8 +189,51 @@ SNR_{norm}^{2} + PHY_{norm}^{2} + \left(1 - PER_{norm}^{2}\right)
   <!-- Tab 2: Connection Affinity -->
     <div id="tab2Content" class="tab-content">
 <h1 style="text-align:center; margin-bottom:8px;">
-  Wi-Fi Telemetry — Connection Affinity
+  Wi-Fi Telemetry — Connection Affinity (Connected Clients)
 </h1>
+    <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em;">
+  <span style="font-size:0.8em;">
+  \[
+\mathbf{
+Score =
+\frac{T_{connected}}{T_{connected} + T_{disconnected} + T_{sleep}}
+}
+\quad
+\mathbf{|}
+\quad
+\mathbf{
+CAA_{Home} =
+\sqrt{
+\frac{
+\sum_{1}^{N} Score_{MAC}^{2}
+}{
+N
+}
+}
+}
+\]
+  </span>
+</div>
+    <div id="affinityChartsWrapper" style=
+    "width:100%; display:flex; flex-direction:column; gap:70px;">
+      <div id="affinityMultiContainer" style="width:100%;"></div>
+      <div id="affinityAggregateChart" style="width:100%;"></div>
+    </div>
+    
+    <!-- CAffinityScore Charts -->
+    <h2 style="text-align:center; margin-top:60px; margin-bottom:8px;">Connection Affinity Score (CAffinityScore)</h2>
+    <div id="caffinityChartsWrapper" style=
+    "width:100%; display:flex; flex-direction:column; gap:70px; margin-top:20px;">
+      <div id="caffinityMultiContainer" style="width:100%;"></div>
+      <div id="caffinityAggregateChart" style="width:100%;"></div>
+    </div>
+  </div>
+  
+  <!-- Tab 3: Unconnected Clients -->
+  <div id="tab3Content" class="tab-content">
+    <h1 style="text-align:center; margin-bottom:8px;">
+      Wi-Fi Telemetry — Unconnected Clients
+    </h1>
     <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em;">
   <span style="font-size:0.8em;">
   \[
@@ -205,33 +249,27 @@ CAA_{MAC} =
 \frac{1}{1 + e^{-\left(b_0 + b_1 * CU\right)}}
 \right)
 }
-\quad
-\mathbf{|}
-\quad
-\mathbf{
-CAA_{Home} =
-\sqrt{
-\frac{
-\sum_{1}^{N} CAA_{MAC}^{2}
-}{
-N
-}
-}
-}
 \]
   </span>
 </div>
-    <div id="affinityChartsWrapper" style=
-    "width:100%; display:flex; flex-direction:column; gap:70px;">
-      <div id="affinityMultiContainer" style="width:100%;"></div>
-      <div id="affinityAggregateChart" style="width:100%;"></div>
+    <p style="text-align:center; color:#666; font-size:14px; margin-top:10px;">
+      Tracks clients that attempted connection but are not currently associated.
+    </p>
+    <div id="unconnectedChartsWrapper" style=
+    "width:100%; display:flex; flex-direction:column; gap:70px; margin-top:40px;">
+      <!-- Unconnected client charts -->
+      <div id="unconnectedMultiContainer" style="width:100%;"></div>
+      <div id="unconnectedAggregateChart" style="width:100%;"></div>
     </div>
   </div>
+  
   <script type="module">
   import {
   fetchLinkParams as fetchLP,
   renderLinkQualityChart,
   renderConnectionAffinityCharts,
+  renderCAffinityScoreCharts,
+  renderUnconnectedClientsCharts,
   renderAlarms
   } from './lq.js';
 
@@ -241,14 +279,18 @@ N
   /* ---------------- TAB SWITCHING ---------------- */
   const tab1Btn = document.getElementById('tab1Btn');
   const tab2Btn = document.getElementById('tab2Btn');
+  const tab3Btn = document.getElementById('tab3Btn');
   const tab1Content = document.getElementById('tab1Content');
   const tab2Content = document.getElementById('tab2Content');
+  const tab3Content = document.getElementById('tab3Content');
 
   tab1Btn.onclick = async () => {
   tab1Content.style.display = 'block';
   tab2Content.style.display = 'none';
+  tab3Content.style.display = 'none';
   tab1Btn.classList.add('active');
   tab2Btn.classList.remove('active');
+  tab3Btn.classList.remove('active');
 
   const d = await fetchTelemetry();
   renderLinkQualityChart(d);
@@ -257,11 +299,28 @@ N
   tab2Btn.onclick = async () => {
   tab1Content.style.display = 'none';
   tab2Content.style.display = 'block';
+  tab3Content.style.display = 'none';
   tab2Btn.classList.add('active');
   tab1Btn.classList.remove('active');
+  tab3Btn.classList.remove('active');
 
   const d = await fetchTelemetry();
+  const caffData = await fetchCaffinityTelemetry();
   renderConnectionAffinityCharts(d);
+  renderCAffinityScoreCharts(caffData);
+  };
+
+  tab3Btn.onclick = async () => {
+  tab1Content.style.display = 'none';
+  tab2Content.style.display = 'none';
+  tab3Content.style.display = 'block';
+  tab3Btn.classList.add('active');
+  tab1Btn.classList.remove('active');
+  tab2Btn.classList.remove('active');
+
+  // Fetch and render unconnected client data
+  const caffData = await fetchCaffinityTelemetry();
+  renderUnconnectedClientsCharts(caffData);
   };
 
   /* ---------------- DROPDOWN LOGIC (RESTORED) ---------------- */
@@ -378,6 +437,17 @@ setInterval(updateLinkParams, 5000);
   }
   }
 
+  async function fetchCaffinityTelemetry() {
+  try {
+    const r = await fetch('/caffinity_telemetry.json', { cache: 'no-store' });
+    if (!r.ok) return { ConnectedClients: [], UnconnectedClients: [] };
+    return await r.json();
+  } catch(e) {
+    console.error('Failed to fetch caffinity telemetry:', e);
+    return { ConnectedClients: [], UnconnectedClients: [] };
+  }
+  }
+
   /* ---------------- INIT ---------------- */
 
   async function init() {
@@ -394,7 +464,15 @@ setInterval(updateLinkParams, 5000);
     }
 
     if (tab2Content.style.display !== 'none') {
+      const caffData = await fetchCaffinityTelemetry();
       renderConnectionAffinityCharts(d);
+      renderCAffinityScoreCharts(caffData);
+    }
+
+    if (tab3Content.style.display !== 'none') {
+      // Future: Fetch and render unconnected client data
+      // const caffData = await fetchCaffinityTelemetry();
+      // renderUnconnectedClients(caffData);
     }
 
   }, 2000);

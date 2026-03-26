@@ -41,11 +41,14 @@ class caffinity_t
     unsigned int m_auth_attempts;
     unsigned int m_assoc_failures;
     unsigned int m_assoc_attempts;
-    unsigned int m_dhcp_failures;
-    unsigned int m_dhcp_attempts;
+    unsigned int m_discover;
+    unsigned int m_offer;
+    unsigned int m_request;
+    unsigned int m_decline;
+    unsigned int m_nak;
+    unsigned int m_ack;
     unsigned int m_snr_assoc;
     int m_cli_snr;
-    int m_rssi;  // RSSI from management frames in dBm (for unconnected clients)
     int m_channel_utilization;
     bool m_connected;
     struct timespec  m_disconnected_time;

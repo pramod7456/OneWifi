@@ -1056,6 +1056,32 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
     return RETURN_OK;
 }
 
+int link_quality_periodic_stats_update(wifi_app_t *apps, void *arg)
+{
+    if (!arg) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    linkquality_data_t *data = (linkquality_data_t *)arg;
+    int num_devs = data[0].size;
+
+    wifi_util_info_print(WIFI_APPS, "%s:%d periodic_stats_update for %d devices\n", 
+        __func__, __LINE__, num_devs);
+
+    for (int i = 0; i < num_devs; i++) {
+        stats_arg_t *stats = &data[i].stats;
+        wifi_util_dbg_print(WIFI_CTRL,
+            "%s:%d timestats idx=%d mac=%s snr=%d connected_time=%ld.%09ld disconnected_time=%ld.%09ld\n",
+            __func__, __LINE__, i, stats->mac_str, stats->dev.cli_SNR,
+            (long)stats->total_connected_time.tv_sec, stats->total_connected_time.tv_nsec,
+            (long)stats->total_disconnected_time.tv_sec, stats->total_disconnected_time.tv_nsec);
+
+        periodic_caffinity_stats_update(stats);
+    }
+    return RETURN_OK;
+}
+
 int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg, int len)
 {
     switch (sub_type) {
@@ -1069,6 +1095,7 @@ int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, voi
 
         case wifi_event_exec_timeout:
             link_quality_event_exec_timeout(apps, arg,len);
+            link_quality_periodic_stats_update(apps, arg);
             break;
         
         case wifi_event_exec_register_station:

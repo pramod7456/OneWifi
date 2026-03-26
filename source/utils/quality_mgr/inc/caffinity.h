@@ -26,6 +26,13 @@
 #include "linkq.h"
 #include "run_qmgr.h"
 
+// Result structure returned by run_algorithm_caffinity
+typedef struct {
+    mac_addr_str_t mac;
+    double score;
+    bool connected;
+} caffinity_result_t;
+
 class caffinity_t
 {
     pthread_mutex_t m_lock;
@@ -50,8 +57,9 @@ public:
     ~caffinity_t();
     int init(stats_arg_t *stats);  // Returns 0 on success, -1 on error
     int update_affinity_stats(affinity_arg_t *arg);
+    int periodic_stats_update(stats_arg_t *stats);  // Updates connected_time, disconnected_time, and SNR
     int score();
-    double run_algorithm_caffinity();
+    caffinity_result_t run_algorithm_caffinity();
     bool get_connected() const { return m_connected; }
     struct timespec get_disconnected_time() const { 
         return m_disconnected_time; 

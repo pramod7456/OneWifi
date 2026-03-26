@@ -26,10 +26,11 @@
 #include <errno.h>
 #include <math.h>
 #include <vector>
+#include <map>
 #include <cjson/cJSON.h>
 #include "wifi_util.h"
 
-qmgr_t* qmgr_t::instance = nullptr;
+qmgr_t* qmgr_t::instance = NULL;
 extern "C" void qmgr_invoke_batch(const report_batch_t *batch);
 
 qmgr_t* qmgr_t::get_instance()
@@ -37,7 +38,7 @@ qmgr_t* qmgr_t::get_instance()
     static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&lock);
 
-    if (instance == nullptr) {
+    if (instance == NULL) {
         instance = new qmgr_t();
     }
 
@@ -126,33 +127,26 @@ void qmgr_t::update_caffinity_json(const char *str, double caffinity_score)
     bool found = false;
     const char *target_array_name = NULL;
     
-    // First, check if MAC exists in caffinity map to determine connection status
+    // Check if client is connected using m_caffinity_map
     std::string mac_key(str);
-    auto it = m_caffinity_map.find(mac_key);
+    std::unordered_map<std::string, caffinity_t*>::iterator it = m_caffinity_map.find(mac_key);
     bool is_connected = false;
-    
     if (it != m_caffinity_map.end() && it->second) {
         is_connected = it->second->get_connected();
     }
     
-    // Determine which array to use based on connection status
-    if (is_connected) {
-        target_array_name = "ConnectedClients";
-    } else {
-        target_array_name = "UnconnectedClients";
-    }
+    target_array_name = is_connected ? "ConnectedClients" : "UnconnectedClients";
     
-    wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Updating caffinity JSON for MAC %s in %s array (is_connected=%d)\\n",
-        __func__, __LINE__, str, target_array_name, is_connected);
+    wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Updating caffinity JSON for MAC %s in %s\n",
+        __func__, __LINE__, str, target_array_name);
  
-    // Get the appropriate array (ConnectedClients or UnconnectedClients)
     if ((arr = cJSON_GetObjectItem(caffinity_out_obj, target_array_name)) == NULL) {
         pthread_mutex_unlock(&m_json_lock);
         return;
     }
     
     // Find device by MAC
-    for (i = 0; i < cJSON_GetArraySize(arr); i++) {
+    for (i = 0; i < (unsigned int)cJSON_GetArraySize(arr); i++) {
         dev_obj = cJSON_GetArrayItem(arr, i);
         if (strncmp(cJSON_GetStringValue(cJSON_GetObjectItem(dev_obj, "MAC")), str, strlen(str)) == 0) {
             found = true;
@@ -160,51 +154,29 @@ void qmgr_t::update_caffinity_json(const char *str, double caffinity_score)
         }
     }
     
-    if (found == false) {
+    if (!found) {
         pthread_mutex_unlock(&m_json_lock);
         return;
     }
     
-    // Get CAffinityScore object
     caff_obj = cJSON_GetObjectItem(dev_obj, "CAffinityScore");
     if (caff_obj == NULL) {
         pthread_mutex_unlock(&m_json_lock);
         return;
     }
     
-    // Add score to Score array
+    // Append score
     arr = cJSON_GetObjectItem(caff_obj, "Score");
-    if (arr != NULL) {
+    if (arr) {
         cJSON_AddItemToArray(arr, cJSON_CreateNumber(caffinity_score));
         trim_cjson_array(arr, MAX_HISTORY);
     }
     
-    // Add timestamp to Time array
+    // Append timestamp
     arr = cJSON_GetObjectItem(caff_obj, "Time");
-    if (arr != NULL) {
+    if (arr) {
         cJSON_AddItemToArray(arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
         trim_cjson_array(arr, MAX_HISTORY);
-    }
-    
-    // Update LastSeen field for unconnected clients with actual disconnection time
-    if (!is_connected && it != m_caffinity_map.end() && it->second) {
-        struct timespec disconnected_time = it->second->get_disconnected_time();
-        if (disconnected_time.tv_sec != 0) {
-            // Convert timespec to readable format
-            struct tm *tm_info = localtime(&disconnected_time.tv_sec);
-            if (tm_info) {
-                char time_buf[64];
-                strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
-                
-                // Update or create LastSeen field
-                cJSON *last_seen = cJSON_GetObjectItem(dev_obj, "LastSeen");
-                if (last_seen) {
-                    cJSON_SetValuestring(last_seen, time_buf);
-                } else {
-                    cJSON_AddStringToObject(dev_obj, "LastSeen", time_buf);
-                }
-            }
-        }
     }
     
     pthread_mutex_unlock(&m_json_lock);
@@ -349,199 +321,162 @@ int qmgr_t::run()
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             
-            // --- Process caffinity objects and compute scores ---
-            // Build two vectors: one for connected, one for unconnected clients
+            // --- Process caffinity using local maps for classification ---
             if (!m_caffinity_map.empty()) {
-                // Simple score entry
-                struct caff_score_entry {
-                    std::string mac;
-                    double score;
-                    unsigned int vap_index;
-                };
-                std::vector<caff_score_entry> connected_scores;
-                std::vector<caff_score_entry> unconnected_scores;
-                
-                // Compute scores and populate vectors based on connection state
-                for (auto& pair : m_caffinity_map) {
-                    const std::string& mac_key = pair.first;
-                    caffinity_t *caff = pair.second;
-                    if (!caff) continue;
-                    
-                    double caffinity_score = caff->run_algorithm_caffinity();
-                    bool is_connected = caff->get_connected();
-                    
-                    caff_score_entry entry;
-                    entry.mac = mac_key;
-                    entry.score = caffinity_score;
-                    entry.vap_index = 0;  // Will be set from existing JSON or default
-                    
-                    if (is_connected) {
-                        connected_scores.push_back(entry);
-                    } else {
-                        unconnected_scores.push_back(entry);
-                    }
-                }
-                
-                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d connected=%zu unconnected=%zu\n",
-                    __func__, __LINE__, connected_scores.size(), unconnected_scores.size());
-                
-                // Update JSON arrays (preserving history, preventing duplicates)
                 pthread_mutex_lock(&m_json_lock);
                 cJSON *conn_arr = cJSON_GetObjectItem(caffinity_out_obj, "ConnectedClients");
                 cJSON *unconn_arr = cJSON_GetObjectItem(caffinity_out_obj, "UnconnectedClients");
                 char tmp[MAX_LINE_SIZE];
+                int i, arr_size;
+                cJSON *dev_obj, *dev, *caff_obj, *score_arr;
+                const char *existing_mac;
+                bool found;
                 
-                // Process connected clients: move from unconnected if needed, update scores
-                for (auto& entry : connected_scores) {
-                    const char* mac_cstr = entry.mac.c_str();
-                    cJSON *dev_obj = NULL;
-                    bool found_in_connected = false;
+                // Local maps to classify clients by connection status
+                std::map<std::string, caffinity_t*> connected_map;
+                std::map<std::string, caffinity_t*> unconnected_map;
+                
+                // Iterate through m_caffinity_map and classify into local maps
+                std::unordered_map<std::string, caffinity_t*>::iterator caff_it;
+                for (caff_it = m_caffinity_map.begin(); caff_it != m_caffinity_map.end(); ++caff_it) {
+                    caffinity_t *caff = caff_it->second;
+                    if (!caff) continue;
                     
-                    // Check if already in ConnectedClients
+                    caffinity_result_t result = caff->run_algorithm_caffinity();
+                    
+                    if (result.connected) {
+                        connected_map[caff_it->first] = caff;
+                    } else {
+                        unconnected_map[caff_it->first] = caff;
+                    }
+                }
+                
+                // Process connected clients
+                std::map<std::string, caffinity_t*>::iterator map_it;
+                for (map_it = connected_map.begin(); map_it != connected_map.end(); ++map_it) {
+                    caffinity_t *caff = map_it->second;
+                    caffinity_result_t result = caff->run_algorithm_caffinity();
+                    const char *mac_cstr = result.mac;
+                    double score = result.score;
+                    
+                    // Find in ConnectedClients JSON
+                    dev_obj = NULL;
+                    found = false;
                     if (conn_arr) {
-                        for (int i = 0; i < cJSON_GetArraySize(conn_arr); i++) {
-                            cJSON *dev = cJSON_GetArrayItem(conn_arr, i);
-                            const char *existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+                        arr_size = cJSON_GetArraySize(conn_arr);
+                        for (i = 0; i < arr_size; i++) {
+                            dev = cJSON_GetArrayItem(conn_arr, i);
+                            existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
                             if (existing_mac && strcmp(existing_mac, mac_cstr) == 0) {
                                 dev_obj = dev;
-                                found_in_connected = true;
+                                found = true;
                                 break;
                             }
                         }
                     }
                     
-                    // If not in ConnectedClients, check UnconnectedClients and move it
-                    if (!found_in_connected && unconn_arr) {
-                        for (int i = 0; i < cJSON_GetArraySize(unconn_arr); i++) {
-                            cJSON *dev = cJSON_GetArrayItem(unconn_arr, i);
-                            const char *existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+                    // If not found in connected, check unconnected and move
+                    if (!found && unconn_arr) {
+                        arr_size = cJSON_GetArraySize(unconn_arr);
+                        for (i = 0; i < arr_size; i++) {
+                            dev = cJSON_GetArrayItem(unconn_arr, i);
+                            existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
                             if (existing_mac && strcmp(existing_mac, mac_cstr) == 0) {
-                                // Get vap_index before moving
-                                cJSON *vap_obj = cJSON_GetObjectItem(dev, "LastSeenVapIndex");
-                                if (vap_obj) entry.vap_index = (unsigned int)cJSON_GetNumberValue(vap_obj);
-                                
-                                // Detach from UnconnectedClients (preserves the object)
                                 dev_obj = cJSON_DetachItemFromArray(unconn_arr, i);
-                                
-                                // Update field names: LastSeenVapIndex → VapIndex, remove LastSeen
-                                cJSON_DeleteItemFromObject(dev_obj, "LastSeenVapIndex");
-                                cJSON_DeleteItemFromObject(dev_obj, "LastSeen");
-                                cJSON_AddNumberToObject(dev_obj, "VapIndex", entry.vap_index);
-                                
-                                // Add to ConnectedClients
                                 cJSON_AddItemToArray(conn_arr, dev_obj);
-                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Moved %s from Unconnected to Connected\n",
-                                    __func__, __LINE__, mac_cstr);
+                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Moved %s to ConnectedClients\n", __func__, __LINE__, mac_cstr);
                                 break;
                             }
                         }
                     }
                     
-                    // If not found anywhere, create new entry
+                    // Create new if not found
                     if (!dev_obj && conn_arr) {
                         mac_addr_str_t mac_copy;
                         strncpy(mac_copy, mac_cstr, sizeof(mac_copy) - 1);
                         mac_copy[sizeof(mac_copy) - 1] = '\0';
-                        dev_obj = create_caffinity_dev_template(mac_copy, entry.vap_index);
+                        dev_obj = create_caffinity_dev_template(mac_copy);
                         cJSON_AddItemToArray(conn_arr, dev_obj);
-                        wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Created new entry for %s in Connected\n",
-                            __func__, __LINE__, mac_cstr);
                     }
                     
-                    // Append new score to existing arrays
-                    if (dev_obj && entry.score >= 0.0) {
-                        cJSON *caff_obj = cJSON_GetObjectItem(dev_obj, "CAffinityScore");
+                    // Append score
+                    if (dev_obj) {
+                        caff_obj = cJSON_GetObjectItem(dev_obj, "CAffinityScore");
                         if (caff_obj) {
-                            cJSON *arr = cJSON_GetObjectItem(caff_obj, "Score");
-                            if (arr) {
-                                int pre_sz = cJSON_GetArraySize(arr);
-                                cJSON_AddItemToArray(arr, cJSON_CreateNumber(entry.score));
-                                trim_cjson_array(arr, MAX_HISTORY);
-                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d [Connected] MAC=%s score=%.4f Score_arr_size %d->%d\n",
-                                    __func__, __LINE__, mac_cstr, entry.score, pre_sz, cJSON_GetArraySize(arr));
+                            score_arr = cJSON_GetObjectItem(caff_obj, "Score");
+                            if (score_arr) {
+                                cJSON_AddItemToArray(score_arr, cJSON_CreateNumber(score));
+                                trim_cjson_array(score_arr, MAX_HISTORY);
                             }
-                            arr = cJSON_GetObjectItem(caff_obj, "Time");
-                            if (arr) {
-                                cJSON_AddItemToArray(arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
-                                trim_cjson_array(arr, MAX_HISTORY);
+                            score_arr = cJSON_GetObjectItem(caff_obj, "Time");
+                            if (score_arr) {
+                                cJSON_AddItemToArray(score_arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
+                                trim_cjson_array(score_arr, MAX_HISTORY);
                             }
                         }
                     }
                 }
                 
-                // Process unconnected clients: move from connected if needed, update scores
-                for (auto& entry : unconnected_scores) {
-                    const char* mac_cstr = entry.mac.c_str();
-                    cJSON *dev_obj = NULL;
-                    bool found_in_unconnected = false;
+                // Process unconnected clients
+                for (map_it = unconnected_map.begin(); map_it != unconnected_map.end(); ++map_it) {
+                    caffinity_t *caff = map_it->second;
+                    caffinity_result_t result = caff->run_algorithm_caffinity();
+                    const char *mac_cstr = result.mac;
+                    double score = result.score;
                     
-                    // Check if already in UnconnectedClients
+                    // Find in UnconnectedClients JSON
+                    dev_obj = NULL;
+                    found = false;
                     if (unconn_arr) {
-                        for (int i = 0; i < cJSON_GetArraySize(unconn_arr); i++) {
-                            cJSON *dev = cJSON_GetArrayItem(unconn_arr, i);
-                            const char *existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+                        arr_size = cJSON_GetArraySize(unconn_arr);
+                        for (i = 0; i < arr_size; i++) {
+                            dev = cJSON_GetArrayItem(unconn_arr, i);
+                            existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
                             if (existing_mac && strcmp(existing_mac, mac_cstr) == 0) {
                                 dev_obj = dev;
-                                found_in_unconnected = true;
+                                found = true;
                                 break;
                             }
                         }
                     }
                     
-                    // If not in UnconnectedClients, check ConnectedClients and move it
-                    if (!found_in_unconnected && conn_arr) {
-                        for (int i = 0; i < cJSON_GetArraySize(conn_arr); i++) {
-                            cJSON *dev = cJSON_GetArrayItem(conn_arr, i);
-                            const char *existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
+                    // If not found in unconnected, check connected and move
+                    if (!found && conn_arr) {
+                        arr_size = cJSON_GetArraySize(conn_arr);
+                        for (i = 0; i < arr_size; i++) {
+                            dev = cJSON_GetArrayItem(conn_arr, i);
+                            existing_mac = cJSON_GetStringValue(cJSON_GetObjectItem(dev, "MAC"));
                             if (existing_mac && strcmp(existing_mac, mac_cstr) == 0) {
-                                // Get vap_index before moving
-                                cJSON *vap_obj = cJSON_GetObjectItem(dev, "VapIndex");
-                                if (vap_obj) entry.vap_index = (unsigned int)cJSON_GetNumberValue(vap_obj);
-                                
-                                // Detach from ConnectedClients (preserves the object)
                                 dev_obj = cJSON_DetachItemFromArray(conn_arr, i);
-                                
-                                // Update field names: VapIndex → LastSeenVapIndex, add LastSeen
-                                cJSON_DeleteItemFromObject(dev_obj, "VapIndex");
-                                cJSON_AddNumberToObject(dev_obj, "LastSeenVapIndex", entry.vap_index);
-                                cJSON_AddStringToObject(dev_obj, "LastSeen", get_local_time(tmp, sizeof(tmp), false));
-                                
-                                // Add to UnconnectedClients
                                 cJSON_AddItemToArray(unconn_arr, dev_obj);
-                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Moved %s from Connected to Unconnected\n",
-                                    __func__, __LINE__, mac_cstr);
+                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Moved %s to UnconnectedClients\n", __func__, __LINE__, mac_cstr);
                                 break;
                             }
                         }
                     }
                     
-                    // If not found anywhere, create new entry
+                    // Create new if not found
                     if (!dev_obj && unconn_arr) {
                         mac_addr_str_t mac_copy;
                         strncpy(mac_copy, mac_cstr, sizeof(mac_copy) - 1);
                         mac_copy[sizeof(mac_copy) - 1] = '\0';
-                        dev_obj = create_caffinity_unconnected_template(mac_copy, entry.vap_index);
+                        dev_obj = create_caffinity_unconnected_template(mac_copy);
                         cJSON_AddItemToArray(unconn_arr, dev_obj);
-                        wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d Created new entry for %s in Unconnected\n",
-                            __func__, __LINE__, mac_cstr);
                     }
                     
-                    // Append new score to existing arrays
-                    if (dev_obj && entry.score >= 0.0) {
-                        cJSON *caff_obj = cJSON_GetObjectItem(dev_obj, "CAffinityScore");
+                    // Append score
+                    if (dev_obj) {
+                        caff_obj = cJSON_GetObjectItem(dev_obj, "CAffinityScore");
                         if (caff_obj) {
-                            cJSON *arr = cJSON_GetObjectItem(caff_obj, "Score");
-                            if (arr) {
-                                int pre_sz = cJSON_GetArraySize(arr);
-                                cJSON_AddItemToArray(arr, cJSON_CreateNumber(entry.score));
-                                trim_cjson_array(arr, MAX_HISTORY);
-                                wifi_util_info_print(WIFI_CTRL, "CAFF %s:%d [Unconnected] MAC=%s score=%.4f Score_arr_size %d->%d\n",
-                                    __func__, __LINE__, mac_cstr, entry.score, pre_sz, cJSON_GetArraySize(arr));
+                            score_arr = cJSON_GetObjectItem(caff_obj, "Score");
+                            if (score_arr) {
+                                cJSON_AddItemToArray(score_arr, cJSON_CreateNumber(score));
+                                trim_cjson_array(score_arr, MAX_HISTORY);
                             }
-                            arr = cJSON_GetObjectItem(caff_obj, "Time");
-                            if (arr) {
-                                cJSON_AddItemToArray(arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
-                                trim_cjson_array(arr, MAX_HISTORY);
+                            score_arr = cJSON_GetObjectItem(caff_obj, "Time");
+                            if (score_arr) {
+                                cJSON_AddItemToArray(score_arr, cJSON_CreateString(get_local_time(tmp, sizeof(tmp), true)));
+                                trim_cjson_array(score_arr, MAX_HISTORY);
                             }
                         }
                     }
@@ -615,62 +550,32 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     return obj;
 }
 
-cJSON *qmgr_t::create_caffinity_dev_template(mac_addr_str_t mac_str, unsigned int vap_index)
+cJSON *qmgr_t::create_caffinity_dev_template(mac_addr_str_t mac_str)
 {
     cJSON *obj, *caff_obj;
-    char tmp[MAX_LINE_SIZE];
     
     obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "MAC", mac_str);
     
-    snprintf(tmp, sizeof(tmp), "MAC");
-    cJSON_AddItemToObject(obj, tmp, cJSON_CreateString(mac_str));
-    
-    snprintf(tmp, sizeof(tmp), "VapIndex");
-    cJSON_AddItemToObject(obj, tmp, cJSON_CreateNumber(vap_index));
-    
-    // Create CAffinityScore object
     caff_obj = cJSON_CreateObject();
-    snprintf(tmp, sizeof(tmp), "CAffinityScore");
-    cJSON_AddItemToObject(obj, tmp, caff_obj);
-    
-    snprintf(tmp, sizeof(tmp), "Score");
-    cJSON_AddItemToObject(caff_obj, tmp, cJSON_CreateArray());
-    
-    snprintf(tmp, sizeof(tmp), "Time");
-    cJSON_AddItemToObject(caff_obj, tmp, cJSON_CreateArray());
+    cJSON_AddItemToObject(obj, "CAffinityScore", caff_obj);
+    cJSON_AddItemToObject(caff_obj, "Score", cJSON_CreateArray());
+    cJSON_AddItemToObject(caff_obj, "Time", cJSON_CreateArray());
     
     return obj;
 }
 
-cJSON *qmgr_t::create_caffinity_unconnected_template(mac_addr_str_t mac_str, unsigned int last_vap_index)
+cJSON *qmgr_t::create_caffinity_unconnected_template(mac_addr_str_t mac_str)
 {
     cJSON *obj, *caff_obj;
-    char tmp[MAX_LINE_SIZE];
     
     obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "MAC", mac_str);
     
-    snprintf(tmp, sizeof(tmp), "MAC");
-    cJSON_AddItemToObject(obj, tmp, cJSON_CreateString(mac_str));
-    
-    snprintf(tmp, sizeof(tmp), "LastSeenVapIndex");
-    cJSON_AddItemToObject(obj, tmp, cJSON_CreateNumber(last_vap_index));
-    
-    {
-        char ts_buf[64];
-        get_local_time(ts_buf, sizeof(ts_buf), false);
-        cJSON_AddItemToObject(obj, "LastSeen", cJSON_CreateString(ts_buf));
-    }
-    
-    // Create CAffinityScore object
     caff_obj = cJSON_CreateObject();
-    snprintf(tmp, sizeof(tmp), "CAffinityScore");
-    cJSON_AddItemToObject(obj, tmp, caff_obj);
-    
-    snprintf(tmp, sizeof(tmp), "Score");
-    cJSON_AddItemToObject(caff_obj, tmp, cJSON_CreateArray());
-    
-    snprintf(tmp, sizeof(tmp), "Time");
-    cJSON_AddItemToObject(caff_obj, tmp, cJSON_CreateArray());
+    cJSON_AddItemToObject(obj, "CAffinityScore", caff_obj);
+    cJSON_AddItemToObject(caff_obj, "Score", cJSON_CreateArray());
+    cJSON_AddItemToObject(caff_obj, "Time", cJSON_CreateArray());
     
     return obj;
 }
@@ -681,12 +586,13 @@ void qmgr_t::deinit()
     pthread_cond_signal(&m_cond);
 
     // Wait for thread to finish
-    pthread_join(m_thread, nullptr);
+    pthread_join(m_thread, NULL);
     pthread_cond_destroy(&m_cond);
     
     // Clean up caffinity map
-    for (auto& pair : m_caffinity_map) {
-        delete pair.second;
+    std::unordered_map<std::string, caffinity_t*>::iterator caff_it;
+    for (caff_it = m_caffinity_map.begin(); caff_it != m_caffinity_map.end(); ++caff_it) {
+        delete caff_it->second;
     }
     m_caffinity_map.clear();
     
@@ -859,8 +765,8 @@ int qmgr_t::update_affinity_stats(affinity_arg_t *arg, bool create_flag)
         } else {
             // Find or create caffinity_t object for this MAC
             std::string mac_key(mac_str);
-            auto it = m_caffinity_map.find(mac_key);
-            caffinity_t *caff = nullptr;
+            std::unordered_map<std::string, caffinity_t*>::iterator it = m_caffinity_map.find(mac_key);
+            caffinity_t *caff = NULL;
             
             if (it == m_caffinity_map.end()) {
                 wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Creating new caffinity_t for MAC %s\n",
@@ -878,7 +784,7 @@ int qmgr_t::update_affinity_stats(affinity_arg_t *arg, bool create_flag)
                     // Add to caffinity telemetry JSON (initially in UnconnectedClients since connection status is not yet known)
                     cJSON *unconn_arr = cJSON_GetObjectItem(caffinity_out_obj, "UnconnectedClients");
                     if (unconn_arr) {
-                        cJSON_AddItemToArray(unconn_arr, create_caffinity_unconnected_template(mac_str, arg->vap_index));
+                        cJSON_AddItemToArray(unconn_arr, create_caffinity_unconnected_template(mac_str));
                         wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Added MAC %s to UnconnectedClients array\n",
                             __func__, __LINE__, mac_str);
                     }
@@ -914,7 +820,7 @@ bool qmgr_t::is_client_connected(const char *mac_str)
     std::string mac_key(mac_str);
     pthread_mutex_lock(&m_json_lock);
     
-    auto it = m_caffinity_map.find(mac_key);
+    std::unordered_map<std::string, caffinity_t*>::iterator it = m_caffinity_map.find(mac_key);
     bool is_connected = false;
     
     if (it != m_caffinity_map.end() && it->second) {
@@ -980,59 +886,6 @@ int qmgr_t::init(stats_arg_t *stats, bool create_flag)
         return 0;
     }
 
-    // ---------- CREATE PATH ----------
-    if (!device_exists) {
-        wifi_util_info_print(WIFI_APPS,"Adding new device %s\n", mac_str);
-        cJSON_AddItemToArray(dev_arr, create_dev_template(mac_str, stats->vap_index));
-        
-        // Also add to caffinity telemetry JSON
-        cJSON *caff_dev_arr = cJSON_GetObjectItem(caffinity_out_obj, "ConnectedClients");
-        if (caff_dev_arr) {
-            cJSON_AddItemToArray(caff_dev_arr, create_caffinity_dev_template(mac_str, stats->vap_index));
-        }
-    }
-
-    linkq_t *lq = (linkq_t *)hash_map_get(m_link_map, mac_str);
-    if (!lq) {
-        lq = new linkq_t(mac_str, stats->vap_index);
-        hash_map_put(m_link_map, strdup(mac_str), lq);
-    }
-
-    wifi_util_dbg_print(WIFI_APPS,"Initializing linkq for %s\n", mac_str);
-    lq->init(m_args.threshold,
-             m_args.reporting ,
-             stats);
-
-    // --- Update caffinity SNR for this MAC ---
-    std::string mac_key(mac_str);
-    caffinity_t *caff = nullptr;
-    
-    auto it = m_caffinity_map.find(mac_key);
-    if (it == m_caffinity_map.end()) {
-        // Create new caffinity object for this MAC
-        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Creating new caffinity_t for MAC %s\n",
-            __func__, __LINE__, mac_str);
-        mac_addr_str_t mac_str_array;
-        strncpy(mac_str_array, mac_str, sizeof(mac_str_array) - 1);
-        mac_str_array[sizeof(mac_str_array) - 1] = '\0';
-        caff = new caffinity_t(&mac_str_array);
-        if (caff) {
-            m_caffinity_map[mac_key] = caff;
-            wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Successfully created caffinity_t for MAC %s\n",
-                __func__, __LINE__, mac_str);
-        }
-    } else {
-        caff = it->second;
-        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Found existing caffinity_t for MAC %s\n",
-            __func__, __LINE__, mac_str);
-    }
-    
-    if (caff) {
-        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Calling caffinity_t::init() for MAC %s with SNR=%d\n",
-            __func__, __LINE__, mac_str, stats->dev.cli_SNR);
-        caff->init(stats);
-    }
-
     pthread_mutex_unlock(&m_json_lock);
     return 0;
 }
@@ -1059,6 +912,60 @@ int qmgr_t::rapid_disconnect(stats_arg_t *stats)
     return 0;
 }
 
+int qmgr_t::caffinity_periodic_stats_update(stats_arg_t *stats)
+{
+    wifi_util_info_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    if (!stats || stats->mac_str[0] == '\0') {
+        wifi_util_error_print(WIFI_APPS, "%s:%d invalid stats or empty MAC\n", __func__, __LINE__);
+        return -1;
+    }
+
+    mac_addr_str_t mac_str;
+    strncpy(mac_str, stats->mac_str, sizeof(mac_str) - 1);
+    mac_str[sizeof(mac_str) - 1] = '\0';
+
+    wifi_util_info_print(WIFI_APPS,"%s:%d mac_str=%s connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d\n",
+        __func__, __LINE__, mac_str,
+        (long)stats->total_connected_time.tv_sec, stats->total_connected_time.tv_nsec,
+        (long)stats->total_disconnected_time.tv_sec, stats->total_disconnected_time.tv_nsec,
+        stats->dev.cli_SNR);
+
+    pthread_mutex_lock(&m_json_lock);
+
+    // Find or create caffinity_t object for this MAC
+    std::string mac_key(mac_str);
+    std::unordered_map<std::string, caffinity_t*>::iterator it = m_caffinity_map.find(mac_key);
+    caffinity_t *caff = NULL;
+
+    if (it == m_caffinity_map.end()) {
+        // Create new caffinity object for this MAC
+        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Creating new caffinity_t for MAC %s\n",
+            __func__, __LINE__, mac_str);
+        mac_addr_str_t mac_str_array;
+        strncpy(mac_str_array, mac_str, sizeof(mac_str_array) - 1);
+        mac_str_array[sizeof(mac_str_array) - 1] = '\0';
+        caff = new caffinity_t(&mac_str_array);
+        if (caff) {
+            m_caffinity_map[mac_key] = caff;
+            wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Successfully created caffinity_t for MAC %s\n",
+                __func__, __LINE__, mac_str);
+        }
+    } else {
+        caff = it->second;
+        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Found existing caffinity_t for MAC %s\n",
+            __func__, __LINE__, mac_str);
+    }
+
+    if (caff) {
+        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Calling caffinity_t::periodic_stats_update() for MAC %s\n",
+            __func__, __LINE__, mac_str);
+        caff->periodic_stats_update(stats);
+    }
+
+    pthread_mutex_unlock(&m_json_lock);
+    return 0;
+}
+
 
 // static helper function for pthread
 void* qmgr_t::run_helper(void* arg)
@@ -1069,7 +976,7 @@ void* qmgr_t::run_helper(void* arg)
         wifi_util_info_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
         mgr->run();
     }
-    return nullptr;
+    return NULL;
 }
 
 void qmgr_t::start_background_run()
@@ -1079,7 +986,7 @@ void qmgr_t::start_background_run()
         return;   // already running
     }
     m_bg_running = true;
-    int ret = pthread_create(&m_thread, nullptr, run_helper, this);
+    int ret = pthread_create(&m_thread, NULL, run_helper, this);
     if (ret != 0) {
         wifi_util_info_print(WIFI_APPS,"Failed to create background run thread\n");
     } else {
@@ -1176,7 +1083,7 @@ void qmgr_t::destroy_instance()
     if (instance) {
         instance->deinit();    // cleanup internal resources
         delete instance;       // call destructor
-        instance = nullptr;
+        instance = NULL;
     }
 
     pthread_mutex_unlock(&lock);

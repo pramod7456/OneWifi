@@ -28,6 +28,43 @@ extern "C" {
 #include "wifi_webconfig.h"
 #include "wifi_hal.h"
 
+#define MAX_STR_LEN_LQ 128
+#define MAX_BUFF_LEN 1048
+#define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
+#define IGNITE_INITIAL_PUBLISH_ITERATIONS 5
+
+#define BUFFER_SIZE 65536
+#define DHCP_BOOTP 1
+#define DHCP_OP_MSG_TYPE 53
+#define DHCP_OPTION_HOSTNAME 12
+#define DHCP_OPTION_VENDOR_CLASS_ID 60
+#define DHCPDISCOVER 1
+#define DHCPOFFER    2
+#define DHCPREQUEST  3
+#define DHCPDECLINE  4
+#define DHCPACK      5
+#define DHCPNAK      6
+
+struct dhcp_data
+{
+    uint8_t op;
+    uint8_t htype;
+    uint8_t hlen;
+    uint8_t hops;
+
+    uint32_t xid;
+
+    uint16_t secs;
+    uint16_t flags;
+
+    uint32_t ciaddr;
+    uint32_t yiaddr;
+    uint32_t siaddr;
+    uint32_t giaddr;
+
+    uint8_t chaddr[16];
+};
+
 #define MAC_ADDRESS_LEN 6
 typedef struct {
     double last_score;

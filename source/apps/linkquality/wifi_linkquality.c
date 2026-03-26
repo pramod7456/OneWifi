@@ -50,59 +50,6 @@
 #include "secure_wrapper.h"
 #include "dml_onewifi_api.h"
 
-#define MAX_STR_LEN 128
-#define MAX_BUFF_LEN 1048
-#define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
-#define IGNITE_INITIAL_PUBLISH_ITERATIONS 5
-
-#define BUFFER_SIZE 65536
-#define DHCP_BOOTP 1
-#define DHCP_OP_MSG_TYPE 53
-#define DHCP_OPTION_HOSTNAME 12
-#define DHCP_OPTION_VENDOR_CLASS_ID 60
-#define DHCPDISCOVER 1
-#define DHCPOFFER    2
-#define DHCPREQUEST  3
-#define DHCPDECLINE  4
-#define DHCPACK      5
-#define DHCPNAK      6
-
-/* Local DHCP per-client stats structure */
-typedef struct {
-    unsigned char mac[6];
-    uint32_t discover;
-    uint32_t offer;
-    uint32_t request;
-    uint32_t decline;
-    uint32_t ack;
-    uint32_t nak;
-} dhcp_local_stats_t;
-
-#define MAX_DHCP_CLIENTS 64
-static dhcp_local_stats_t dhcp_local_clients[MAX_DHCP_CLIENTS];
-static int dhcp_local_count = 0;
-static pthread_mutex_t dhcp_local_lock = PTHREAD_MUTEX_INITIALIZER;
-
-struct dhcp_data
-{
-    uint8_t op;
-    uint8_t htype;
-    uint8_t hlen;
-    uint8_t hops;
-
-    uint32_t xid;
-
-    uint16_t secs;
-    uint16_t flags;
-
-    uint32_t ciaddr;
-    uint32_t yiaddr;
-    uint32_t siaddr;
-    uint32_t giaddr;
-
-    uint8_t chaddr[16];
-};
-
 
 static int dhcp_sniffer_fd = -1;
 static int dhcp_sniffer_running = 0;
@@ -111,85 +58,6 @@ static volatile int dhcp_sniffer_exit = 0;
 
 
 static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
-
-/* Find or create local DHCP stats entry for a MAC address */
-static dhcp_local_stats_t* dhcp_local_find_or_create(const unsigned char *mac)
-{
-    int i;
-    
-    pthread_mutex_lock(&dhcp_local_lock);
-    
-    // Search for existing entry
-    for (i = 0; i < dhcp_local_count; i++) {
-        if (memcmp(dhcp_local_clients[i].mac, mac, 6) == 0) {
-            pthread_mutex_unlock(&dhcp_local_lock);
-            return &dhcp_local_clients[i];
-        }
-    }
-    
-    // Create new entry if space available
-    if (dhcp_local_count < MAX_DHCP_CLIENTS) {
-        dhcp_local_stats_t *entry = &dhcp_local_clients[dhcp_local_count];
-        memset(entry, 0, sizeof(dhcp_local_stats_t));
-        memcpy(entry->mac, mac, 6);
-        dhcp_local_count++;
-        pthread_mutex_unlock(&dhcp_local_lock);
-        return entry;
-    }
-    
-    pthread_mutex_unlock(&dhcp_local_lock);
-    return NULL;
-}
-
-/* Update local DHCP stats and return computed attempts/failures */
-static void dhcp_local_update_and_compute(dhcp_local_stats_t *stats, int msg_type,
-                                          uint32_t *out_attempts, uint32_t *out_failures)
-{
-    pthread_mutex_lock(&dhcp_local_lock);
-    
-    switch(msg_type) {
-        case DHCPDISCOVER: stats->discover++; break;
-        case DHCPOFFER:    stats->offer++; break;
-        case DHCPREQUEST:  stats->request++; break;
-        case DHCPDECLINE:  stats->decline++; break;
-        case DHCPACK:      stats->ack++; break;
-        case DHCPNAK:      stats->nak++; break;
-    }
-    
-    wifi_util_info_print(WIFI_CTRL,
-        "DHCP_STATS %s:%d [msg_type=%d] raw counters:"
-        " discover=%u offer=%u request=%u\n"
-        "  ack=%u nak=%u decline=%u\n",
-        __func__, __LINE__, msg_type,
-        stats->discover, stats->offer, stats->request,
-        stats->ack, stats->nak, stats->decline);
-
-    // Compute attempts as max(discover, request).
-    // - Initial lease: DISCOVER → OFFER → REQUEST → ACK (discover=1, request=1)
-    // - Renewal:       REQUEST → ACK                    (discover=0, request=1)
-    // - Failed discover (no offer): discover=1, request=0
-    // max() correctly counts each transaction once in all cases.
-    *out_attempts = (stats->discover > stats->request) ? stats->discover : stats->request;
-    
-    // Compute failures:
-    // 1) nak + decline = explicit server-side failures
-    // 2) (discover - offer) when positive = unanswered DISCOVERs (server
-    //    unreachable / no offer received)
-    // Do NOT use (request - ack): ACK always arrives in a later packet than
-    // its REQUEST, so the difference is transiently non-zero and would be
-    // reported as a false failure.
-    uint32_t unanswered_discovers = (stats->discover > stats->offer)
-                                    ? (stats->discover - stats->offer) : 0;
-    *out_failures = stats->nak + stats->decline + unanswered_discovers;
-
-    wifi_util_info_print(WIFI_CTRL,
-        "DHCP_STATS %s:%d computed:"
-        " unanswered_discovers=%u out_attempts=%u out_failures=%u\n",
-        __func__, __LINE__,
-        unanswered_discovers, *out_attempts, *out_failures);
-    
-    pthread_mutex_unlock(&dhcp_local_lock);
-}
 
 static int dhcp_get_msg_type(uint8_t *options, ssize_t options_len)
 {
@@ -412,27 +280,12 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     }
 
     // ============================================================================
-    // STEP 9: Update local DHCP stats and pass to caffinity
+    // STEP 9: Pass raw DHCP message type to caffinity via update_affinity_stats
     // ============================================================================
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Processing %s packet for MAC=%s (%s)\n",
         __func__, __LINE__, msg_type_str, mac_key, direction);
     
-    // Find or create local stats entry for this client
-    dhcp_local_stats_t *local_stats = dhcp_local_find_or_create(dhcp->chaddr);
-    if (!local_stats) {
-        wifi_util_dbg_print(WIFI_CTRL," DHCP %s:%d No space for new DHCP client\n", __func__, __LINE__);
-        return;
-    }
-    
-    // Update local stats and compute attempts/failures
-    uint32_t dhcp_attempts = 0;
-    uint32_t dhcp_failures = 0;
-    dhcp_local_update_and_compute(local_stats, msg_type, &dhcp_attempts, &dhcp_failures);
-    
-    wifi_util_info_print(WIFI_CTRL," DHCP_main %s:%d MAC=%s: attempts=%u failures=%u\n",
-        __func__, __LINE__, mac_key, dhcp_attempts, dhcp_failures);
-    
-    // Prepare affinity_arg_t and call update_affinity_stats
+    // Prepare affinity_arg_t and call update_affinity_stats with raw msg_type
     affinity_arg_t affinity_arg;
     memset(&affinity_arg, 0, sizeof(affinity_arg_t));
     strncpy(affinity_arg.mac_str, mac_key, sizeof(affinity_arg.mac_str) - 1);
@@ -440,8 +293,7 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     affinity_arg.radio_index = (unsigned int)radio_index;
     affinity_arg.event = 0;  // Not a WiFi management frame event
     affinity_arg.dhcp_event = DHCP_EVENT_UPDATE;
-    affinity_arg.dhcp_attempts = dhcp_attempts;
-    affinity_arg.dhcp_failures = dhcp_failures;
+    affinity_arg.dhcp_msg_type = msg_type;  // Pass raw msg_type (1-6)
     
     update_affinity_stats(&affinity_arg, true);
     
@@ -650,7 +502,7 @@ static void dhcp_sniffer_stop()
 
 void publish_station_score(const char *input_str, double score, double threshold)
 {
-    char str[MAX_STR_LEN] = { '\0' };
+    char str[MAX_STR_LEN_LQ] = { '\0' };
     int current_state = -1;
     bus_error_t status;
     raw_data_t rdata;
@@ -689,10 +541,10 @@ void publish_station_score(const char *input_str, double score, double threshold
 
     if (score < threshold) {
         current_state = 0;
-        snprintf(str, MAX_STR_LEN, "Non-Serviceable");
+        snprintf(str, MAX_STR_LEN_LQ, "Non-Serviceable");
     } else if (score >= threshold) {
         current_state = 1;
-        snprintf(str, MAX_STR_LEN, "Serviceable");
+        snprintf(str, MAX_STR_LEN_LQ, "Serviceable");
     }
 
     if (current_state != -1 && current_state != ignite->last_service_state) {
@@ -1163,7 +1015,6 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req,int sub_event,void *a
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index,&affinity_arg->channel_utilization);
     affinity_arg->status_code = 0;
-    affinity_arg->sig_dbm = msg->frame.sig_dbm;
     // dhcp_event = 0 (not a DHCP update) from memset
     
     if (req)   {
@@ -1205,7 +1056,6 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index,&affinity_arg->channel_utilization);
     affinity_arg->status_code = 0;
-    affinity_arg->sig_dbm = msg->frame.sig_dbm;
     // dhcp_event = 0 (not a DHCP update) from memset
 
     if (req)   {

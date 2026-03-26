@@ -640,3 +640,150 @@ export function renderUnconnectedClientsCharts(data) {
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });
 }
+
+// --------------------
+// Render RMS Connected Aggregate Chart
+// --------------------
+let rmsConnectedChartDiv = null;
+
+export function renderRMSConnectedChart(data) {
+  const container = document.getElementById('rmsConnectedChart');
+  if (!container || !data) return;
+
+  // Get RMS_score data from caffinity telemetry
+  const rmsData = data.RMS_score;
+  if (!rmsData || !rmsData.connected || rmsData.connected.length === 0) {
+    if (!rmsConnectedChartDiv) {
+      rmsConnectedChartDiv = document.createElement('div');
+      rmsConnectedChartDiv.style.height = '420px';
+      rmsConnectedChartDiv.style.width = '100%';
+      container.appendChild(rmsConnectedChartDiv);
+    }
+    rmsConnectedChartDiv.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No RMS connected data available yet.</p>';
+    return;
+  }
+
+  const timeAxis = rmsData.Time || rmsData.connected.map((_, i) => `T${i}`);
+  const connectedScores = rmsData.connected;
+
+  if (!rmsConnectedChartDiv) {
+    rmsConnectedChartDiv = document.createElement('div');
+    rmsConnectedChartDiv.style.height = '420px';
+    rmsConnectedChartDiv.style.width = '100%';
+    container.appendChild(rmsConnectedChartDiv);
+  }
+
+  Plotly.react(rmsConnectedChartDiv, [{
+    x: timeAxis,
+    y: connectedScores,
+    type: 'scatter',
+    mode: 'lines+markers',
+    name: 'RMS Connected',
+    line: { color: '#2ecc71', width: 3 },
+    marker: { size: 6 }
+  }], {
+    title: { text: '<b>RMS Aggregate — Connected Clients</b>', x: 0.5, xanchor: 'center' },
+    xaxis: { title: 'Time', tickangle: -45 },
+    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    height: 420,
+    margin: { t: 80, l: 60, r: 60, b: 60 }
+  }, { responsive: true });
+}
+
+// --------------------
+// Render RMS Unconnected Aggregate Chart
+// --------------------
+let rmsUnconnectedChartDiv = null;
+
+export function renderRMSUnconnectedChart(data) {
+  const container = document.getElementById('rmsUnconnectedChart');
+  if (!container || !data) return;
+
+  // Get RMS_score data from caffinity telemetry
+  const rmsData = data.RMS_score;
+  if (!rmsData || !rmsData.unconnected || rmsData.unconnected.length === 0) {
+    if (!rmsUnconnectedChartDiv) {
+      rmsUnconnectedChartDiv = document.createElement('div');
+      rmsUnconnectedChartDiv.style.height = '420px';
+      rmsUnconnectedChartDiv.style.width = '100%';
+      container.appendChild(rmsUnconnectedChartDiv);
+    }
+    rmsUnconnectedChartDiv.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No RMS unconnected data available yet.</p>';
+    return;
+  }
+
+  const timeAxis = rmsData.Time || rmsData.unconnected.map((_, i) => `T${i}`);
+  const unconnectedScores = rmsData.unconnected;
+
+  if (!rmsUnconnectedChartDiv) {
+    rmsUnconnectedChartDiv = document.createElement('div');
+    rmsUnconnectedChartDiv.style.height = '420px';
+    rmsUnconnectedChartDiv.style.width = '100%';
+    container.appendChild(rmsUnconnectedChartDiv);
+  }
+
+  Plotly.react(rmsUnconnectedChartDiv, [{
+    x: timeAxis,
+    y: unconnectedScores,
+    type: 'scatter',
+    mode: 'lines+markers',
+    name: 'RMS Unconnected',
+    line: { color: '#e74c3c', width: 3 },
+    marker: { size: 6 }
+  }], {
+    title: { text: '<b>RMS Aggregate — Unconnected Clients</b>', x: 0.5, xanchor: 'center' },
+    xaxis: { title: 'Time', tickangle: -45 },
+    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    height: 420,
+    margin: { t: 80, l: 60, r: 60, b: 60 }
+  }, { responsive: true });
+}
+
+// --------------------
+// Render RMS Link Quality Aggregate Chart
+// --------------------
+let rmsLinkQualityChartDiv = null;
+
+export function renderRMSLinkQualityChart(data) {
+  const container = document.getElementById('rmsLinkQualityChart');
+  if (!container || !data) return;
+
+  // Get RMS_lq_score data from telemetry
+  const rmsData = data.RMS_lq_score;
+  if (!rmsData || !rmsData.Score || rmsData.Score.length === 0) {
+    if (!rmsLinkQualityChartDiv) {
+      rmsLinkQualityChartDiv = document.createElement('div');
+      rmsLinkQualityChartDiv.style.height = '420px';
+      rmsLinkQualityChartDiv.style.width = '100%';
+      container.appendChild(rmsLinkQualityChartDiv);
+    }
+    rmsLinkQualityChartDiv.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">No RMS Link Quality data available yet.</p>';
+    return;
+  }
+
+  const timeAxis = rmsData.Time || rmsData.Score.map((_, i) => `T${i}`);
+  const scores = rmsData.Score;
+
+  if (!rmsLinkQualityChartDiv) {
+    rmsLinkQualityChartDiv = document.createElement('div');
+    rmsLinkQualityChartDiv.style.height = '420px';
+    rmsLinkQualityChartDiv.style.width = '100%';
+    container.appendChild(rmsLinkQualityChartDiv);
+  }
+
+  Plotly.react(rmsLinkQualityChartDiv, [{
+    x: timeAxis,
+    y: scores,
+    type: 'scatter',
+    mode: 'lines+markers',
+    name: 'RMS Link Quality',
+    line: { color: '#3498db', width: 3 },
+    marker: { size: 6 }
+  }], {
+    title: { text: '<b>RMS Aggregate — Link Quality Score</b>', x: 0.5, xanchor: 'center' },
+    xaxis: { title: 'Time', tickangle: -45 },
+    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    height: 420,
+    margin: { t: 80, l: 60, r: 60, b: 60 }
+  }, { responsive: true });
+}

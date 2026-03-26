@@ -96,10 +96,8 @@ typedef struct {
     int channel_utilization;
     int event;
     unsigned int status_code;  // For assoc/reassoc response frames
-    int sig_dbm;  // RSSI from management frame, in dBm
     int dhcp_event;  // Set to DHCP_EVENT_UPDATE when updating DHCP stats
-    uint32_t dhcp_attempts;  // DHCP attempts count
-    uint32_t dhcp_failures;  // DHCP failures count
+    int dhcp_msg_type;  // DHCP message type (1=DISCOVER, 2=OFFER, 3=REQUEST, 4=DECLINE, 5=ACK, 6=NAK)
     struct timespec connected_time;    // total_connected_time from sta_data_t (assoc success)
     struct timespec disconnected_time; // total_disconnected_time from sta_data_t (deauth)
   } affinity_arg_t;

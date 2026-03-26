@@ -185,6 +185,21 @@ SNR_{norm}^{2} + PHY_{norm}^{2} + \left(1 - PER_{norm}^{2}\right)
         </thead>
       </table>
     </div>
+    
+    <!-- RMS Aggregate Link Quality Score Chart -->
+    <h2 style="text-align:center; margin-top:60px; margin-bottom:8px;">RMS Aggregate</h2>
+    <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em; margin-bottom:20px;">
+      <span style="font-size:0.8em;">
+      \[
+      \mathbf{
+      RMS_{LinkQuality} = \sqrt{\frac{\sum_{i=1}^{N} Score_i^2}{N}}
+      }
+      \]
+      </span>
+    </div>
+    <div id="rmsLinkQualityChartWrapper" style="width:100%; margin-top:20px;">
+      <div id="rmsLinkQualityChart" style="width:100%;"></div>
+    </div>
   </div><!-- Tab 2: Connection Affinity -->
   <!-- Tab 2: Connection Affinity -->
     <div id="tab2Content" class="tab-content">
@@ -227,6 +242,21 @@ N
       <div id="caffinityMultiContainer" style="width:100%;"></div>
       <div id="caffinityAggregateChart" style="width:100%;"></div>
     </div>
+    
+    <!-- RMS Aggregate Score Chart (Connected) -->
+    <h2 style="text-align:center; margin-top:60px; margin-bottom:8px;">RMS Aggregate</h2>
+    <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em; margin-bottom:20px;">
+      <span style="font-size:0.8em;">
+      \[
+      \mathbf{
+      RMS_{connected} = \sqrt{\frac{\sum_{i=1}^{N} Score_i^2}{N}}
+      }
+      \]
+      </span>
+    </div>
+    <div id="rmsConnectedChartWrapper" style="width:100%; margin-top:20px;">
+      <div id="rmsConnectedChart" style="width:100%;"></div>
+    </div>
   </div>
   
   <!-- Tab 3: Unconnected Clients -->
@@ -261,6 +291,21 @@ CAA_{MAC} =
       <div id="unconnectedMultiContainer" style="width:100%;"></div>
       <div id="unconnectedAggregateChart" style="width:100%;"></div>
     </div>
+    
+    <!-- RMS Aggregate Score Chart (Unconnected) -->
+    <h2 style="text-align:center; margin-top:60px; margin-bottom:8px;">RMS Aggregate</h2>
+    <div style="text-align:center; font-family:Arial, sans-serif; line-height:1.2em; margin-bottom:20px;">
+      <span style="font-size:0.8em;">
+      \[
+      \mathbf{
+      RMS_{unconnected} = \sqrt{\frac{\sum_{i=1}^{N} Score_i^2}{N}}
+      }
+      \]
+      </span>
+    </div>
+    <div id="rmsUnconnectedChartWrapper" style="width:100%; margin-top:20px;">
+      <div id="rmsUnconnectedChart" style="width:100%;"></div>
+    </div>
   </div>
   
   <script type="module">
@@ -270,6 +315,9 @@ CAA_{MAC} =
   renderConnectionAffinityCharts,
   renderCAffinityScoreCharts,
   renderUnconnectedClientsCharts,
+  renderRMSConnectedChart,
+  renderRMSUnconnectedChart,
+  renderRMSLinkQualityChart,
   renderAlarms
   } from './lq.js';
 
@@ -294,6 +342,7 @@ CAA_{MAC} =
 
   const d = await fetchTelemetry();
   renderLinkQualityChart(d);
+  renderRMSLinkQualityChart(d);
   };
 
   tab2Btn.onclick = async () => {
@@ -308,6 +357,7 @@ CAA_{MAC} =
   const caffData = await fetchCaffinityTelemetry();
   renderConnectionAffinityCharts(d);
   renderCAffinityScoreCharts(caffData);
+  renderRMSConnectedChart(caffData);
   };
 
   tab3Btn.onclick = async () => {
@@ -321,6 +371,7 @@ CAA_{MAC} =
   // Fetch and render unconnected client data
   const caffData = await fetchCaffinityTelemetry();
   renderUnconnectedClientsCharts(caffData);
+  renderRMSUnconnectedChart(caffData);
   };
 
   /* ---------------- DROPDOWN LOGIC (RESTORED) ---------------- */
@@ -453,6 +504,7 @@ setInterval(updateLinkParams, 5000);
   async function init() {
   const d = await fetchTelemetry();
   renderLinkQualityChart(d);
+  renderRMSLinkQualityChart(d);
   renderAlarms(d);
 
   setInterval(async () => {
@@ -460,6 +512,7 @@ setInterval(updateLinkParams, 5000);
 
     if (tab1Content.style.display !== 'none') {
       renderLinkQualityChart(d);
+      renderRMSLinkQualityChart(d);
       renderAlarms(d);
     }
 
@@ -467,12 +520,13 @@ setInterval(updateLinkParams, 5000);
       const caffData = await fetchCaffinityTelemetry();
       renderConnectionAffinityCharts(d);
       renderCAffinityScoreCharts(caffData);
+      renderRMSConnectedChart(caffData);
     }
 
     if (tab3Content.style.display !== 'none') {
-      // Future: Fetch and render unconnected client data
-      // const caffData = await fetchCaffinityTelemetry();
-      // renderUnconnectedClients(caffData);
+      const caffData = await fetchCaffinityTelemetry();
+      renderUnconnectedClientsCharts(caffData);
+      renderRMSUnconnectedChart(caffData);
     }
 
   }, 2000);

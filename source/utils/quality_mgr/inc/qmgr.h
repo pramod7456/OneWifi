@@ -55,11 +55,11 @@ class qmgr_t {
     cJSON *affinity_obj;
     cJSON *caffinity_out_obj;  // Separate JSON for caffinity telemetry
     std::unordered_map<const char*, affinity_arg_t> m_affinity_map;
-    std::unordered_map<std::string, caffinity_t*> m_caffinity_map;
+    std::unordered_map<std::string, caffinity_t*> m_caffinity_map;  // Object storage for caffinity
 
     cJSON* create_affinity_template(mac_addr_str_t mac_str,unsigned int vap_index);
-    cJSON* create_caffinity_dev_template(mac_addr_str_t mac_str, unsigned int vap_index);
-    cJSON* create_caffinity_unconnected_template(mac_addr_str_t mac_str, unsigned int last_vap_index);
+    cJSON* create_caffinity_dev_template(mac_addr_str_t mac_str);
+    cJSON* create_caffinity_unconnected_template(mac_addr_str_t mac_str);
 public:
     int init(stats_arg_t *arg,bool create_flag);
     int rapid_disconnect(stats_arg_t *arg);
@@ -86,6 +86,7 @@ public:
     static int get_quality_flags(quality_flags_t *flag);
     void update_graph( cJSON *out_obj);
     int update_affinity_stats(affinity_arg_t *arg,bool flag);
+    int caffinity_periodic_stats_update(stats_arg_t *stats);
     bool is_client_connected(const char *mac_str);
     ~qmgr_t();
 };

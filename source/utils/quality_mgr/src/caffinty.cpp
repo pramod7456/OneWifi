@@ -63,6 +63,39 @@ int caffinity_t::init(stats_arg_t *stats)
     return 0;  // Success
 }
 
+int caffinity_t::periodic_stats_update(stats_arg_t *stats)
+{
+    if (!stats) {
+        wifi_util_error_print(WIFI_CTRL, "caffinity %s:%d NULL stats pointer\n", __func__, __LINE__);
+        return -1;
+    }
+
+    wifi_util_info_print(WIFI_CTRL, "caffinity %s:%d Periodic stats update for MAC %s\n",
+        __func__, __LINE__, stats->mac_str);
+
+    pthread_mutex_lock(&m_lock);
+
+    // Update m_connected_time from total_connected_time
+    m_connected_time = stats->total_connected_time;
+
+    // Update m_disconnected_time from total_disconnected_time
+    m_disconnected_time = stats->total_disconnected_time;
+
+    // Update cli_SNR
+    m_cli_snr = stats->dev.cli_SNR;
+
+    pthread_mutex_unlock(&m_lock);
+
+    wifi_util_error_print(WIFI_CTRL, "timestats caffinity %s:%d Updated periodic stats for MAC %s: "
+        "connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d\n",
+        __func__, __LINE__, stats->mac_str,
+        (long)m_connected_time.tv_sec, m_connected_time.tv_nsec,
+        (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec,
+        m_cli_snr);
+
+    return 0;  // Success
+}
+
 int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
 {
     wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d event=%d dhcp_event=%d\n", __func__, __LINE__, arg->event, arg->dhcp_event);
@@ -152,14 +185,23 @@ int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
     return 0;
 }
 
-double caffinity_t::run_algorithm_caffinity()
+caffinity_result_t caffinity_t::run_algorithm_caffinity()
 {
+    caffinity_result_t result;
     double score = 0.0;
+    
+    // Initialize result
+    strncpy(result.mac, m_mac, sizeof(result.mac) - 1);
+    result.mac[sizeof(result.mac) - 1] = '\0';
+    result.score = 0.0;
+    result.connected = false;
 
     wifi_util_error_print(WIFI_CTRL, "caffinity %s:%d Computing caffinity score for MAC %s\n",
         __func__, __LINE__, m_mac);
 
     pthread_mutex_lock(&m_lock);
+    
+    result.connected = m_connected;
     
     // Debug dump of all stats for this MAC (one call per line to avoid logging truncation on embedded \n)
     wifi_util_error_print(WIFI_CTRL, "caffinity %s:%d [MAC=%s] Stats Dump:\n", __func__, __LINE__, m_mac);
@@ -199,7 +241,7 @@ double caffinity_t::run_algorithm_caffinity()
             wifi_util_info_print(WIFI_CTRL,
                 "caffinity %s:%d Connected client, total time is zero, returning score=0\n",
                 __func__, __LINE__);
-            return 0.0;
+            return result;
         }
 
         score = connected_sec / total;
@@ -208,7 +250,8 @@ double caffinity_t::run_algorithm_caffinity()
         if (score < 0.0) score = 0.0;
         if (score > 1.0) score = 1.0;
 
-        return score;
+        result.score = score;
+        return result;
     }
 
     /* ------------------------------------------------------------------ */
@@ -228,14 +271,15 @@ double caffinity_t::run_algorithm_caffinity()
     // For unconnected clients, use RSSI instead of SNR (SNR is 0 for unassociated)
     // RSSI range: typically -90 dBm (bad) to -30 dBm (excellent)
     // Map to approximate SNR range 0-70: snr_equivalent = rssi + 90
-    if (m_rssi != 0) {
+    /*if (m_rssi != 0) {
         cli_snr = m_rssi + 90;  // e.g., -30 dBm -> 60, -90 dBm -> 0
         if (cli_snr < 0) cli_snr = 0;
         if (cli_snr > 70) cli_snr = 70;
         wifi_util_info_print(WIFI_CTRL,
             "caffinity %s:%d Unconnected client, using RSSI=%d dBm -> equivalent SNR=%d\n",
             __func__, __LINE__, m_rssi, cli_snr);
-    }
+    }*/
+    cli_snr = m_cli_snr;
     channel_utilization = m_channel_utilization;
 
     // Calculate failure rates with division-by-zero protection
@@ -303,7 +347,8 @@ double caffinity_t::run_algorithm_caffinity()
     wifi_util_info_print(WIFI_CTRL, "caffinity %s:%d FINAL SCORE=%.4f for MAC %s connected %d\n",
         __func__, __LINE__, score, m_mac, m_connected);
     
-    return score;
+    result.score = score + 0.1;
+    return result;
 }
 
 

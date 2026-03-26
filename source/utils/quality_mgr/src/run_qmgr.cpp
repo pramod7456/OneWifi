@@ -250,6 +250,15 @@ int update_affinity_stats(affinity_arg_t *arg,bool flag)
     return 0;
 }
 
+int periodic_caffinity_stats_update(stats_arg_t *stats)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d mac=%s\n",__func__,__LINE__, stats->mac_str);
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    mgr->caffinity_periodic_stats_update(stats);
+    return 0;
+}
+
 bool is_client_connected(const char *mac_str)
 {
     qmgr_t *mgr;

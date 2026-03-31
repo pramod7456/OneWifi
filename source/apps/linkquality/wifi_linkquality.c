@@ -285,9 +285,9 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Processing %s packet for MAC=%s (%s)\n",
         __func__, __LINE__, msg_type_str, mac_key, direction);
     
-    // Prepare affinity_arg_t and call update_affinity_stats with raw msg_type
-    affinity_arg_t affinity_arg;
-    memset(&affinity_arg, 0, sizeof(affinity_arg_t));
+    // Prepare stats_arg_t and call update_affinity_stats with raw msg_type
+    stats_arg_t affinity_arg;
+    memset(&affinity_arg, 0, sizeof(stats_arg_t));
     strncpy(affinity_arg.mac_str, mac_key, sizeof(affinity_arg.mac_str) - 1);
     affinity_arg.vap_index = (unsigned int)vap_index;
     affinity_arg.radio_index = (unsigned int)radio_index;
@@ -1002,13 +1002,13 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req,int sub_event,void *a
         return RETURN_ERR;
     }
    //Fill the affinity_arg with frame data 
-    affinity_arg_t *affinity_arg = ( affinity_arg_t *) malloc(sizeof( affinity_arg_t));
+    stats_arg_t *affinity_arg = ( stats_arg_t *) malloc(sizeof( stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
        return RETURN_ERR;
     }
 
-    memset(affinity_arg, 0, sizeof(affinity_arg_t));
+    memset(affinity_arg, 0, sizeof(stats_arg_t));
     frame_data_t *msg = (frame_data_t *)arg;
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
@@ -1019,16 +1019,6 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req,int sub_event,void *a
     
     if (req)   {
         affinity_arg->event = sub_event;
-        // For deauth, fetch total_disconnected_time from sta_data_t
-        if (sub_event == wifi_event_hal_deauth_frame) {
-            sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
-            if (sta) {
-                affinity_arg->disconnected_time = sta->total_disconnected_time;
-                wifi_util_info_print(WIFI_CTRL, " %s:%d DEAUTH: MAC=%s total_disconnected_time=%ld.%09ld\n",
-                    __func__, __LINE__, affinity_arg->mac_str,
-                    (long)sta->total_disconnected_time.tv_sec, sta->total_disconnected_time.tv_nsec);
-            }
-        }
         update_affinity_stats(affinity_arg,true);
     }
 
@@ -1044,12 +1034,12 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
         return RETURN_ERR;
     }
    //Fill the affinity_arg with frame data 
-    affinity_arg_t *affinity_arg = ( affinity_arg_t *) malloc(sizeof( affinity_arg_t));
+    stats_arg_t *affinity_arg = ( stats_arg_t *) malloc(sizeof( stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
        return RETURN_ERR;
     }
-    memset(affinity_arg, 0, sizeof(affinity_arg_t));
+    memset(affinity_arg, 0, sizeof(stats_arg_t));
     frame_data_t *msg = (frame_data_t *)arg;
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
@@ -1057,6 +1047,15 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     get_radio_channel_utilization(affinity_arg->radio_index,&affinity_arg->channel_utilization);
     affinity_arg->status_code = 0;
     // dhcp_event = 0 (not a DHCP update) from memset
+
+    wifi_vap_info_t *vap_info = NULL;
+    mac_addr_str_t bss_str = { 0 };
+    vap_info = getVapInfo(msg->frame.ap_index);
+    if (vap_info != NULL) {
+        to_mac_str(vap_info->u.bss_info.bssid, bss_str);
+        wifi_util_info_print(WIFI_CTRL," RMS %s:%d AP BSSID: %s for STA: %s\n",
+            __func__, __LINE__, bss_str, affinity_arg->mac_str);
+    }
 
     if (req)   {
         affinity_arg->event = sub_event;
@@ -1072,16 +1071,6 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
             // Update caffinity stats via update_affinity_stats with status_code
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
-            // For connected state (status 0), fetch total_connected_time from sta_data_t
-            if (status == 0) {
-                sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
-                if (sta) {
-                    affinity_arg->connected_time = sta->total_connected_time;
-                    wifi_util_info_print(WIFI_CTRL, " %s:%d ASSOC RSP success: MAC=%s total_connected_time=%ld.%09ld\n",
-                        __func__, __LINE__, affinity_arg->mac_str,
-                        (long)sta->total_connected_time.tv_sec, sta->total_connected_time.tv_nsec);
-                }
-            }
             wifi_util_info_print(WIFI_CTRL, " %s:%d Calling update_affinity_stats for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
             update_affinity_stats(affinity_arg, true);
@@ -1092,16 +1081,6 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
             uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
-            // For connected state (status 0), fetch total_connected_time from sta_data_t
-            if (status == 0) {
-                sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
-                if (sta) {
-                    affinity_arg->connected_time = sta->total_connected_time;
-                    wifi_util_info_print(WIFI_CTRL, " %s:%d REASSOC RSP success: MAC=%s total_connected_time=%ld.%09ld\n",
-                        __func__, __LINE__, affinity_arg->mac_str,
-                        (long)sta->total_connected_time.tv_sec, sta->total_connected_time.tv_nsec);
-                }
-            }
             update_affinity_stats(affinity_arg, true);
         }	    
     }
@@ -1121,29 +1100,20 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     frame_data_t *msg = (frame_data_t *)arg;
     
     // Fill the affinity_arg with frame data 
-    affinity_arg_t *affinity_arg = (affinity_arg_t *) malloc(sizeof(affinity_arg_t));
+    stats_arg_t *affinity_arg = (stats_arg_t *) malloc(sizeof(stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memory\n",__func__,__LINE__);
         return RETURN_ERR;
     }
     
-    memset(affinity_arg, 0, sizeof(affinity_arg_t));
+    memset(affinity_arg, 0, sizeof(stats_arg_t));
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
-    // dhcp_event = 0 (not a DHCP update) from memset
     
     if (req) {
         affinity_arg->event = sub_event;
-        // For disassoc, fetch total_disconnected_time from sta_data_t
-        sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
-        if (sta) {
-            affinity_arg->disconnected_time = sta->total_disconnected_time;
-            wifi_util_info_print(WIFI_CTRL, " %s:%d DISASSOC: MAC=%s total_disconnected_time=%ld.%09ld\n",
-                __func__, __LINE__, affinity_arg->mac_str,
-                (long)sta->total_disconnected_time.tv_sec, sta->total_disconnected_time.tv_nsec);
-        }
         update_affinity_stats(affinity_arg, true);
     }
     

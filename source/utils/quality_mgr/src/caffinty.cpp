@@ -64,7 +64,7 @@ int caffinity_t::periodic_stats_update(stats_arg_t *stats)
     return 0;  // Success
 }
 
-int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
+int caffinity_t::update_affinity_stats(stats_arg_t *arg)
 {
     wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d event=%d dhcp_event=%d\n", __func__, __LINE__, arg->event, arg->dhcp_event);
     
@@ -125,7 +125,7 @@ int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
 
         case wifi_event_hal_deauth_frame:
             m_auth_failures++;
-            m_disconnected_time = arg->disconnected_time;
+            m_disconnected_time = arg->total_disconnected_time;
             wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d DEAUTH failure, total=%u, disconnected_time=%ld.%09ld\n",
                 __func__, __LINE__, m_auth_failures,
                 (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec);
@@ -148,7 +148,7 @@ int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
                     __func__, __LINE__, arg->status_code, m_assoc_failures);
             } else {
                 m_connected = true;
-                m_connected_time = arg->connected_time;
+                m_connected_time = arg->total_connected_time;
                 wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d ASSOC/REASSOC response SUCCESS (status=%u), m_connected=true, connected_time=%ld.%09ld\n",
                     __func__, __LINE__, arg->status_code,
                     (long)m_connected_time.tv_sec, m_connected_time.tv_nsec);
@@ -165,7 +165,7 @@ int caffinity_t::update_affinity_stats(affinity_arg_t *arg)
 
         case wifi_event_hal_disassoc_device:
             m_connected = false;
-            m_disconnected_time = arg->disconnected_time;
+            m_disconnected_time = arg->total_disconnected_time;
             wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d DISASSOC device, m_connected=false, disconnected_time=%ld.%09ld\n",
                 __func__, __LINE__, (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec);
             break;

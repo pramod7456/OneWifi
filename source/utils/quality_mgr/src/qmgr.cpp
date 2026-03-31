@@ -549,7 +549,7 @@ int qmgr_t::run()
                     
                     // Accumulate RMS for connected clients
                     m_rms_conn_sum_sq += score * score;
-                    m_rms_conn_count++;
+                    m_rms_conn_count = connected_map.size();
                 }
                 
                 // Process unconnected clients
@@ -618,13 +618,14 @@ int qmgr_t::run()
                     
                     // Accumulate RMS for unconnected clients
                     m_rms_unconn_sum_sq += score * score;
-                    m_rms_unconn_count++;
+                    m_rms_unconn_count = unconnected_map.size();
                 }
                 
                 // Calculate RMS values
                 double rms_connected = (m_rms_conn_count > 0) ? sqrt(m_rms_conn_sum_sq / m_rms_conn_count) : 0.0;
                 double rms_unconnected = (m_rms_unconn_count > 0) ? sqrt(m_rms_unconn_sum_sq / m_rms_unconn_count) : 0.0;
-                
+                wifi_util_info_print(WIFI_CTRL, "%s:%d RMS connected %lf samples, RMS unconnected %lf samples\n", 
+                        __func__, __LINE__, rms_connected, rms_unconnected );
                 // Update RMS aggregate JSON
                 update_rms_aggregate_json(rms_connected, rms_unconnected);
                 
@@ -805,7 +806,7 @@ int qmgr_t::reinit(server_arg_t *args)
     }
     return 0;
 }
-int qmgr_t::update_affinity_stats(affinity_arg_t *arg, bool create_flag)
+int qmgr_t::update_affinity_stats(stats_arg_t *arg, bool create_flag)
 {
     wifi_util_info_print(WIFI_APPS,"CAFF qmgr_t %s:%d event=%d create_flag=%d\n",__func__,__LINE__, arg->event, create_flag);
     mac_addr_str_t mac_str;
@@ -817,7 +818,7 @@ int qmgr_t::update_affinity_stats(affinity_arg_t *arg, bool create_flag)
     pthread_mutex_lock(&m_json_lock);
 
     /* ---------- CHECK MAP FOR EXISTING MAC ---------- */
-    std::unordered_map<const char*, affinity_arg_t>::iterator it;
+    std::unordered_map<const char*, stats_arg_t>::iterator it;
     bool map_exists = false;
 
     for (it = m_affinity_map.begin(); it != m_affinity_map.end(); ++it) {

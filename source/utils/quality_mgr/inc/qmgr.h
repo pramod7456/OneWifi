@@ -54,7 +54,7 @@ class qmgr_t {
     cJSON *out_obj;
     cJSON *affinity_obj;
     cJSON *caffinity_out_obj;  // Separate JSON for caffinity telemetry
-    std::unordered_map<const char*, affinity_arg_t> m_affinity_map;
+    std::unordered_map<const char*, stats_arg_t> m_affinity_map;
     std::unordered_map<std::string, caffinity_t*> m_caffinity_map;  // Object storage for caffinity
     
     // RMS aggregate tracking
@@ -99,7 +99,7 @@ public:
     static int set_quality_flags(quality_flags_t *flag);
     static int get_quality_flags(quality_flags_t *flag);
     void update_graph( cJSON *out_obj);
-    int update_affinity_stats(affinity_arg_t *arg,bool flag);
+    int update_affinity_stats(stats_arg_t *arg,bool flag);
     int caffinity_periodic_stats_update(stats_arg_t *stats);
     bool is_client_connected(const char *mac_str);
     ~qmgr_t();

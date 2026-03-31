@@ -59,6 +59,10 @@ typedef struct {
     wifi_associated_dev3_t dev;
     struct timespec total_connected_time;
     struct timespec total_disconnected_time;
+    int event;
+    unsigned int status_code;
+    int dhcp_event;
+    int dhcp_msg_type;
   } stats_arg_t;
 
 typedef struct {
@@ -89,18 +93,7 @@ typedef struct {
 /* DHCP event flag for affinity updates */
 #define DHCP_EVENT_UPDATE    1
 
-typedef struct {
-    mac_addr_str_t mac_str;
-    unsigned int vap_index;
-    unsigned int radio_index;
-    int channel_utilization;
-    int event;
-    unsigned int status_code;  // For assoc/reassoc response frames
-    int dhcp_event;  // Set to DHCP_EVENT_UPDATE when updating DHCP stats
-    int dhcp_msg_type;  // DHCP message type (1=DISCOVER, 2=OFFER, 3=REQUEST, 4=DECLINE, 5=ACK, 6=NAK)
-    struct timespec connected_time;    // total_connected_time from sta_data_t (assoc success)
-    struct timespec disconnected_time; // total_disconnected_time from sta_data_t (deauth)
-  } affinity_arg_t;
+/* affinity_arg_t merged into stats_arg_t */
 
 
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
@@ -142,7 +135,7 @@ void unregister_station_mac(const char* str);
 int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 
 /* Connection Affinity related helper functions */
-int update_affinity_stats(affinity_arg_t *arg,bool flag);
+int update_affinity_stats(stats_arg_t *arg,bool flag);
 
 /* Periodic caffinity stats update for connected/disconnected time and SNR */
 int periodic_caffinity_stats_update(stats_arg_t *stats);

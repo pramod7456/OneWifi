@@ -59,6 +59,8 @@ static volatile int dhcp_sniffer_exit = 0;
 
 static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
 
+
+//TODO: Need to replace Magic numbers with MACRO with comment across
 static int dhcp_get_msg_type(uint8_t *options, ssize_t options_len)
 {
     while (options_len > 0)
@@ -220,6 +222,8 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     // ============================================================================
     // STEP 5: Verify MAC is connected (using caffinity)
     // ============================================================================
+    //TODO: Need not have this check as it is already done before calling this function
+
     if (!is_client_connected(mac_key)) {
         wifi_util_dbg_print(WIFI_CTRL," DHCP %s:%d Client MAC %s NOT connected, REJECTING packet\n", 
             __func__, __LINE__, mac_key);
@@ -334,10 +338,12 @@ static void *dhcp_sniffer_thread_func(void *arg)
     wifi_util_info_print(WIFI_APPS, "%s:%d DHCP sniffer thread started\n", __func__, __LINE__);
 
     while (!dhcp_sniffer_exit) {
+        //TODO: check an move this FD_xyz outside of loop
         FD_ZERO(&read_fds);
         FD_SET(dhcp_sniffer_fd, &read_fds);
         
         // Use select with timeout to allow checking exit flag
+        // TODO: Set timeout to infinite
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         
@@ -994,22 +1000,26 @@ int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
     return RETURN_OK;
 }
 
-int link_quality_apps_auth_event(wifi_app_t *app, bool req,int sub_event,void *arg)
+int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *arg)
 {
-    wifi_util_info_print(WIFI_APPS,"Enter %s:%d\n",__func__,__LINE__);
+    stats_arg_t *affinity_arg = NULL;
+    frame_data_t *msg = (frame_data_t *)arg;
+
+    wifi_util_info_print(WIFI_APPS, "Enter %s:%d\n",__func__,__LINE__);
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
         return RETURN_ERR;
     }
+
    //Fill the affinity_arg with frame data 
-    stats_arg_t *affinity_arg = ( stats_arg_t *) malloc(sizeof( stats_arg_t));
+    affinity_arg = ( stats_arg_t *) malloc(sizeof(stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
        return RETURN_ERR;
     }
 
     memset(affinity_arg, 0, sizeof(stats_arg_t));
-    frame_data_t *msg = (frame_data_t *)arg;
+    
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
@@ -1019,7 +1029,7 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req,int sub_event,void *a
     
     if (req)   {
         affinity_arg->event = sub_event;
-        update_affinity_stats(affinity_arg,true);
+        update_affinity_stats(affinity_arg, true);
     }
 
     free(affinity_arg);

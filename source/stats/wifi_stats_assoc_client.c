@@ -309,9 +309,6 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         }
     }
 
-     if (link_data && num_devs != 0 && ((link_quality_measurement) || (rf_down_mesh_sta))) {
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_timeout, link_data, num_devs);
-    }
 
     events_update_clientdiagdata(num_devs, args->vap_index, dev_array);
     pthread_mutex_lock(&mon_data->data_lock);
@@ -451,6 +448,14 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             }
         }
     }
+    // Send periodic stats update with complete data (including connected/disconnected times)
+    // This triggers BOTH link_quality_event_exec_timeout (for add_stats_metrics) 
+    // AND link_quality_periodic_stats_update (for caffinity timing updates)
+    if (link_data && num_devs != 0 && ((link_quality_measurement) || (rf_down_mesh_sta))) {
+        wifi_util_info_print(WIFI_MON, "%s:%d timestats Sending periodic link quality event for %d clients\n", __func__, __LINE__, num_devs);
+        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_timeout, link_data, num_devs);
+    }
+
     disconnect_event_queue = queue_create();
     if (disconnect_event_queue == NULL) {
         wifi_util_error_print(WIFI_MON, "%s:%d Failed to create queue\n", __func__, __LINE__);
@@ -592,14 +597,6 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
         dev_array = NULL;
     }
     pthread_mutex_unlock(&mon_data->data_lock);
-
-    // Send periodic stats update with complete data (including connected/disconnected times)
-    // This triggers BOTH link_quality_event_exec_timeout (for add_stats_metrics) 
-    // AND link_quality_periodic_stats_update (for caffinity timing updates)
-    if (link_data && num_devs != 0 && ((link_quality_measurement) || (rf_down_mesh_sta))) {
-        wifi_util_info_print(WIFI_MON, "%s:%d timestats Sending periodic link quality event for %d clients\n", __func__, __LINE__, num_devs);
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_timeout, link_data, num_devs);
-    }
 
     while (queue_count(disconnect_event_queue) > 0) {
         mac_addr = (unsigned char *)queue_pop(disconnect_event_queue);

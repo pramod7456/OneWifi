@@ -83,11 +83,6 @@ typedef struct {
 
 typedef uint8_t mac_address_t[MAC_ADDRESS_LEN];
 
-typedef struct {
-    mac_address_t mac_addr;
-    unsigned char client_type[32];
-} sta_client_info_t;
-
 
 #ifdef __cplusplus
 }

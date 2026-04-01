@@ -47,8 +47,6 @@
 #include "wifi_monitor.h"
 #include "scheduler.h"
 #include "common/ieee802_11_defs.h"
-#include "secure_wrapper.h"
-#include "dml_onewifi_api.h"
 
 
 static int dhcp_sniffer_fd = -1;
@@ -284,12 +282,12 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     }
 
     // ============================================================================
-    // STEP 9: Pass raw DHCP message type to caffinity via update_affinity_stats
+    // STEP 9: Pass raw DHCP message type to caffinity via periodic_caffinity_stats_update
     // ============================================================================
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Processing %s packet for MAC=%s (%s)\n",
         __func__, __LINE__, msg_type_str, mac_key, direction);
     
-    // Prepare stats_arg_t and call update_affinity_stats with raw msg_type
+    // Prepare stats_arg_t and call periodic_caffinity_stats_update with raw msg_type
     stats_arg_t affinity_arg;
     memset(&affinity_arg, 0, sizeof(stats_arg_t));
     strncpy(affinity_arg.mac_str, mac_key, sizeof(affinity_arg.mac_str) - 1);
@@ -299,7 +297,7 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     affinity_arg.dhcp_event = DHCP_EVENT_UPDATE;
     affinity_arg.dhcp_msg_type = msg_type;  // Pass raw msg_type (1-6)
     
-    update_affinity_stats(&affinity_arg, true);
+    periodic_caffinity_stats_update(&affinity_arg);
     
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Successfully processed %s packet for MAC=%s\n",
         __func__, __LINE__, msg_type_str, mac_key);
@@ -909,36 +907,13 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
         );
 
         add_stats_metrics(stats);
+       //Based on RFC this can be controlled
+       periodic_caffinity_stats_update(stats);
     }
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
 }
 
-int link_quality_periodic_stats_update(wifi_app_t *apps, void *arg)
-{
-    if (!arg) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
-        return RETURN_ERR;
-    }
-
-    linkquality_data_t *data = (linkquality_data_t *)arg;
-    int num_devs = data[0].size;
-
-    wifi_util_info_print(WIFI_APPS, "%s:%d periodic_stats_update for %d devices\n", 
-        __func__, __LINE__, num_devs);
-
-    for (int i = 0; i < num_devs; i++) {
-        stats_arg_t *stats = &data[i].stats;
-        wifi_util_dbg_print(WIFI_CTRL,
-            "%s:%d timestats idx=%d mac=%s snr=%d connected_time=%ld.%09ld disconnected_time=%ld.%09ld\n",
-            __func__, __LINE__, i, stats->mac_str, stats->dev.cli_SNR,
-            (long)stats->total_connected_time.tv_sec, stats->total_connected_time.tv_nsec,
-            (long)stats->total_disconnected_time.tv_sec, stats->total_disconnected_time.tv_nsec);
-
-        periodic_caffinity_stats_update(stats);
-    }
-    return RETURN_OK;
-}
 
 int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg, int len)
 {
@@ -953,7 +928,6 @@ int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, voi
 
         case wifi_event_exec_timeout:
             link_quality_event_exec_timeout(apps, arg,len);
-            link_quality_periodic_stats_update(apps, arg);
             break;
         
         case wifi_event_exec_register_station:
@@ -1030,7 +1004,7 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
     
     if (req)   {
         affinity_arg->event = sub_event;
-        update_affinity_stats(affinity_arg, true);
+        periodic_caffinity_stats_update(affinity_arg);
     }
 
     free(affinity_arg);
@@ -1070,7 +1044,7 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
 
     if (req)   {
         affinity_arg->event = sub_event;
-        update_affinity_stats(affinity_arg,true);
+        periodic_caffinity_stats_update(affinity_arg);
     } else {
         
         // Check for wifi_event_hal_assoc_rsp_frame sub_event
@@ -1079,12 +1053,12 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
             uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
             wifi_util_info_print(WIFI_CTRL," %s:%d wifi_event_hal_assoc_rsp_frame status_code=%d\n", __func__, __LINE__, status);
             
-            // Update caffinity stats via update_affinity_stats with status_code
+            // Update caffinity stats via periodic_caffinity_stats_update with status_code
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
-            wifi_util_info_print(WIFI_CTRL, " %s:%d Calling update_affinity_stats for MAC %s, event=%d, status=%d\n",
+            wifi_util_info_print(WIFI_CTRL, " %s:%d Calling periodic_caffinity_stats_update for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
-            update_affinity_stats(affinity_arg, true);
+            periodic_caffinity_stats_update(affinity_arg);
         }
         
         if (sub_event == wifi_event_hal_reassoc_rsp_frame) {
@@ -1092,7 +1066,7 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
             uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
-            update_affinity_stats(affinity_arg, true);
+            periodic_caffinity_stats_update(affinity_arg);
         }	    
     }
     free(affinity_arg);
@@ -1125,7 +1099,7 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     
     if (req) {
         affinity_arg->event = sub_event;
-        update_affinity_stats(affinity_arg, true);
+        periodic_caffinity_stats_update(affinity_arg);
     }
     
     free(affinity_arg);

@@ -849,14 +849,6 @@ int qmgr_t::update_affinity_stats(stats_arg_t *arg, bool create_flag)
     /* ---------- DELETE CLIENT ---------- */
     if (!create_flag) {
 
-        /* remove from map */
-        for (it = m_affinity_map.begin(); it != m_affinity_map.end(); ++it) {
-            if (strcmp(it->first, mac_str) == 0) {
-                free((void*)it->first);
-                m_affinity_map.erase(it);
-                break;
-            }
-        }
 
         /* remove from JSON arrays */
 
@@ -902,67 +894,11 @@ int qmgr_t::update_affinity_stats(stats_arg_t *arg, bool create_flag)
 
         cJSON_AddItemToArray(connected_arr, client);
 
-        /* insert into map */
-        char *key = strdup(mac_str);
-        m_affinity_map[key] = *arg;
 
         wifi_util_info_print(WIFI_APPS,
             "Added client %s to Connected_client\n", mac_str);
     }
 
-    /* ---------- HANDLE CAFFINITY MAP FOR ASSOC/AUTH EVENTS ---------- */
-    // Handle caffinity map creation/update for assoc and auth events
-    if (create_flag) {
-        // Convert MAC string to byte array
-        unsigned char mac[6];
-        if (sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-                   &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) != 6) {
-            wifi_util_error_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Failed to parse MAC: %s\n",
-                __func__, __LINE__, mac_str);
-        } else {
-            // Find or create caffinity_t object for this MAC
-            std::string mac_key(mac_str);
-            std::unordered_map<std::string, caffinity_t*>::iterator it = m_caffinity_map.find(mac_key);
-            caffinity_t *caff = NULL;
-            
-            if (it == m_caffinity_map.end()) {
-                wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Creating new caffinity_t for MAC %s\n",
-                    __func__, __LINE__, mac_str);
-                // Create local array variable to pass its address to constructor
-                mac_addr_str_t mac_str_array;
-                strncpy(mac_str_array, mac_str, sizeof(mac_str_array) - 1);
-                mac_str_array[sizeof(mac_str_array) - 1] = '\0';
-                caff = new caffinity_t(&mac_str_array);
-                if (caff) {
-                    m_caffinity_map[mac_key] = caff;
-                    wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Successfully created and stored caffinity_t for MAC %s\n",
-                        __func__, __LINE__, mac_str);
-                    
-                    // Add to caffinity telemetry JSON (initially in UnconnectedClients since connection status is not yet known)
-                    cJSON *unconn_arr = cJSON_GetObjectItem(caffinity_out_obj, "UnconnectedClients");
-                    if (unconn_arr) {
-                        cJSON_AddItemToArray(unconn_arr, create_caffinity_unconnected_template(mac_str));
-                        wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Added MAC %s to UnconnectedClients array\n",
-                            __func__, __LINE__, mac_str);
-                    }
-                } else {
-                    wifi_util_error_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Failed to create caffinity_t\n",
-                        __func__, __LINE__);
-                }
-            } else {
-                caff = it->second;
-                wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Found existing caffinity_t for MAC %s\n",
-                    __func__, __LINE__, mac_str);
-            }
-            
-            // Update affinity stats in caffinity object
-            if (caff) {
-                wifi_util_info_print(WIFI_CTRL, "CAFF qmgr_t %s:%d Calling caffinity_t::update_affinity_stats for event=%d\n",
-                    __func__, __LINE__, arg->event);
-                caff->update_affinity_stats(arg);
-            }
-        }
-    }
 
     pthread_mutex_unlock(&m_json_lock);
     return 0;
@@ -1102,6 +1038,7 @@ int qmgr_t::caffinity_periodic_stats_update(stats_arg_t *stats)
         wifi_util_error_print(WIFI_APPS, "%s:%d invalid stats or empty MAC\n", __func__, __LINE__);
         return -1;
     }
+    update_affinity_stats(stats,true);
 
     mac_addr_str_t mac_str;
     strncpy(mac_str, stats->mac_str, sizeof(mac_str) - 1);

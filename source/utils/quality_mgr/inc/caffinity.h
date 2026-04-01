@@ -59,7 +59,6 @@ public:
     caffinity_t(mac_addr_str_t *mac);
     ~caffinity_t();
     int init(stats_arg_t *stats);  // Returns 0 on success, -1 on error
-    int update_affinity_stats(stats_arg_t *arg);
     int periodic_stats_update(stats_arg_t *stats);  // Updates connected_time, disconnected_time, and SNR
     int score();
     caffinity_result_t run_algorithm_caffinity();

@@ -433,13 +433,14 @@ int qmgr_t::run()
                 // Accumulate RMS for Link Quality Score
                 double lq_score = v.m_val[SCORE_INDEX].m_re;
                 m_rms_lq_sum_sq += lq_score * lq_score;
-                m_rms_lq_count++;
+                
                 
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             
             // Calculate and update Link Quality RMS
             if (m_rms_lq_count > 0) {
+                m_rms_lq_count = hash_map_count(m_link_map);
                 double rms_lq = sqrt(m_rms_lq_sum_sq / m_rms_lq_count);
                 update_rms_lq_aggregate_json(rms_lq);
                 

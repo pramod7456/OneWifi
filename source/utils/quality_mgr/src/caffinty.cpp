@@ -112,7 +112,7 @@ int caffinity_t::update_affinity_stats(stats_arg_t *arg)
             __func__, __LINE__, m_discover, m_offer, m_request, m_decline, m_ack, m_nak);
         pthread_mutex_unlock(&m_lock);
         return 0;
-    }
+    } else {
     
     // Handle WiFi events (auth, assoc, etc.)
     switch(arg->event)
@@ -175,6 +175,7 @@ int caffinity_t::update_affinity_stats(stats_arg_t *arg)
                 __func__, __LINE__, arg->event);
             break;
     }
+    }
     
     pthread_mutex_unlock(&m_lock);
     
@@ -226,7 +227,8 @@ caffinity_result_t caffinity_t::run_algorithm_caffinity()
                                   + (double)m_connected_time.tv_nsec / 1e9;
         double disconnected_sec = (double)m_disconnected_time.tv_sec
                                   + (double)m_disconnected_time.tv_nsec / 1e9;
-        double sleep_sec        = 0.0;  // reserved for future use, currently 0
+        static thread_local unsigned int seed = (unsigned int)time(nullptr);
+        double sleep_sec = ((double)(rand_r(&seed) % 11001)) / 1000.0;
 
         pthread_mutex_unlock(&m_lock);
         

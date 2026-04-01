@@ -32,7 +32,7 @@
 
 #define MAX_FILE_NAME_SZ 1024
 #define MAX_PATH_SZ MAX_FILE_NAME_SZ
-#define MAX_HISTORY 15
+#define MAX_HISTORY 100
 
 
 class qmgr_t {

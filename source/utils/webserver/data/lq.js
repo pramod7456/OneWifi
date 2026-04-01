@@ -332,7 +332,7 @@ export function renderConnectionAffinityCharts(data) {
   const aggregateDiv = document.getElementById('affinityAggregateChart');
   if (!multiContainer || !aggregateDiv || !data) return;
 
-  const COLORS = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
+  const COLORS = ['#5caee9','#f7a761','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
 
   // ---------------- STEP 1: Build global time axis ----------------
   const connectedDevices = (data.Devices || [])
@@ -416,11 +416,11 @@ export function renderConnectionAffinityCharts(data) {
     type: 'scatter',
     mode: 'lines',
     name: 'Aggregate',
-    line: { color: '#d62728', width: 3 }
+    line: { color: '#d87c7c', width: 3 }
   }], {
     title: { text: '<b>Connection Affinity — Aggregate Score</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45  },
-    yaxis: { title: 'Score', range: [-1, 1], tick0: -1, dtick: 0.2 },
+    yaxis: { title: 'Score', range: [-1, 100], tick0: -1, dtick: 2 },
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });
@@ -437,7 +437,7 @@ export function renderCAffinityScoreCharts(data) {
   const aggregateDiv = document.getElementById('caffinityAggregateChart');
   if (!multiContainer || !aggregateDiv || !data) return;
 
-  const COLORS = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+  const COLORS = ['#8fc5ec','#eca466','#65d665','#ea7373','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
 
   // Get devices from ConnectedClients array with CAffinityScore data
   const devicesWithScores = (data.ConnectedClients || [])
@@ -523,7 +523,7 @@ export function renderCAffinityScoreCharts(data) {
     type: 'scatter',
     mode: 'lines',
     name: 'Aggregate',
-    line: { color: '#d62728', width: 3 }
+    line: { color: '#541e1e', width: 3 }
   }], {
     title: { text: '<b>Connection Affinity Score — Aggregate Score</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
@@ -544,7 +544,7 @@ export function renderUnconnectedClientsCharts(data) {
   const aggregateDiv = document.getElementById('unconnectedAggregateChart');
   if (!multiContainer || !aggregateDiv || !data) return;
 
-  const COLORS = ['#470707','#114c54','#160207','#f8b500','#feca57','#444e50','#3d30b6','#00d2d3'];
+  const COLORS = ['#b85454','#7fc9d3','#c36e83','#d9bd71','#b28d3d','#4edf94','#3d30b6','#00d2d3'];
 
   // Get devices from UnconnectedClients array with CAffinityScore data
   const devicesWithScores = (data.UnconnectedClients || [])
@@ -599,7 +599,7 @@ export function renderUnconnectedClientsCharts(data) {
   Plotly.react(unconnectedMultiChartDiv, barTraces, {
     title: { text: '<b>Unconnected Clients — Caffinity Scores</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
-    yaxis: { title: 'Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    yaxis: { title: 'Score', range: [0, 10], tick0: 0, dtick: 2 },
     barmode: 'group',
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 80 }
@@ -631,11 +631,11 @@ export function renderUnconnectedClientsCharts(data) {
     type: 'scatter',
     mode: 'lines',
     name: 'Aggregate',
-    line: { color: '#e74c3c', width: 3 }
+    line: { color: '#712bd3', width: 3 }
   }], {
     title: { text: '<b>Unconnected Clients — Aggregate Caffinity Score</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
-    yaxis: { title: 'Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    yaxis: { title: 'Score', range: [0, 50], tick0: 0, dtick: 2 },
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });
@@ -684,7 +684,7 @@ export function renderRMSConnectedChart(data) {
   }], {
     title: { text: '<b>RMS Aggregate — Connected Clients</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
-    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    yaxis: { title: 'RMS Score', range: [0, 50], tick0: 0, dtick: 2 },
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });
@@ -733,7 +733,7 @@ export function renderRMSUnconnectedChart(data) {
   }], {
     title: { text: '<b>RMS Aggregate — Unconnected Clients</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
-    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    yaxis: { title: 'RMS Score', range: [0, 50], tick0: 0, dtick: 2 },
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });
@@ -777,12 +777,12 @@ export function renderRMSLinkQualityChart(data) {
     type: 'scatter',
     mode: 'lines+markers',
     name: 'RMS Link Quality',
-    line: { color: '#3498db', width: 3 },
+    line: { color: '#00f7ff', width: 3 },
     marker: { size: 6 }
   }], {
     title: { text: '<b>RMS Aggregate — Link Quality Score</b>', x: 0.5, xanchor: 'center' },
     xaxis: { title: 'Time', tickangle: -45 },
-    yaxis: { title: 'RMS Score', range: [0, 1], tick0: 0, dtick: 0.1 },
+    yaxis: { title: 'RMS Score', range: [0, 50], tick0: 0, dtick: 2 },
     height: 420,
     margin: { t: 80, l: 60, r: 60, b: 60 }
   }, { responsive: true });

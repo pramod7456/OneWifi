@@ -119,6 +119,16 @@ int caffinity_t::periodic_stats_update(stats_arg_t *arg)
                 wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d ASSOC/REASSOC response SUCCESS (status=%u), m_connected=true, connected_time=%ld.%09ld\n",
                     __func__, __LINE__, arg->status_code,
                     (long)m_connected_time.tv_sec, m_connected_time.tv_nsec);
+
+                wifi_util_info_print(WIFI_CTRL, "%s:%d check in vector %s\n", __func__, __LINE__, arg->ap_mac_str);
+                if (std::find(m_ap_mac.begin(), m_ap_mac.end(), arg->ap_mac_str) == m_ap_mac.end()) {
+                    wifi_util_info_print(WIFI_CTRL, "%s:%d push_back\n", __func__, __LINE__);
+                    m_ap_mac.push_back(arg->ap_mac_str);
+                }
+
+                for (size_t i = 0; i < m_ap_mac.size(); ++i) {
+                    wifi_util_info_print(WIFI_CTRL, "%s:%d: %d: AP MAC %s\n", __func__, __LINE__, i, m_ap_mac[i].c_str());
+                }
             }
             break;
 
@@ -126,7 +136,6 @@ int caffinity_t::periodic_stats_update(stats_arg_t *arg)
             {
                 wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d wifi_event_hal_sta_conn_status for MAC %s\n",
                     __func__, __LINE__, arg->mac_str);
-                // DHCP stats are now tracked via dhcp_msg_type field in update_affinity_stats
             }
             break;
 
@@ -147,24 +156,41 @@ int caffinity_t::periodic_stats_update(stats_arg_t *arg)
     // Update m_connected_time from total_connected_time
     m_connected_time = arg->total_connected_time;
 
+    wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_connected_time=%ld.%09ld\n",
+        __func__, __LINE__, (long)m_connected_time.tv_sec, m_connected_time.tv_nsec);
+
     // Update m_disconnected_time from total_disconnected_time
     m_disconnected_time = arg->total_disconnected_time;
+    wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_disconnected_time=%ld.%09ld\n",
+        __func__, __LINE__, (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec);
 
-    // Update cli_SNR
-    m_cli_snr = arg->dev.cli_SNR;
+    // Update cli_SNR only if client is connected to avoid overwriting valid SNR with 0
+    if (m_connected) {
+        m_cli_snr = arg->dev.cli_SNR;
+        wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_cli_snr=%d (client connected)\n",
+            __func__, __LINE__, m_cli_snr);
+    } else {
+        wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Skipping m_cli_snr update (client disconnected, keeping existing value=%d)\n",
+            __func__, __LINE__, m_cli_snr);
+    }
+
+    // Update channel_utilization
+    m_channel_utilization = arg->channel_utilization;
+    wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_channel_utilization=%d\n",
+        __func__, __LINE__, m_channel_utilization);
 
     
     pthread_mutex_unlock(&m_lock);
     
-    wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d Updated stats for event=%d: auth_attempts=%u auth_failures=%u assoc_attempts=%u assoc_failures=%u\n",
+    wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated stats for event=%d: auth_attempts=%u auth_failures=%u assoc_attempts=%u assoc_failures=%u\n",
         __func__, __LINE__, arg->event, m_auth_attempts, m_auth_failures, m_assoc_attempts, m_assoc_failures);
     
-    wifi_util_error_print(WIFI_CTRL, "timestats caffinity %s:%d Updated periodic stats for MAC %s: "
-        "connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d\n",
+    wifi_util_error_print(WIFI_CTRL, "caffinity stats %s:%d Updated periodic stats for MAC %s: "
+        "connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d channel_utilization=%d\n",
         __func__, __LINE__, arg->mac_str,
         (long)m_connected_time.tv_sec, m_connected_time.tv_nsec,
         (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec,
-        m_cli_snr);
+        m_cli_snr, m_channel_utilization);
     return 0;
 }
 

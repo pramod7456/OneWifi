@@ -70,8 +70,7 @@ class qmgr_t {
     static const int SCORE_INDEX = 11;  // Index of aggregate "Score" in m_score_params
 
     cJSON* create_affinity_template(mac_addr_str_t mac_str,unsigned int vap_index);
-    cJSON* create_caffinity_dev_template(mac_addr_str_t mac_str);
-    cJSON* create_caffinity_unconnected_template(mac_addr_str_t mac_str);
+    cJSON* create_caffinity_template(mac_addr_str_t mac_str);
 public:
     int init(stats_arg_t *arg,bool create_flag);
     int rapid_disconnect(stats_arg_t *arg);

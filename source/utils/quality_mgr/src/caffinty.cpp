@@ -31,40 +31,7 @@
 #include "wifi_events.h"
 #include "caffinity.h"
 
-int caffinity_t::periodic_stats_update(stats_arg_t *stats)
-{
-    if (!stats) {
-        wifi_util_error_print(WIFI_CTRL, "caffinity %s:%d NULL stats pointer\n", __func__, __LINE__);
-        return -1;
-    }
-
-    wifi_util_info_print(WIFI_CTRL, "caffinity %s:%d Periodic stats update for MAC %s\n",
-        __func__, __LINE__, stats->mac_str);
-
-    pthread_mutex_lock(&m_lock);
-
-    // Update m_connected_time from total_connected_time
-    m_connected_time = stats->total_connected_time;
-
-    // Update m_disconnected_time from total_disconnected_time
-    m_disconnected_time = stats->total_disconnected_time;
-
-    // Update cli_SNR
-    m_cli_snr = stats->dev.cli_SNR;
-
-    pthread_mutex_unlock(&m_lock);
-
-    wifi_util_error_print(WIFI_CTRL, "timestats caffinity %s:%d Updated periodic stats for MAC %s: "
-        "connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d\n",
-        __func__, __LINE__, stats->mac_str,
-        (long)m_connected_time.tv_sec, m_connected_time.tv_nsec,
-        (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec,
-        m_cli_snr);
-
-    return 0;  // Success
-}
-
-int caffinity_t::update_affinity_stats(stats_arg_t *arg)
+int caffinity_t::periodic_stats_update(stats_arg_t *arg)
 {
     wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d event=%d dhcp_event=%d\n", __func__, __LINE__, arg->event, arg->dhcp_event);
     
@@ -176,12 +143,28 @@ int caffinity_t::update_affinity_stats(stats_arg_t *arg)
             break;
     }
     }
+
+    // Update m_connected_time from total_connected_time
+    m_connected_time = arg->total_connected_time;
+
+    // Update m_disconnected_time from total_disconnected_time
+    m_disconnected_time = arg->total_disconnected_time;
+
+    // Update cli_SNR
+    m_cli_snr = arg->dev.cli_SNR;
+
     
     pthread_mutex_unlock(&m_lock);
     
     wifi_util_info_print(WIFI_CTRL, "caffinity CAFF %s:%d Updated stats for event=%d: auth_attempts=%u auth_failures=%u assoc_attempts=%u assoc_failures=%u\n",
         __func__, __LINE__, arg->event, m_auth_attempts, m_auth_failures, m_assoc_attempts, m_assoc_failures);
     
+    wifi_util_error_print(WIFI_CTRL, "timestats caffinity %s:%d Updated periodic stats for MAC %s: "
+        "connected_time=%ld.%09ld disconnected_time=%ld.%09ld cli_SNR=%d\n",
+        __func__, __LINE__, arg->mac_str,
+        (long)m_connected_time.tv_sec, m_connected_time.tv_nsec,
+        (long)m_disconnected_time.tv_sec, m_disconnected_time.tv_nsec,
+        m_cli_snr);
     return 0;
 }
 

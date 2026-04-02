@@ -464,32 +464,38 @@ int qmgr_t::run()
                 const char *existing_mac;
                 bool found;
                 
-                // Local maps to classify clients by connection status
-                std::map<std::string, caffinity_t*> connected_map;
-                std::map<std::string, caffinity_t*> unconnected_map;
+                // Store both caffinity object AND computed result to avoid recomputation
+                struct CaffinityEntry {
+                    caffinity_t *caff;
+                    caffinity_result_t result;
+                };
                 
-                // Iterate through m_caffinity_map and classify into local maps
+                std::map<std::string, CaffinityEntry> connected_map;
+                std::map<std::string, CaffinityEntry> unconnected_map;
+                
+                // Classify clients and compute scores ONCE per client
                 std::unordered_map<std::string, caffinity_t*>::iterator caff_it;
                 for (caff_it = m_caffinity_map.begin(); caff_it != m_caffinity_map.end(); ++caff_it) {
                     caffinity_t *caff = caff_it->second;
                     if (!caff) continue;
                     
+                    // Call algorithm ONCE and cache result
                     caffinity_result_t result = caff->run_algorithm_caffinity();
+                    CaffinityEntry entry = {caff, result};
                     
                     if (result.connected) {
-                        connected_map[caff_it->first] = caff;
+                        connected_map[caff_it->first] = entry;
                     } else {
-                        unconnected_map[caff_it->first] = caff;
+                        unconnected_map[caff_it->first] = entry;
                     }
                 }
                 
-                // Process connected clients
-                std::map<std::string, caffinity_t*>::iterator map_it;
+                // Process connected clients - reuse cached result
+                std::map<std::string, CaffinityEntry>::iterator map_it;
                 for (map_it = connected_map.begin(); map_it != connected_map.end(); ++map_it) {
-                    caffinity_t *caff = map_it->second;
-                    caffinity_result_t result = caff->run_algorithm_caffinity();
-                    const char *mac_cstr = result.mac;
-                    double score = result.score;
+                    CaffinityEntry& entry = map_it->second;
+                    const char *mac_cstr = entry.result.mac;    // Use cached result
+                    double score = entry.result.score;           // Use cached result
                     
                     // Find in ConnectedClients JSON
                     dev_obj = NULL;
@@ -527,7 +533,7 @@ int qmgr_t::run()
                         mac_addr_str_t mac_copy;
                         strncpy(mac_copy, mac_cstr, sizeof(mac_copy) - 1);
                         mac_copy[sizeof(mac_copy) - 1] = '\0';
-                        dev_obj = create_caffinity_dev_template(mac_copy);
+                        dev_obj = create_caffinity_template(mac_copy);
                         cJSON_AddItemToArray(conn_arr, dev_obj);
                     }
                     
@@ -550,15 +556,13 @@ int qmgr_t::run()
                     
                     // Accumulate RMS for connected clients
                     m_rms_conn_sum_sq += score * score;
-                    m_rms_conn_count = connected_map.size();
                 }
                 
-                // Process unconnected clients
+                // Process unconnected clients - reuse cached result
                 for (map_it = unconnected_map.begin(); map_it != unconnected_map.end(); ++map_it) {
-                    caffinity_t *caff = map_it->second;
-                    caffinity_result_t result = caff->run_algorithm_caffinity();
-                    const char *mac_cstr = result.mac;
-                    double score = result.score;
+                    CaffinityEntry& entry = map_it->second;
+                    const char *mac_cstr = entry.result.mac;    // Use cached result
+                    double score = entry.result.score;           // Use cached result
                     
                     // Find in UnconnectedClients JSON
                     dev_obj = NULL;
@@ -596,7 +600,7 @@ int qmgr_t::run()
                         mac_addr_str_t mac_copy;
                         strncpy(mac_copy, mac_cstr, sizeof(mac_copy) - 1);
                         mac_copy[sizeof(mac_copy) - 1] = '\0';
-                        dev_obj = create_caffinity_unconnected_template(mac_copy);
+                        dev_obj = create_caffinity_template(mac_copy);
                         cJSON_AddItemToArray(unconn_arr, dev_obj);
                     }
                     
@@ -619,8 +623,11 @@ int qmgr_t::run()
                     
                     // Accumulate RMS for unconnected clients
                     m_rms_unconn_sum_sq += score * score;
-                    m_rms_unconn_count = unconnected_map.size();
                 }
+                
+                // Set RMS counts ONCE after processing (not per-iteration)
+                m_rms_conn_count = connected_map.size();
+                m_rms_unconn_count = unconnected_map.size();
                 
                 // Calculate RMS values
                 double rms_connected = (m_rms_conn_count > 0) ? sqrt(m_rms_conn_sum_sq / m_rms_conn_count) : 0.0;
@@ -707,22 +714,7 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     return obj;
 }
 
-cJSON *qmgr_t::create_caffinity_dev_template(mac_addr_str_t mac_str)
-{
-    cJSON *obj, *caff_obj;
-    
-    obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "MAC", mac_str);
-    
-    caff_obj = cJSON_CreateObject();
-    cJSON_AddItemToObject(obj, "CAffinityScore", caff_obj);
-    cJSON_AddItemToObject(caff_obj, "Score", cJSON_CreateArray());
-    cJSON_AddItemToObject(caff_obj, "Time", cJSON_CreateArray());
-    
-    return obj;
-}
-
-cJSON *qmgr_t::create_caffinity_unconnected_template(mac_addr_str_t mac_str)
+cJSON *qmgr_t::create_caffinity_template(mac_addr_str_t mac_str)
 {
     cJSON *obj, *caff_obj;
     

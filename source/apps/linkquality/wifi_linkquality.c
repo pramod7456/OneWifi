@@ -1018,60 +1018,56 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
         return RETURN_ERR;
     }
-   //Fill the affinity_arg with frame data 
-    stats_arg_t *affinity_arg = ( stats_arg_t *) malloc(sizeof( stats_arg_t));
+   //Fill the affinity_arg with frame data
+    stats_arg_t *affinity_arg = (stats_arg_t *) malloc(sizeof(stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
        return RETURN_ERR;
     }
     memset(affinity_arg, 0, sizeof(stats_arg_t));
     frame_data_t *msg = (frame_data_t *)arg;
+
+    // Populate MAC address from frame
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
-    get_radio_channel_utilization(affinity_arg->radio_index,&affinity_arg->channel_utilization);
-    affinity_arg->status_code = 0;
+    get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
+
     // dhcp_event = 0 (not a DHCP update) from memset
-
-    wifi_vap_info_t *vap_info = NULL;
-    mac_addr_str_t bss_str = { 0 };
-    vap_info = getVapInfo(msg->frame.ap_index);
-    if (vap_info != NULL) {
-        to_mac_str(vap_info->u.bss_info.bssid, bss_str);
-        wifi_util_info_print(WIFI_CTRL," RMS %s:%d AP BSSID: %s for STA: %s\n",
-            __func__, __LINE__, bss_str, affinity_arg->mac_str);
-    }
-
     if (req)   {
         affinity_arg->event = sub_event;
         periodic_caffinity_stats_update(affinity_arg);
     } else {
-        
-        // Check for wifi_event_hal_assoc_rsp_frame sub_event
-        if (sub_event == wifi_event_hal_assoc_rsp_frame) {
+        // Check sub_event for wifi_event_hal_assoc_rsp_frame OR wifi_event_hal_reassoc_rsp_frame
+        if ((sub_event == wifi_event_hal_assoc_rsp_frame) || (sub_event == wifi_event_hal_reassoc_rsp_frame)) {
             struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)&msg->data;
             uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
             wifi_util_info_print(WIFI_CTRL," %s:%d wifi_event_hal_assoc_rsp_frame status_code=%d\n", __func__, __LINE__, status);
-            
+
             // Update caffinity stats via periodic_caffinity_stats_update with status_code
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
+
+            // if Status is success add AP mac address into stats_arg_t
+            if (status == 0) {
+                wifi_vap_info_t *vap_info = NULL;
+                vap_info = getVapInfo(msg->frame.ap_index);
+                if (vap_info != NULL) {
+                    to_mac_str(vap_info->u.bss_info.bssid, affinity_arg->ap_mac_str);
+                    wifi_util_info_print(WIFI_CTRL," RMS %s:%d AP BSSID: %s for STA: %s\n",
+                        __func__, __LINE__, affinity_arg->ap_mac_str, affinity_arg->mac_str);
+                }
+
+            }
             wifi_util_info_print(WIFI_CTRL, " %s:%d Calling periodic_caffinity_stats_update for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
             periodic_caffinity_stats_update(affinity_arg);
         }
-        
-        if (sub_event == wifi_event_hal_reassoc_rsp_frame) {
-            struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)&msg->data;
-            uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
-            affinity_arg->event = sub_event;
-            affinity_arg->status_code = status;
-            periodic_caffinity_stats_update(affinity_arg);
-        }	    
     }
     free(affinity_arg);
     return RETURN_OK;
 }
+
 int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,void *arg)
 {
     wifi_util_info_print(WIFI_APPS,"Enter %s:%d\n",__func__,__LINE__);

@@ -987,7 +987,7 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
     }
 
    //Fill the affinity_arg with frame data 
-    affinity_arg = ( stats_arg_t *) malloc(sizeof(stats_arg_t));
+    affinity_arg = (stats_arg_t *) malloc(sizeof(stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
        return RETURN_ERR;
@@ -1018,7 +1018,7 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
         return RETURN_ERR;
     }
-   //Fill the affinity_arg with frame data
+   //Fill the affinity_arg with frame data 
     stats_arg_t *affinity_arg = (stats_arg_t *) malloc(sizeof(stats_arg_t));
     if (affinity_arg == NULL) {
         wifi_util_info_print(WIFI_APPS," %s:%d unable to alloc memry\n",__func__,__LINE__);
@@ -1026,13 +1026,13 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     }
     memset(affinity_arg, 0, sizeof(stats_arg_t));
     frame_data_t *msg = (frame_data_t *)arg;
-
+    
     // Populate MAC address from frame
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
-
+    
     // dhcp_event = 0 (not a DHCP update) from memset
     if (req)   {
         affinity_arg->event = sub_event;
@@ -1067,7 +1067,6 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     free(affinity_arg);
     return RETURN_OK;
 }
-
 int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,void *arg)
 {
     wifi_util_info_print(WIFI_APPS,"Enter %s:%d\n",__func__,__LINE__);

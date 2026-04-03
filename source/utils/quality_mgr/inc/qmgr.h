@@ -32,7 +32,7 @@
 
 #define MAX_FILE_NAME_SZ 1024
 #define MAX_PATH_SZ MAX_FILE_NAME_SZ
-#define MAX_HISTORY 100
+#define MAX_HISTORY 15
 
 
 class qmgr_t {
@@ -71,6 +71,8 @@ class qmgr_t {
 
     cJSON* create_affinity_template(mac_addr_str_t mac_str,unsigned int vap_index);
     cJSON* create_caffinity_template(mac_addr_str_t mac_str);
+    void populate_caffinity_client_json(const char *mac_cstr, double score, const char *timestamp,
+                                        cJSON *target_arr, cJSON *other_arr, const char *target_name);
 public:
     int init(stats_arg_t *arg,bool create_flag);
     int rapid_disconnect(stats_arg_t *arg);

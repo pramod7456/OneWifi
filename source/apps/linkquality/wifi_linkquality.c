@@ -58,17 +58,16 @@ static volatile int dhcp_sniffer_exit = 0;
 static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
 
 
-//TODO: Need to replace Magic numbers with MACRO with comment across
 static int dhcp_get_msg_type(uint8_t *options, ssize_t options_len)
 {
     while (options_len > 0)
     {
         uint8_t type = options[0];
 
-        if (type == 255)
+        if (type == DHCP_OPTION_END)
             break;
 
-        if (type == 0)
+        if (type == DHCP_OPTION_PAD)
         {
             options++;
             options_len--;
@@ -77,7 +76,7 @@ static int dhcp_get_msg_type(uint8_t *options, ssize_t options_len)
 
         uint8_t len = options[1];
 
-        if (type == 53)
+        if (type == DHCP_OP_MSG_TYPE)
             return options[2];
 
         options += len + 2;
@@ -218,21 +217,7 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     mac_to_key(dhcp->chaddr, mac_key);
 
     // ============================================================================
-    // STEP 5: Verify MAC is connected (using caffinity)
-    // ============================================================================
-    //TODO: Need not have this check as it is already done before calling this function
-
-    if (!is_client_connected(mac_key)) {
-        wifi_util_dbg_print(WIFI_CTRL," DHCP %s:%d Client MAC %s NOT connected, REJECTING packet\n", 
-            __func__, __LINE__, mac_key);
-        return;
-    }
-    
-    wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Client MAC %s is connected\n", 
-        __func__, __LINE__, mac_key);
-
-    // ============================================================================
-    // STEP 6: Calculate options offset and verify magic cookie
+    // STEP 5: Calculate options offset and verify magic cookie
     // ============================================================================
     options_offset = dhcp_start + dhcp_fixed_len;
     
@@ -336,7 +321,7 @@ static void *dhcp_sniffer_thread_func(void *arg)
     wifi_util_info_print(WIFI_APPS, "%s:%d DHCP sniffer thread started\n", __func__, __LINE__);
 
     while (!dhcp_sniffer_exit) {
-        //TODO: check an move this FD_xyz outside of loop
+        // Must reinitialize fd_set before each select() call (select modifies it)
         FD_ZERO(&read_fds);
         FD_SET(dhcp_sniffer_fd, &read_fds);
         

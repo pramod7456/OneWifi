@@ -519,75 +519,46 @@ int qmgr_t::run()
                 }
             }
             
-            // --- Process caffinity using local maps for classification ---
+            // --- Process caffinity in single pass: classify and populate JSON ---
             if (!m_caffinity_map.empty()) {
                 pthread_mutex_lock(&m_json_lock);
                 cJSON *conn_arr = cJSON_GetObjectItem(caffinity_out_obj, "ConnectedClients");
                 cJSON *unconn_arr = cJSON_GetObjectItem(caffinity_out_obj, "UnconnectedClients");
                 char tmp[MAX_LINE_SIZE];
-                int i, arr_size;
-                cJSON *dev_obj, *dev, *caff_obj, *score_arr;
-                const char *existing_mac;
-                bool found;
                 
-                // Store both caffinity object AND computed result to avoid recomputation
-                struct CaffinityEntry {
-                    caffinity_t *caff;
-                    caffinity_result_t result;
-                };
+                // Reset counts for this iteration
+                int connected_count = 0;
+                int unconnected_count = 0;
                 
-                std::map<std::string, CaffinityEntry> connected_map;
-                std::map<std::string, CaffinityEntry> unconnected_map;
-                
-                // Classify clients and compute scores ONCE per client
+                // Process each client: compute score, classify, populate JSON, accumulate RMS
                 std::unordered_map<std::string, caffinity_t*>::iterator caff_it;
                 for (caff_it = m_caffinity_map.begin(); caff_it != m_caffinity_map.end(); ++caff_it) {
                     caffinity_t *caff = caff_it->second;
                     if (!caff) continue;
                     
-                    // Call algorithm ONCE and cache result
+                    // Compute score and get connection status
                     caffinity_result_t result = caff->run_algorithm_caffinity();
-                    CaffinityEntry entry = {caff, result};
+                    const char *mac_cstr = result.mac;
+                    double score = result.score;
                     
                     if (result.connected) {
-                        connected_map[caff_it->first] = entry;
+                        // Process connected client
+                        populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
+                                                      conn_arr, unconn_arr, "ConnectedClients");
+                        m_rms_conn_sum_sq += score * score;
+                        connected_count++;
                     } else {
-                        unconnected_map[caff_it->first] = entry;
+                        // Process unconnected client
+                        populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
+                                                      unconn_arr, conn_arr, "UnconnectedClients");
+                        m_rms_unconn_sum_sq += score * score;
+                        unconnected_count++;
                     }
                 }
                 
-                // Process connected clients - populate JSON and accumulate RMS
-                std::map<std::string, CaffinityEntry>::iterator map_it;
-                for (map_it = connected_map.begin(); map_it != connected_map.end(); ++map_it) {
-                    CaffinityEntry& entry = map_it->second;
-                    const char *mac_cstr = entry.result.mac;
-                    double score = entry.result.score;
-                    
-                    // Populate JSON with score and timestamp
-                    populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
-                                                  conn_arr, unconn_arr, "ConnectedClients");
-                    
-                    // Accumulate RMS for connected clients
-                    m_rms_conn_sum_sq += score * score;
-                }
-                
-                // Process unconnected clients - populate JSON and accumulate RMS
-                for (map_it = unconnected_map.begin(); map_it != unconnected_map.end(); ++map_it) {
-                    CaffinityEntry& entry = map_it->second;
-                    const char *mac_cstr = entry.result.mac;
-                    double score = entry.result.score;
-                    
-                    // Populate JSON with score and timestamp
-                    populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
-                                                  unconn_arr, conn_arr, "UnconnectedClients");
-                    
-                    // Accumulate RMS for unconnected clients
-                    m_rms_unconn_sum_sq += score * score;
-                }
-                
-                // Set RMS counts ONCE after processing (not per-iteration)
-                m_rms_conn_count = connected_map.size();
-                m_rms_unconn_count = unconnected_map.size();
+                // Set RMS counts after processing
+                m_rms_conn_count = connected_count;
+                m_rms_unconn_count = unconnected_count;
                 
                 // Calculate RMS values
                 double rms_connected = (m_rms_conn_count > 0) ? sqrt(m_rms_conn_sum_sq / m_rms_conn_count) : 0.0;

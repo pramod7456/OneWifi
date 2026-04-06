@@ -43,13 +43,16 @@
 #include "wifi_util.h"
 #include "wifi_apps_mgr.h"
 #include "wifi_linkquality.h"
+#include "wifi_linkquality_libs.h"
 #include "wifi_hal_rdk_framework.h"
 #include "wifi_monitor.h"
 #include "scheduler.h"
 #include "common/ieee802_11_defs.h"
 
 
-static int dhcp_sniffer_fd = -1;
+int dhcp_sniffer_fd = -1;
+int dhcp_sniffer_ifindex = -1;
+
 static int dhcp_sniffer_running = 0;
 static pthread_t dhcp_sniffer_thread;
 static volatile int dhcp_sniffer_exit = 0;
@@ -267,12 +270,12 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     }
 
     // ============================================================================
-    // STEP 9: Pass raw DHCP message type to caffinity via periodic_caffinity_stats_update
+    // STEP 9: Pass raw DHCP message type to caffinity via get_lq_descriptor()->periodic_caffinity_stats_update_fn
     // ============================================================================
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Processing %s packet for MAC=%s (%s)\n",
         __func__, __LINE__, msg_type_str, mac_key, direction);
     
-    // Prepare stats_arg_t and call periodic_caffinity_stats_update with raw msg_type
+    // Prepare stats_arg_t and call get_lq_descriptor()->periodic_caffinity_stats_update_fn with raw msg_type
     stats_arg_t affinity_arg;
     memset(&affinity_arg, 0, sizeof(stats_arg_t));
     strncpy(affinity_arg.mac_str, mac_key, sizeof(affinity_arg.mac_str) - 1);
@@ -282,7 +285,7 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     affinity_arg.dhcp_event = DHCP_EVENT_UPDATE;
     affinity_arg.dhcp_msg_type = msg_type;  // Pass raw msg_type (1-6)
     
-    periodic_caffinity_stats_update(&affinity_arg);
+    get_lq_descriptor()->periodic_caffinity_stats_update_fn(&affinity_arg);
     
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Successfully processed %s packet for MAC=%s\n",
         __func__, __LINE__, msg_type_str, mac_key);
@@ -309,7 +312,7 @@ static int ignite_score_log_timer(void *args)
     return RETURN_OK;
 }
 
-static void *dhcp_sniffer_thread_func(void *arg)
+static void *sniffer_thread_func(void *arg)
 {
     uint8_t buffer[2048];
     ssize_t len;
@@ -352,6 +355,13 @@ static void *dhcp_sniffer_thread_func(void *arg)
                 }
                 wifi_util_error_print(WIFI_CTRL, "%s:%d recvfrom() failed or connection closed\n", __func__, __LINE__);
                 break;
+            }
+            struct ethhdr *eth = (struct ethhdr *)buffer;
+	    uint16_t eth_type = ntohs(eth->h_proto);
+            if (eth_type == 0x893a) {  // ETH_P_1905
+                 wifi_util_info_print(WIFI_CTRL,"%s:%d Received 1905 frame\n", __func__, __LINE__);
+                 //Based on the network mode type if its GW mode take the stats_arg_t and process it.
+                 continue;  
             }
             
             // ============================================================================
@@ -433,6 +443,7 @@ static void dhcp_sniffer_start()
     
     sll.sll_family = AF_PACKET;
     sll.sll_ifindex = ifr.ifr_ifindex;
+    dhcp_sniffer_ifindex = ifr.ifr_ifindex;
     sll.sll_protocol = htons(ETH_P_ALL);
 
     if (bind(dhcp_sniffer_fd, (struct sockaddr*)&sll, sizeof(sll)) < 0) {
@@ -448,7 +459,7 @@ static void dhcp_sniffer_start()
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     
-    ret = pthread_create(&dhcp_sniffer_thread, &attr, dhcp_sniffer_thread_func, NULL);
+    ret = pthread_create(&dhcp_sniffer_thread, &attr, sniffer_thread_func, NULL);
     pthread_attr_destroy(&attr);
     
     if (ret != 0) {
@@ -578,7 +589,7 @@ int link_quality_register_station(wifi_app_t *apps, wifi_event_t *arg)
 
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     if ( ctrl->rf_status_down) {
-        register_station_mac(str);
+        get_lq_descriptor()->register_station_mac_fn(str);
         qmgr_register_score_callback(publish_station_score);
     }
     return RETURN_OK;
@@ -595,7 +606,7 @@ int link_quality_unregister_station(wifi_app_t *apps, wifi_event_t *arg)
 
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     if ( ctrl->rf_status_down) {
-        unregister_station_mac(str);
+        get_lq_descriptor()->unregister_station_mac_fn(str);
     }
 
     ignite_lq_state_t *ignite = &apps->data.u.linkquality.ignite;
@@ -645,8 +656,16 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
 {
       
     wifi_util_info_print(WIFI_APPS, "%s:%d\n", __func__, __LINE__);
+    radio_max_snr_t max_snr = {0};
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     
+    
+    get_lq_descriptor()->start_link_metrics_fn();
+    wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
+    if (rfc_param->link_quality_rfc) {
+          wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
+    }
+    /* The below lines should go under rfc_param->link_quality_rfc */
     // Start DHCP sniffer (no local hashmaps needed - using wifi_associated_dev_t)
     wifi_util_info_print(WIFI_CTRL," %s:%d Starting DHCP sniffer\n", __func__, __LINE__);
     dhcp_sniffer_start();
@@ -654,15 +673,11 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     if ( ctrl->network_mode == rdk_dev_mode_type_em_node
       || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
         qmgr_register_batch_callback(publish_qmgr_subdoc);
-        wifi_util_info_print(WIFI_APPS, "%s:%d ctrl->network_mode=%d\n", __func__, __LINE__,ctrl->network_mode);
+        wifi_util_info_print(WIFI_APPS, "%s:%d ctrl->network_mode=%d\n",
+            __func__, __LINE__,ctrl->network_mode);
     } 
-    radio_max_snr_t max_snr = {0};
-    //qmgr_register_callback(publish_qmgr_subdoc);
-    start_link_metrics();
-    wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
-    if (rfc_param->link_quality_rfc) {
-          wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
-    }
+    
+
     if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0|| 
         rfc_param->radio_6g_observed_max_snr == 0) {
         if (rfc_param->radio_2g_observed_max_snr == 0) {
@@ -709,7 +724,7 @@ int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
     wifi_util_info_print(WIFI_CTRL," %s:%d Stopping DHCP sniffer\n", __func__, __LINE__);
     dhcp_sniffer_stop();
     
-    stop_link_metrics();
+    get_lq_descriptor()->stop_link_metrics_fn();
 
     ignite_lq_state_t *ignite = &apps->data.u.linkquality.ignite;
     if (ignite->score_log_timer_id != 0) {
@@ -742,7 +757,7 @@ int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg)
         stats->dev.cli_LastDataDownlinkRate
     );
 
-    disconnect_link_stats(stats);
+     get_lq_descriptor()->disconnect_link_stats_fn(stats);
     return RETURN_OK;
 
 }
@@ -754,7 +769,7 @@ int link_quality_ignite_reinit_param(wifi_app_t *apps, wifi_event_t *arg)
     }
     linkquality_data_t *data = (linkquality_data_t *)arg;
     server_arg_t *args = &data->server_arg;
-    reinit_link_metrics(args);
+    get_lq_descriptor()->reinit_link_metrics_fn(args);
     wifi_util_info_print(WIFI_APPS, "%s:%d sampling = %d reportingl as %d and threshold as %f\n",
         __func__, __LINE__,args->sampling, args->reporting, args->threshold);
     return RETURN_OK;
@@ -809,7 +824,7 @@ int link_quality_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
             wifi_util_info_print(WIFI_APPS, "%s:%d reportingl as %d and threshold as %f\n",
                 __func__, __LINE__, server_arg->reporting, server_arg->threshold);
 
-            reinit_link_metrics(server_arg);
+            get_lq_descriptor()->reinit_link_metrics_fn(server_arg);
             free(server_arg);
             break;
 
@@ -838,7 +853,7 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg)
          stats->dev.cli_LastDataDownlinkRate
     );      
  
-    remove_link_stats(stats);
+     get_lq_descriptor()->remove_link_stats_fn(stats);
     return RETURN_OK;
              
  } 
@@ -860,7 +875,7 @@ int link_quality_ignite_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
             server_arg->threshold,
             server_arg->reporting
         );
-        reinit_link_metrics(server_arg);
+        get_lq_descriptor()->reinit_link_metrics_fn(server_arg);
 
     return RETURN_OK;
 }
@@ -891,9 +906,9 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
             stats->vap_index
         );
 
-        add_stats_metrics(stats);
+         get_lq_descriptor()->add_stats_metrics_fn(stats);
        //Based on RFC this can be controlled
-       periodic_caffinity_stats_update(stats);
+       get_lq_descriptor()->periodic_caffinity_stats_update_fn(stats);
     }
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
@@ -988,7 +1003,7 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
     
     if (req)   {
         affinity_arg->event = sub_event;
-        periodic_caffinity_stats_update(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
     }
 
     free(affinity_arg);
@@ -1020,15 +1035,13 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     // dhcp_event = 0 (not a DHCP update) from memset
     if (req)   {
         affinity_arg->event = sub_event;
-        periodic_caffinity_stats_update(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
     } else {
         // Check sub_event for wifi_event_hal_assoc_rsp_frame OR wifi_event_hal_reassoc_rsp_frame
         if ((sub_event == wifi_event_hal_assoc_rsp_frame) || (sub_event == wifi_event_hal_reassoc_rsp_frame)) {
             struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)&msg->data;
             uint16_t status = le_to_host16(frame->u.assoc_resp.status_code);
             wifi_util_info_print(WIFI_CTRL," %s:%d wifi_event_hal_assoc_rsp_frame status_code=%d\n", __func__, __LINE__, status);
-
-            // Update caffinity stats via periodic_caffinity_stats_update with status_code
             affinity_arg->event = sub_event;
             affinity_arg->status_code = status;
 
@@ -1043,9 +1056,9 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
                 }
 
             }
-            wifi_util_info_print(WIFI_CTRL, " %s:%d Calling periodic_caffinity_stats_update for MAC %s, event=%d, status=%d\n",
+            wifi_util_info_print(WIFI_CTRL, " %s:%d Calling get_lq_descriptor()->periodic_caffinity_stats_update_fn for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
-            periodic_caffinity_stats_update(affinity_arg);
+            get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
         }
     }
     free(affinity_arg);
@@ -1078,7 +1091,7 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     
     if (req) {
         affinity_arg->event = sub_event;
-        periodic_caffinity_stats_update(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
     }
     
     free(affinity_arg);

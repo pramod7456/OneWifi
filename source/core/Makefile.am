@@ -172,7 +172,7 @@ OneWifi_SOURCES += $(top_srcdir)/source/apps/cac/wifi_cac.c
 OneWifi_CPPFLAGS += -I$(top_srcdir)/source/apps/cac/
 endif
 
-OneWifi_SOURCES += $(top_srcdir)/source/apps/linkquality/wifi_linkquality.c
+OneWifi_SOURCES += $(top_srcdir)/source/apps/linkquality/wifi_linkquality.c $(top_srcdir)/source/apps/linkquality/wifi_linkquality_libs.c
 OneWifi_CPPFLAGS += -I$(top_srcdir)/source/apps/linkquality/
 
 OneWifi_SOURCES += $(top_srcdir)/source/apps/wifi_sensing/src/motion_sensing.c

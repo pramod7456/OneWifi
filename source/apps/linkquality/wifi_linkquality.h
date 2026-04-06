@@ -35,8 +35,10 @@ extern "C" {
 
 #define BUFFER_SIZE 65536
 #define DHCP_BOOTP 1
-#define DHCP_OP_MSG_TYPE 53
+#define DHCP_OPTION_PAD 0           // DHCP option padding
+#define DHCP_OPTION_END 255         // DHCP option end marker
 #define DHCP_OPTION_HOSTNAME 12
+#define DHCP_OP_MSG_TYPE 53         // DHCP message type option
 #define DHCP_OPTION_VENDOR_CLASS_ID 60
 #define DHCPDISCOVER 1
 #define DHCPOFFER    2

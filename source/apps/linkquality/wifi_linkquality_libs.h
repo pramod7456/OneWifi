@@ -20,7 +20,6 @@
 #ifndef WIFI_LINKQUALITY_LIBS_H
 #define WIFI_LINKQUALITY_LIBS_H
 #include "run_qmgr.h"
-#include "wifi_ctrl.h"
 
 #ifdef __cplusplus
   extern "C" {
@@ -30,7 +29,7 @@ typedef void (* register_station_mac_t)(const char *str);
 typedef void (* unregister_station_mac_t)(const char *str);
 typedef int (* start_link_metrics_t)();
 typedef int (* stop_link_metrics_t)();
-typedef char* (* disconnect_link_stats_t)(stats_arg_t *stats);
+typedef int (* disconnect_link_stats_t)(stats_arg_t *stats);
 typedef int (* reinit_link_metrics_t)(server_arg_t *arg);
 typedef int (* remove_link_stats_t) (stats_arg_t *stats);
 typedef int (* add_stats_metrics_t) (stats_arg_t *stats);

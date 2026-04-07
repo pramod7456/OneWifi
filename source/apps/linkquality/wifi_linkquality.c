@@ -357,7 +357,7 @@ static void *sniffer_thread_func(void *arg)
                 break;
             }
             struct ethhdr *eth = (struct ethhdr *)buffer;
-	    uint16_t eth_type = ntohs(eth->h_proto);
+	        uint16_t eth_type = ntohs(eth->h_proto);
             if (eth_type == 0x893a) {  // ETH_P_1905
                  wifi_util_info_print(WIFI_CTRL,"%s:%d Received 1905 frame\n", __func__, __LINE__);
                  //Based on the network mode type if its GW mode take the stats_arg_t and process it.

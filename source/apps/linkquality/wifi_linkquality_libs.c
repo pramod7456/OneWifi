@@ -23,6 +23,7 @@
 #include <string.h>
 #include "wifi_hal.h"
 #include "wifi_util.h"
+#include "wifi_ctrl.h"
 #include "wifi_linkquality_libs.h"
 #include "run_qmgr.h"
 
@@ -53,7 +54,7 @@ static int stop_link_metrics_default()
     return 0;
 }
 //Here the stats has to be sent to GW using 1905.1 frame
-static char* disconnect_link_stats_default(stats_arg_t *stats)
+static int disconnect_link_stats_default(stats_arg_t *stats)
 {
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
     return 0;

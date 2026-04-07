@@ -272,7 +272,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             "cli_RetransCount: %lu\ncli_FailedRetransCount: %lu\ncli_RetryCount: %lu\n"
             "cli_MultipleRetryCount: %lu\ncli_MaxDownlinkRate: %d\ncli_MaxUplinkRate: %d\n"
             "cli_activeNumSpatialStreams: %d\ncli_TxFrames: %llu\ncli_RxRetries: %llu\n"
-            "cli_RxErrors: %llu\n",
+            "cli_RxErrors: %llu\n cli_PowerSaveMode=%d",
             to_sta_key(dev_array[i].cli_MACAddress, sta_key),
             to_sta_key(dev_array[i].cli_MLDAddr, mld_sta_key), dev_array[i].cli_MLDEnable,
             dev_array[i].cli_AuthenticationState, dev_array[i].cli_LastDataDownlinkRate,
@@ -289,18 +289,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             dev_array[i].cli_FailedRetransCount, dev_array[i].cli_RetryCount,
             dev_array[i].cli_MultipleRetryCount, dev_array[i].cli_MaxDownlinkRate,
             dev_array[i].cli_MaxUplinkRate, dev_array[i].cli_activeNumSpatialStreams,
-            dev_array[i].cli_TxFrames, dev_array[i].cli_RxRetries, dev_array[i].cli_RxErrors);
-            if (link_data && link_quality_measurement) {
-                memset(&link_data[i], 0, sizeof(linkquality_data_t));
-                link_data[i].size = num_devs;
-                to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
-                link_data[i].stats.dev = dev_array[i];
-                link_data[i].stats.vap_index = args->vap_index ;
-                link_data[i].stats.radio_index = getRadioIndexFromAp(args->vap_index);
-                get_radio_channel_utilization(link_data[i].stats.radio_index,&link_data[i].stats.channel_utilization);
-                wifi_util_dbg_print(WIFI_MON,"cli_SNR: %d,cli_PacketsSent: %lu,cli_ErrorsSent: %lu,cli_LastDataDownlinkRate: %d  cli_MaxDownlinkRate=%d radio_index=%d link_data[i].stats.channel_utilization=%d \n",
-                    dev_array[i].cli_SNR,dev_array[i].cli_PacketsSent,dev_array[i].cli_ErrorsSent,dev_array[i].cli_LastDataDownlinkRate,dev_array[i].cli_MaxDownlinkRate,link_data[i].stats.radio_index,link_data[i].stats.channel_utilization);
-            }
+            dev_array[i].cli_TxFrames, dev_array[i].cli_RxRetries, dev_array[i].cli_RxErrors,dev_array[i].cli_PowerSaveMode);
 
         if (link_data && ((link_quality_measurement) || (rf_down_mesh_sta))) {
             memset(&link_data[i], 0, sizeof(linkquality_data_t));

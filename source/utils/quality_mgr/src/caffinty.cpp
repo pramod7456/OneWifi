@@ -178,7 +178,19 @@ int caffinity_t::periodic_stats_update(stats_arg_t *arg)
     wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_channel_utilization=%d\n",
         __func__, __LINE__, m_channel_utilization);
 
-    
+    {
+        bool new_ps = (bool)arg->dev.cli_PowerSaveMode;
+        wifi_util_error_print(WIFI_CTRL,
+            "caffinity stats %s:%d [PS-DBG] MAC %s arg->dev.cli_PowerSaveMode=%d m_power_save=%d\n",
+            __func__, __LINE__, arg->mac_str, (int)new_ps, (int)m_power_save);
+        if (new_ps != m_power_save) {
+            wifi_util_error_print(WIFI_CTRL,
+                "caffinity stats %s:%d m_power_save changed: %d -> %d for MAC %s\n",
+                __func__, __LINE__, (int)m_power_save, (int)new_ps, arg->mac_str);
+            m_power_save = new_ps;
+        }
+    }
+
     pthread_mutex_unlock(&m_lock);
     
     wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated stats for event=%d: auth_attempts=%u auth_failures=%u assoc_attempts=%u assoc_failures=%u\n",
@@ -208,7 +220,17 @@ caffinity_result_t caffinity_t::run_algorithm_caffinity()
         __func__, __LINE__, m_mac);
 
     pthread_mutex_lock(&m_lock);
-    
+
+    // Skip scoring while client is in Power Save mode
+    if (m_power_save) {
+        wifi_util_dbg_print(WIFI_CTRL,
+            "caffinity %s:%d Skipping score for MAC %s — client in power save mode\n",
+            __func__, __LINE__, m_mac);
+        result.connected = m_connected;
+        pthread_mutex_unlock(&m_lock);
+        return result;
+    }
+
     result.connected = m_connected;
     
     // Debug dump of all stats for this MAC (one call per line to avoid logging truncation on embedded \n)
@@ -371,6 +393,7 @@ caffinity_t::caffinity_t(mac_addr_str_t *mac)
     m_snr_assoc = 0;
     m_cli_snr = 0;
     m_channel_utilization = 0;
+    m_power_save = false;
     memset(&m_disconnected_time, 0, sizeof(m_disconnected_time));
     memset(&m_connected_time, 0, sizeof(m_connected_time));
     memset(&m_sleep_time, 0, sizeof(m_sleep_time));

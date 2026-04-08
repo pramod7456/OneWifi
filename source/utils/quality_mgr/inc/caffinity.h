@@ -56,6 +56,7 @@ class caffinity_t
     int m_cli_snr;
     int m_channel_utilization;
     bool m_connected;
+    bool m_power_save;
     struct timespec  m_disconnected_time;
     struct timespec  m_connected_time;
     struct timespec  m_sleep_time;

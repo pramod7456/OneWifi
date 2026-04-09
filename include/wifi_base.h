@@ -471,6 +471,18 @@ typedef struct {
 } link_report_t;
 
 typedef struct {
+    unsigned long cli_PacketsSent;
+    unsigned long cli_PacketsReceived;
+    unsigned long cli_RetransCount;
+    unsigned long long cli_RxRetries;
+    int cli_SNR;
+    unsigned int   cli_MaxDownlinkRate;
+    unsigned int cli_MaxUplinkRate;
+    unsigned int cli_LastDataDownlinkRate;
+    unsigned int cli_LastDataUplinkRate;
+} dev_stats_t;
+
+typedef struct {
     size_t link_count;
     link_report_t *links;
 } report_batch_t;

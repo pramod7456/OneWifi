@@ -57,7 +57,7 @@ typedef struct {
     unsigned int vap_index;
     unsigned int radio_index;
     int channel_utilization;
-    wifi_associated_dev3_t dev;
+    dev_stats_t dev;
     struct timespec total_connected_time;
     struct timespec total_disconnected_time;
     int event;
@@ -118,7 +118,7 @@ int run_web_server();
 int stop_web_server();
 
 
-int add_stats_metrics(stats_arg_t *stats);
+int add_stats_metrics(stats_arg_t *stats,int len);
 int remove_link_stats(stats_arg_t *stats);
 int start_link_metrics();
 int stop_link_metrics();
@@ -139,7 +139,7 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 int update_affinity_stats(stats_arg_t *arg,bool flag);
 
 /* Periodic caffinity stats update for connected/disconnected time and SNR */
-int periodic_caffinity_stats_update(stats_arg_t *stats);
+int periodic_caffinity_stats_update(stats_arg_t *stats ,int len);
 
 /* Check if a client is connected using caffinity tracking */
 bool is_client_connected(const char *mac_str);

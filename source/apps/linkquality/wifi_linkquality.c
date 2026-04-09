@@ -285,7 +285,7 @@ static void dhcp_process_packet(const uint8_t *buffer, ssize_t len)
     affinity_arg.dhcp_event = DHCP_EVENT_UPDATE;
     affinity_arg.dhcp_msg_type = msg_type;  // Pass raw msg_type (1-6)
     
-    get_lq_descriptor()->periodic_caffinity_stats_update_fn(&affinity_arg);
+    get_lq_descriptor()->periodic_caffinity_stats_update_fn(&affinity_arg,1);
     
     wifi_util_info_print(WIFI_CTRL," DHCP %s:%d Successfully processed %s packet for MAC=%s\n",
         __func__, __LINE__, msg_type_str, mac_key);
@@ -660,7 +660,6 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     
     
-    get_lq_descriptor()->start_link_metrics_fn();
     wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
     if (rfc_param->link_quality_rfc) {
           wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
@@ -669,6 +668,8 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     // Start DHCP sniffer (no local hashmaps needed - using wifi_associated_dev_t)
     wifi_util_info_print(WIFI_CTRL," %s:%d Starting DHCP sniffer\n", __func__, __LINE__);
     dhcp_sniffer_start();
+    
+    get_lq_descriptor()->start_link_metrics_fn();
     
     if ( ctrl->network_mode == rdk_dev_mode_type_em_node
       || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
@@ -891,24 +892,25 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
 
     /* The number of devices is stored in the first element */
     int num_devs = len;
-
+    stats_arg_t *stats_array = malloc(sizeof(stats_arg_t) * num_devs);
+    if (!stats_array) {
+        return RETURN_ERR;
+    }
     for (int i = 0; i < num_devs; i++) {
-
-        stats_arg_t *stats = &data[i].stats;
+       stats_array[i] = data[i].stats;
         wifi_util_dbg_print(
             WIFI_APPS,
             "%s:%d idx=%d mac=%s  snr=%d phy=%d\n",
             __func__, __LINE__,
             i,
-            stats->mac_str,
-            stats->dev.cli_SNR,
-            stats->dev.cli_LastDataDownlinkRate,
-            stats->vap_index
+            stats_array[i].mac_str,
+            stats_array[i].dev.cli_SNR,
+            stats_array[i].dev.cli_LastDataDownlinkRate,
+            stats_array[i].vap_index
         );
-
-         get_lq_descriptor()->add_stats_metrics_fn(stats);
-       //Based on RFC this can be controlled
-       get_lq_descriptor()->periodic_caffinity_stats_update_fn(stats);
+        get_lq_descriptor()->add_stats_metrics_fn(stats_array,num_devs);
+        //Based on RFC this can be controlled
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(stats_array,num_devs);
     }
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
@@ -1003,7 +1005,7 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
     
     if (req)   {
         affinity_arg->event = sub_event;
-        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg, 1);
     }
 
     free(affinity_arg);
@@ -1035,7 +1037,7 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     // dhcp_event = 0 (not a DHCP update) from memset
     if (req)   {
         affinity_arg->event = sub_event;
-        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg, 1);
     } else {
         // Check sub_event for wifi_event_hal_assoc_rsp_frame OR wifi_event_hal_reassoc_rsp_frame
         if ((sub_event == wifi_event_hal_assoc_rsp_frame) || (sub_event == wifi_event_hal_reassoc_rsp_frame)) {
@@ -1058,7 +1060,7 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
             }
             wifi_util_info_print(WIFI_CTRL, " %s:%d Calling get_lq_descriptor()->periodic_caffinity_stats_update_fn for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
-            get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
+            get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg,1);
         }
     }
     free(affinity_arg);
@@ -1091,7 +1093,7 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     
     if (req) {
         affinity_arg->event = sub_event;
-        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg);
+        get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg,1);
     }
     
     free(affinity_arg);

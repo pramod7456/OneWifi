@@ -24,7 +24,7 @@
 #ifdef __cplusplus
   extern "C" {
  #endif
-typedef int (* periodic_caffinity_stats_update_t)(stats_arg_t *stats);
+typedef int (* periodic_caffinity_stats_update_t)(stats_arg_t *stats,int len);
 typedef void (* register_station_mac_t)(const char *str);
 typedef void (* unregister_station_mac_t)(const char *str);
 typedef int (* start_link_metrics_t)();
@@ -32,7 +32,7 @@ typedef int (* stop_link_metrics_t)();
 typedef int (* disconnect_link_stats_t)(stats_arg_t *stats);
 typedef int (* reinit_link_metrics_t)(server_arg_t *arg);
 typedef int (* remove_link_stats_t) (stats_arg_t *stats);
-typedef int (* add_stats_metrics_t) (stats_arg_t *stats);
+typedef int (* add_stats_metrics_t) (stats_arg_t *stats,int len);
 typedef char* (* get_link_metrics_t) ();
 typedef int (* set_quality_flags_t) (quality_flags_t *flag);
 typedef int (* get_quality_flags_t) (quality_flags_t *flag);

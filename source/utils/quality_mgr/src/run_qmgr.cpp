@@ -187,14 +187,16 @@ int stop_link_metrics()
     return 0;
 }
 
-int add_stats_metrics(stats_arg_t *stats)
+int add_stats_metrics(stats_arg_t *stats,int len)
 {
     qmgr_t *qmgr;
     wifi_util_dbg_print(WIFI_APPS,"mac_address=%s  snr=%d and phy=%d\n",stats->mac_str,stats->dev.cli_SNR,stats->dev.cli_LastDataDownlinkRate); 
     
     qmgr = qmgr_t::get_instance();   // always returns SAME instance
+    for (int i =0;i<len;i++) {
+        qmgr->init(&stats[i],true);
+    }
 
-    qmgr->init(stats,true);
     return 0;
 }
 
@@ -250,12 +252,14 @@ int update_affinity_stats(stats_arg_t *arg,bool flag)
     return 0;
 }
 
-int periodic_caffinity_stats_update(stats_arg_t *stats)
+int periodic_caffinity_stats_update(stats_arg_t *stats,int len)
 {
     wifi_util_info_print(WIFI_APPS,"started  %s:%d mac=%s\n",__func__,__LINE__, stats->mac_str);
     qmgr_t *mgr;
     mgr = qmgr_t::get_instance();   // always returns SAME instance
-    mgr->caffinity_periodic_stats_update(stats);
+    for (int i =0;i<len;i++) {
+        mgr->caffinity_periodic_stats_update(&stats[i]);
+    }
     return 0;
 }
 

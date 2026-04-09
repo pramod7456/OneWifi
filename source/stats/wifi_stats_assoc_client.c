@@ -295,7 +295,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
             memset(&link_data[i], 0, sizeof(linkquality_data_t));
             link_data[i].size = num_devs;
             to_sta_key(dev_array[i].cli_MACAddress, link_data[i].stats.mac_str);
-            link_data[i].stats.dev = dev_array[i];
+	    copy_assocstats_dev_stats(&dev_array[i], &link_data[i].stats.dev);
             link_data[i].stats.vap_index = args->vap_index;
 	    link_data[i].stats.vap_index = args->vap_index ;
 	    link_data[i].stats.radio_index = getRadioIndexFromAp(args->vap_index);

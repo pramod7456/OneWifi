@@ -36,7 +36,8 @@ int g_sock;
 int connect_to_gateway(const char *ip) {
     struct sockaddr_in server;
     
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d %s\n",__func__,__LINE__,ip);
+    memset(&server, 0, sizeof(server));
 
     g_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (g_sock < 0) return -1;
@@ -46,6 +47,7 @@ int connect_to_gateway(const char *ip) {
     inet_pton(AF_INET, ip, &server.sin_addr);
 
     if (connect(g_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
         close(g_sock);
         return -1;
     }
@@ -74,12 +76,28 @@ void* run_gateway_thread(void *arg) {
     client_fd = accept(server_fd, NULL, NULL);
 
     while (1) {
-        int n = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        uint32_t net_len;
+        int n = recv(client_fd, &net_len, sizeof(net_len), MSG_WAITALL);
+        if (n <= 0) break;
+        uint32_t data_len = ntohl(net_len);
+        wifi_util_dbg_print(WIFI_APPS,"Expecting %u bytes of stats\n", data_len);
+        stats_arg_t stats;
+        wifi_util_dbg_print(WIFI_APPS,"%s:%d \n", __func__,__LINE__);
+        n = recv(client_fd, &stats, sizeof(stats), MSG_WAITALL);
+        wifi_util_dbg_print(WIFI_APPS,"%s:%d n=%d\n", __func__,__LINE__,n);
         if (n <= 0) break;
 
-        buffer[n] = '\0';
-        wifi_util_dbg_print(WIFI_APPS,"Received: %s\n", buffer);
+        wifi_util_dbg_print(WIFI_APPS,"Received stats:\n");
+        wifi_util_dbg_print(WIFI_APPS,"MAC: %s\n", stats.mac_str);
+        wifi_util_dbg_print(WIFI_APPS,"AP MAC: %s\n", stats.ap_mac_str);
+        wifi_util_dbg_print(WIFI_APPS,"VAP index: %u, Radio index: %u\n",
+                            stats.vap_index, stats.radio_index);
+        wifi_util_dbg_print(WIFI_APPS,"Channel Utilization: %d%%\n",
+                            stats.channel_utilization);
+        wifi_util_dbg_print(WIFI_APPS,"Event: %d, Status code: %u, DHCP Event: %d\n",
+                            stats.event, stats.status_code, stats.dhcp_event);
     }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
 
     close(client_fd);
     close(server_fd);
@@ -133,7 +151,25 @@ static int remove_link_stats_ext(stats_arg_t *stats)
 //Here the stats has to be sent to GW using 1905.1 frame
 static int add_stats_metrics_ext(stats_arg_t *stats, int len)
 {
+    if (g_sock < 0 || stats == NULL) {
+        return -1;
+    }
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+
+    uint32_t net_len = htonl(len *sizeof(stats_arg_t));
+
+    if (send(g_sock, &net_len, sizeof(net_len), 0) != sizeof(net_len)) {
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+        return -1;
+    }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+
+    if (send(g_sock, stats, sizeof(stats_arg_t), 0) != sizeof(stats_arg_t)) {
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+        return -1;
+    }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+
     return 0;
 }
 //This function is not needed in extender this is specific to the Gateway
@@ -177,6 +213,10 @@ wifi_lq_descriptor_t* get_lq_descriptor()
     char role[50] = {0};
     char ip[50] = {0};
     pthread_t tid;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     if (!initialized) { 
         //read_config,role will be only for testing between 2 GW
@@ -227,7 +267,7 @@ wifi_lq_descriptor_t* get_lq_descriptor()
             desc.get_link_metrics_fn = get_link_metrics;
             desc.set_quality_flags_fn = set_quality_flags;
             desc.get_quality_flags_fn = get_quality_flags;
-            pthread_create(&tid, NULL, run_gateway_thread, NULL);
+            pthread_create(&tid, &attr, run_gateway_thread, NULL);
         }
 
         initialized = true;

@@ -714,55 +714,56 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     if (rfc_param->link_quality_rfc) {
           wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
     }
-    /* The below lines should go under rfc_param->link_quality_rfc */
-    // Start DHCP sniffer (no local hashmaps needed - using wifi_associated_dev_t)
-    wifi_util_info_print(WIFI_CTRL," %s:%d Starting DHCP sniffer\n", __func__, __LINE__);
-    dhcp_sniffer_start();
-    
     get_lq_descriptor()->start_link_metrics_fn();
-    
-    if ( ctrl->network_mode == rdk_dev_mode_type_em_node
+
+    /* DHCP sniffer is GW-only: Extender does not snoop DHCP leases locally */
+    if (!lq_is_extender_mode()) {
+        wifi_util_info_print(WIFI_CTRL, " %s:%d Starting DHCP sniffer (GW mode)\n", __func__, __LINE__);
+        dhcp_sniffer_start();
+    } else {
+        wifi_util_info_print(WIFI_CTRL, " %s:%d Extender mode — skipping DHCP sniffer\n", __func__, __LINE__);
+    }
+
+    /* qmgr callbacks and max-SNR setup run on both GW and Extender */
+    if (ctrl->network_mode == rdk_dev_mode_type_em_node
       || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node) {
         qmgr_register_batch_callback(publish_qmgr_subdoc);
         wifi_util_info_print(WIFI_APPS, "%s:%d ctrl->network_mode=%d\n",
-            __func__, __LINE__,ctrl->network_mode);
-    } 
-    
+            __func__, __LINE__, ctrl->network_mode);
+    }
 
-    if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0|| 
+    if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0 ||
         rfc_param->radio_6g_observed_max_snr == 0) {
         if (rfc_param->radio_2g_observed_max_snr == 0) {
             max_snr.radio_2g_max_snr = 25;
             rfc_param->radio_2g_observed_max_snr = 25;
-	} else {
+        } else {
             max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
-	}
+        }
         if (rfc_param->radio_5g_observed_max_snr == 0) {
             max_snr.radio_5g_max_snr = 25;
             rfc_param->radio_5g_observed_max_snr = 25;
-	} else {
+        } else {
             max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
-	}
+        }
         if (rfc_param->radio_6g_observed_max_snr == 0) {
             max_snr.radio_6g_max_snr = 25;
             rfc_param->radio_6g_observed_max_snr = 25;
-	} else {
+        } else {
             max_snr.radio_6g_max_snr = rfc_param->radio_6g_observed_max_snr;
-	}
+        }
         get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param);
-
-          wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d setting max_snr\n", __func__, __LINE__);
     } else {
-	max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
-	max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
+        max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
+        max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
         max_snr.radio_6g_max_snr = rfc_param->radio_6g_observed_max_snr;
-        wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d setting max_snr\n", __func__, __LINE__);
     }
-    
-    wifi_util_info_print(WIFI_APPS, "%s:%d %d:%d:%d \n", __func__, __LINE__,
-    max_snr.radio_2g_max_snr,max_snr.radio_5g_max_snr,max_snr.radio_6g_max_snr);
+
+    wifi_util_info_print(WIFI_APPS, "%s:%d %d:%d:%d\n", __func__, __LINE__,
+        max_snr.radio_2g_max_snr, max_snr.radio_5g_max_snr, max_snr.radio_6g_max_snr);
     set_max_snr_radios(&max_snr);
-    wifi_util_error_print(WIFI_CTRL," SANJI %s:%d calling update_radio_max_snr_observance \n", __func__, __LINE__);
     qmgr_register_max_snr_callback(update_radio_max_snr_observance);
     return RETURN_OK;
 }
@@ -770,11 +771,13 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
 int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
 {
     wifi_util_info_print(WIFI_APPS, "%s:%d\n", __func__, __LINE__);
-    
-    // Stop DHCP sniffer
-    wifi_util_info_print(WIFI_CTRL," %s:%d Stopping DHCP sniffer\n", __func__, __LINE__);
-    dhcp_sniffer_stop();
-    
+
+    /* DHCP sniffer is GW-only: only stop it if we started it */
+    if (!lq_is_extender_mode()) {
+        wifi_util_info_print(WIFI_CTRL, " %s:%d Stopping DHCP sniffer (GW mode)\n", __func__, __LINE__);
+        dhcp_sniffer_stop();
+    }
+
     get_lq_descriptor()->stop_link_metrics_fn();
 
     ignite_lq_state_t *ignite = &apps->data.u.linkquality.ignite;
@@ -958,10 +961,11 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
             stats_array[i].dev.cli_LastDataDownlinkRate,
             stats_array[i].vap_index
         );
-        get_lq_descriptor()->add_stats_metrics_fn(stats_array,num_devs);
-        //Based on RFC this can be controlled
-        get_lq_descriptor()->periodic_caffinity_stats_update_fn(stats_array,num_devs);
     }
+    get_lq_descriptor()->add_stats_metrics_fn(stats_array, num_devs);
+    //Based on RFC this can be controlled
+    get_lq_descriptor()->periodic_caffinity_stats_update_fn(stats_array, num_devs);
+    free(stats_array);
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
 }

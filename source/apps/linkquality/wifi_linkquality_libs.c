@@ -31,82 +31,211 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-int g_sock;
+#include <errno.h>
+int g_sock = -1;
+static char g_gw_ip[50];
 
 int connect_to_gateway(const char *ip) {
     struct sockaddr_in server;
-    
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d %s\n",__func__,__LINE__,ip);
-    memset(&server, 0, sizeof(server));
+
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d attempting connect to ip=%s port=5000\n", __func__, __LINE__, ip ? ip : "NULL");
+
+    strncpy(g_gw_ip, ip, sizeof(g_gw_ip) - 1);
+    g_gw_ip[sizeof(g_gw_ip) - 1] = '\0';
 
     g_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (g_sock < 0) return -1;
+    if (g_sock < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d socket() failed: %s\n", __func__, __LINE__, strerror(errno));
+        return -1;
+    }
 
     server.sin_family = AF_INET;
     server.sin_port = htons(5000);
-    inet_pton(AF_INET, ip, &server.sin_addr);
-
-    if (connect(g_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    if (inet_pton(AF_INET, ip, &server.sin_addr) <= 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d inet_pton failed for ip=%s: %s\n", __func__, __LINE__, ip, strerror(errno));
         close(g_sock);
+        g_sock = -1;
         return -1;
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
 
+    if (connect(g_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d connect() to %s:5000 failed: %s\n", __func__, __LINE__, ip, strerror(errno));
+        close(g_sock);
+        g_sock = -1;
+        return -1;
+    }
+
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d connected to GW %s:5000 fd=%d\n", __func__, __LINE__, ip, g_sock);
     return g_sock;
 }
 
 void* run_gateway_thread(void *arg) {
     int server_fd, client_fd;
-    char buffer[1024];
     struct sockaddr_in addr;
+    extern int add_stats_metrics(stats_arg_t *stats, int len);
+    extern int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (server_fd < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d server socket() failed: %s\n", __func__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d setsockopt(SO_REUSEADDR) failed: %s\n", __func__, __LINE__, strerror(errno));
+    }
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(5000);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    bind(server_fd, (struct sockaddr *)&addr, sizeof(addr));
-    listen(server_fd, 5);
-
-    wifi_util_dbg_print(WIFI_APPS,"Gateway listening on port 5000...\n");
-
-    client_fd = accept(server_fd, NULL, NULL);
-
-    while (1) {
-        uint32_t net_len;
-        int n = recv(client_fd, &net_len, sizeof(net_len), MSG_WAITALL);
-        if (n <= 0) break;
-        uint32_t data_len = ntohl(net_len);
-        wifi_util_dbg_print(WIFI_APPS,"Expecting %u bytes of stats\n", data_len);
-        stats_arg_t stats;
-        wifi_util_dbg_print(WIFI_APPS,"%s:%d \n", __func__,__LINE__);
-        n = recv(client_fd, &stats, sizeof(stats), MSG_WAITALL);
-        wifi_util_dbg_print(WIFI_APPS,"%s:%d n=%d\n", __func__,__LINE__,n);
-        if (n <= 0) break;
-
-        wifi_util_dbg_print(WIFI_APPS,"Received stats:\n");
-        wifi_util_dbg_print(WIFI_APPS,"MAC: %s\n", stats.mac_str);
-        wifi_util_dbg_print(WIFI_APPS,"AP MAC: %s\n", stats.ap_mac_str);
-        wifi_util_dbg_print(WIFI_APPS,"VAP index: %u, Radio index: %u\n",
-                            stats.vap_index, stats.radio_index);
-        wifi_util_dbg_print(WIFI_APPS,"Channel Utilization: %d%%\n",
-                            stats.channel_utilization);
-        wifi_util_dbg_print(WIFI_APPS,"Event: %d, Status code: %u, DHCP Event: %d\n",
-                            stats.event, stats.status_code, stats.dhcp_event);
+    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d bind() on port 5000 failed: %s\n", __func__, __LINE__, strerror(errno));
+        close(server_fd);
+        return NULL;
     }
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
 
+    if (listen(server_fd, 5) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d listen() failed: %s\n", __func__, __LINE__, strerror(errno));
+        close(server_fd);
+        return NULL;
+    }
+
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d GW listening on port 5000 fd=%d\n", __func__, __LINE__, server_fd);
+
+    client_fd = accept(server_fd, NULL, NULL);
+    if (client_fd < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d accept() failed: %s\n", __func__, __LINE__, strerror(errno));
+        close(server_fd);
+        return NULL;
+    }
+
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d extender connected client_fd=%d\n", __func__, __LINE__, client_fd);
+
+    while (1) {
+        int count = 0;
+        int n = recv(client_fd, &count, sizeof(int), MSG_WAITALL);
+        if (n == 0) {
+            wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d extender closed connection\n", __func__, __LINE__);
+            break;
+        }
+        if (n < 0) {
+            wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d recv count failed: %s\n", __func__, __LINE__, strerror(errno));
+            break;
+        }
+
+        wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d recv count=%d (expected payload=%zu bytes)\n",
+            __func__, __LINE__, count, count * sizeof(stats_arg_t));
+
+        if (count <= 0 || count > 256) {
+            wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d invalid count=%d, closing\n", __func__, __LINE__, count);
+            break;
+        }
+
+        stats_arg_t *buf = (stats_arg_t *)calloc(count, sizeof(stats_arg_t));
+        if (!buf) {
+            wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d calloc failed count=%d size=%zu: %s\n",
+                __func__, __LINE__, count, count * sizeof(stats_arg_t), strerror(errno));
+            break;
+        }
+
+        n = recv(client_fd, buf, count * (int)sizeof(stats_arg_t), MSG_WAITALL);
+        if (n == 0) {
+            wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d extender closed during payload recv\n", __func__, __LINE__);
+            free(buf);
+            break;
+        }
+        if (n < 0) {
+            wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d recv payload failed: %s\n", __func__, __LINE__, strerror(errno));
+            free(buf);
+            break;
+        }
+        if (n != count * (int)sizeof(stats_arg_t)) {
+            wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d short read: got=%d expected=%zu\n",
+                __func__, __LINE__, n, count * sizeof(stats_arg_t));
+            free(buf);
+            break;
+        }
+
+        wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d dispatching count=%d ext_event_type=%d mac[0]=%s\n",
+            __func__, __LINE__, count, buf[0].ext_event_type, buf[0].mac_str);
+
+        switch (buf[0].ext_event_type) {
+            case EXT_EVENT_ADD_STATS:
+                wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d -> add_stats_metrics count=%d\n", __func__, __LINE__, count);
+                add_stats_metrics(buf, count);
+                break;
+            case EXT_EVENT_PERIODIC_CAFFINITY:
+                wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d -> periodic_caffinity_stats_update count=%d\n", __func__, __LINE__, count);
+                periodic_caffinity_stats_update(buf, count);
+                break;
+            default:
+                wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d unknown ext_event_type=%d mac=%s\n",
+                    __func__, __LINE__, buf[0].ext_event_type, buf[0].mac_str);
+                break;
+        }
+        free(buf);
+    }
+
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d closing client_fd=%d server_fd=%d\n", __func__, __LINE__, client_fd, server_fd);
     close(client_fd);
     close(server_fd);
     return NULL;
 }
-//Here the stats has to be sent to GW using 1905.1 frame
-static int periodic_caffinity_stats_update_ext(stats_arg_t *stats,int len) 
+/* Check if g_sock is live; if not, attempt one reconnect to the stored GW IP.
+ * Returns 0 on success, -1 if the socket is not usable after the attempt. */
+static int ensure_connected(void)
 {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    if (g_sock > 0) {
+        return 0;
+    }
+    if (g_gw_ip[0] == '\0') {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d no GW IP stored, cannot reconnect\n",
+            __func__, __LINE__);
+        return -1;
+    }
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d g_sock=%d, reconnecting to %s\n",
+        __func__, __LINE__, g_sock, g_gw_ip);
+    int fd = connect_to_gateway(g_gw_ip);
+    if (fd <= 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d reconnect to %s failed\n",
+            __func__, __LINE__, g_gw_ip);
+        return -1;
+    }
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d reconnected g_sock=%d\n", __func__, __LINE__, g_sock);
+    return 0;
+}
+
+//Here the stats has to be sent to GW using socket
+static int periodic_caffinity_stats_update_ext(stats_arg_t *stats, int len)
+{
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d len=%d g_sock=%d\n", __func__, __LINE__, len, g_sock);
+    if (ensure_connected() < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d socket not available, dropping caffinity update len=%d\n",
+            __func__, __LINE__, len);
+        return -1;
+    }
+    for (int i = 0; i < len; i++) {
+        stats[i].ext_event_type = EXT_EVENT_PERIODIC_CAFFINITY;
+        wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d [%d] mac=%s event=%d dhcp_event=%d dhcp_msg=%d\n",
+            __func__, __LINE__, i, stats[i].mac_str, stats[i].event, stats[i].dhcp_event, stats[i].dhcp_msg_type);
+    }
+    if (send(g_sock, &len, sizeof(int), MSG_NOSIGNAL) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d send count failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
+        close(g_sock);
+        g_sock = -1;
+        return -1;
+    }
+    ssize_t sent = send(g_sock, stats, len * sizeof(stats_arg_t), MSG_NOSIGNAL);
+    if (sent < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d send payload failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
+        close(g_sock);
+        g_sock = -1;
+        return -1;
+    }
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d sent len=%d payload_bytes=%zd\n", __func__, __LINE__, len, sent);
     return 0;
 }
 //This function is not needed in extender this is specific to project Ignite
@@ -148,28 +277,34 @@ static int remove_link_stats_ext(stats_arg_t *stats)
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
     return 0;
 }
-//Here the stats has to be sent to GW using 1905.1 frame
+//Here the stats has to be sent to GW using socket
 static int add_stats_metrics_ext(stats_arg_t *stats, int len)
 {
-    if (g_sock < 0 || stats == NULL) {
+    wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d len=%d g_sock=%d\n", __func__, __LINE__, len, g_sock);
+    if (ensure_connected() < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d socket not available, dropping add_stats len=%d\n",
+            __func__, __LINE__, len);
         return -1;
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
-
-    uint32_t net_len = htonl(len *sizeof(stats_arg_t));
-
-    if (send(g_sock, &net_len, sizeof(net_len), 0) != sizeof(net_len)) {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    for (int i = 0; i < len; i++) {
+        stats[i].ext_event_type = EXT_EVENT_ADD_STATS;
+        wifi_util_dbg_print(WIFI_CTRL, " SOCKET %s:%d [%d] mac=%s snr=%d phy=%d vap=%d\n",
+            __func__, __LINE__, i, stats[i].mac_str, stats[i].dev.cli_SNR,
+            stats[i].dev.cli_LastDataDownlinkRate, stats[i].vap_index);
+    }
+    if (send(g_sock, &len, sizeof(int), MSG_NOSIGNAL) < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d send count failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
+        close(g_sock);
+        g_sock = -1;
         return -1;
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
-
-    if (send(g_sock, stats, sizeof(stats_arg_t), 0) != sizeof(stats_arg_t)) {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
+    ssize_t sent = send(g_sock, stats, len * sizeof(stats_arg_t), MSG_NOSIGNAL);
+    if (sent < 0) {
+        wifi_util_error_print(WIFI_CTRL, " SOCKET %s:%d send payload failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
+        close(g_sock);
+        g_sock = -1;
         return -1;
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
-
     return 0;
 }
 //This function is not needed in extender this is specific to the Gateway
@@ -201,9 +336,22 @@ static void read_config(char *role, char *ip) {
         ip[strcspn(ip, "\n")] = 0;
     }
     wifi_util_error_print(WIFI_APPS, "%s:%d role=%s and ip=%s\n",
-        __func__, __LINE__,role,ip);
+        __func__, __LINE__, role, ip);
 
     fclose(fp);
+}
+
+/* Returns true if this device is an Extender — checks both ctrl->network_mode
+ * (production) and /nvram/config.txt role (lab/test scenario with two GWs). */
+bool lq_is_extender_mode(void)
+{
+    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+    if (ctrl && ctrl->network_mode == rdk_dev_mode_type_ext) {
+        return true;
+    }
+    char role[50] = {0}, ip[50] = {0};
+    read_config(role, ip);
+    return (strcmp(role, "Extender") == 0);
 }
 wifi_lq_descriptor_t* get_lq_descriptor()
 {

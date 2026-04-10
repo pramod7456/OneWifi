@@ -55,7 +55,6 @@ typedef struct {
 } wifi_lq_descriptor_t;
 
 wifi_lq_descriptor_t *get_lq_descriptor();
-bool lq_is_extender_mode(void);
 
 #ifdef __cplusplus
  }

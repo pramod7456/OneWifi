@@ -202,7 +202,8 @@ typedef struct {
     unsigned char num_service;
     unsigned char supported_service[0];
 } __attribute__((__packed__)) multiap_supported_srv_t;
-
+void dhcp_sniffer_stop();
+void dhcp_sniffer_start();
 #ifdef __cplusplus
 }
 #endif

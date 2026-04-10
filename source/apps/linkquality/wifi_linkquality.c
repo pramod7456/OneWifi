@@ -451,7 +451,7 @@ static int attach_kernel_bpf_filter(int sock)
     return 0;
 }
 
-static void dhcp_sniffer_start()
+void dhcp_sniffer_start()
 {
     struct sockaddr_ll sll;
     struct ifreq ifr;
@@ -523,7 +523,7 @@ static void dhcp_sniffer_start()
     wifi_util_info_print(WIFI_CTRL, "%s:%d DHCP sniffer started successfully\n", __func__, __LINE__);
 }
 
-static void dhcp_sniffer_stop()
+void dhcp_sniffer_stop()
 {
     if (!dhcp_sniffer_running) {
         wifi_util_dbg_print(WIFI_CTRL, "%s:%d DHCP sniffer not running\n", __func__, __LINE__);
@@ -716,13 +716,6 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
     }
     get_lq_descriptor()->start_link_metrics_fn();
 
-    /* DHCP sniffer is GW-only: Extender does not snoop DHCP leases locally */
-    if (!lq_is_extender_mode()) {
-        wifi_util_info_print(WIFI_CTRL, " %s:%d Starting DHCP sniffer (GW mode)\n", __func__, __LINE__);
-        dhcp_sniffer_start();
-    } else {
-        wifi_util_info_print(WIFI_CTRL, " %s:%d Extender mode — skipping DHCP sniffer\n", __func__, __LINE__);
-    }
 
     /* qmgr callbacks and max-SNR setup run on both GW and Extender */
     if (ctrl->network_mode == rdk_dev_mode_type_em_node
@@ -771,12 +764,6 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
 int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
 {
     wifi_util_info_print(WIFI_APPS, "%s:%d\n", __func__, __LINE__);
-
-    /* DHCP sniffer is GW-only: only stop it if we started it */
-    if (!lq_is_extender_mode()) {
-        wifi_util_info_print(WIFI_CTRL, " %s:%d Stopping DHCP sniffer (GW mode)\n", __func__, __LINE__);
-        dhcp_sniffer_stop();
-    }
 
     get_lq_descriptor()->stop_link_metrics_fn();
 

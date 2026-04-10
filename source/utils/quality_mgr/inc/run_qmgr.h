@@ -51,11 +51,14 @@ typedef struct {
     unsigned int reporting;
 } server_arg_t;
 
-/* ext_event_type — set by _ext stubs on Extender, read by run_gateway_thread on GW */
+/* ext_qualitymgr_type — set by _ext stubs on Extender, read by run_gateway_thread on GW */
 typedef enum {
-    EXT_EVENT_ADD_STATS          = 1,
-    EXT_EVENT_PERIODIC_CAFFINITY = 2,
-} ext_event_type_t;
+    ext_qualitymgr_add_stats,
+    ext_qualitymgr_periodic_caffinity,
+    ext_qualitymgr_disconnect_link_stats,
+    ext_qualitymgr_remove_link_stats,
+
+} ext_qualitymgr_type_t;
 
 typedef struct {
     mac_addr_str_t mac_str;
@@ -70,7 +73,7 @@ typedef struct {
     unsigned int status_code;
     int dhcp_event;
     int dhcp_msg_type;
-    ext_event_type_t ext_event_type;  /* set by _ext stubs, read by run_gateway_thread */
+    ext_qualitymgr_type_t ext_event_type;  /* set by _ext stubs, read by run_gateway_thread */
   } stats_arg_t;
 
 typedef struct {

@@ -480,6 +480,7 @@ typedef struct {
     unsigned int cli_MaxUplinkRate;
     unsigned int cli_LastDataDownlinkRate;
     unsigned int cli_LastDataUplinkRate;
+    bool cli_PowerSaveMode;
 } dev_stats_t;
 
 typedef struct {

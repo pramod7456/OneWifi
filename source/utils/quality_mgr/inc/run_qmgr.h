@@ -51,6 +51,12 @@ typedef struct {
     unsigned int reporting;
 } server_arg_t;
 
+/* ext_event_type — set by _ext stubs on Extender, read by run_gateway_thread on GW */
+typedef enum {
+    EXT_EVENT_ADD_STATS          = 1,
+    EXT_EVENT_PERIODIC_CAFFINITY = 2,
+} ext_event_type_t;
+
 typedef struct {
     mac_addr_str_t mac_str;
     mac_addr_str_t ap_mac_str;
@@ -64,6 +70,7 @@ typedef struct {
     unsigned int status_code;
     int dhcp_event;
     int dhcp_msg_type;
+    ext_event_type_t ext_event_type;  /* set by _ext stubs, read by run_gateway_thread */
   } stats_arg_t;
 
 typedef struct {
@@ -93,8 +100,6 @@ typedef struct {
 
 /* DHCP event flag for affinity updates */
 #define DHCP_EVENT_UPDATE    1
-
-/* affinity_arg_t merged into stats_arg_t */
 
 
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);

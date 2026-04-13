@@ -227,17 +227,17 @@ void* run_gateway_thread(void *arg) {
                 periodic_caffinity_stats_update(buf, count);
                 break;
             
-	    case ext_qualitymgr_disconnect_link_stats:
+	        case ext_qualitymgr_disconnect_link_stats:
                 wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d ->ext_qualitymgr_disconnect_link_stats\n", __func__, __LINE__);
                 disconnect_link_stats(buf);
                 break;
             
-	    case ext_qualitymgr_remove_link_stats:
+	        case ext_qualitymgr_remove_link_stats:
                 wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d -> ext_qualitymgr_remove_link_stats\n", __func__, __LINE__);
                 remove_link_stats(buf);
                 break;
             
-	    default:
+	        default:
                 wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d unknown ext_event_type=%d mac=%s\n",
                     __func__, __LINE__, buf[0].ext_event_type, buf[0].mac_str);
                 break;
@@ -299,12 +299,12 @@ static int remove_link_stats_ext(stats_arg_t *stats)
     send_qmgr_data_to_gateway(stats,1,ext_qualitymgr_remove_link_stats);
     return 0;
 }
-//Here the stats has to be sent to GW using socket
-static int add_stats_metrics_ext(stats_arg_t *stats, int len)
+//Unified extender dispatcher: fills ext_event_type via send_qmgr_data_to_gateway
+static int process_lq_stats_ext(stats_arg_t *stats, int len, ext_qualitymgr_type_t qmgr_val)
 {
-    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d g_sock=%d\n", __func__, __LINE__, len, g_sock);
-    send_qmgr_data_to_gateway(stats,len,ext_qualitymgr_add_stats);
-    return 0;
+    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d qmgr_val=%d g_sock=%d\n",
+        __func__, __LINE__, len, qmgr_val, g_sock);
+    return send_qmgr_data_to_gateway(stats, len, qmgr_val);
 }
 //This function is not needed in extender this is specific to the Gateway
 static char* get_link_metrics_ext() 
@@ -341,6 +341,22 @@ static int stop_link_metrics_gw()
     dhcp_sniffer_stop();
     stop_link_metrics();
     return 0;
+}
+//GW-only dispatcher: calls add_stats_metrics or periodic_caffinity_stats_update based on enum
+static int process_lq_stats_gw(stats_arg_t *stats, int len, ext_qualitymgr_type_t qmgr_val)
+{
+    extern int add_stats_metrics(stats_arg_t *stats, int len);
+    extern int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d len=%d qmgr_val=%d\n", __func__, __LINE__, len, qmgr_val);
+    switch (qmgr_val) {
+        case ext_qualitymgr_add_stats:
+            return add_stats_metrics(stats, len);
+        case ext_qualitymgr_periodic_caffinity:
+            return periodic_caffinity_stats_update(stats, len);
+        default:
+            wifi_util_error_print(WIFI_APPS, "%s:%d unknown qmgr_val=%d\n", __func__, __LINE__, qmgr_val);
+            return -1;
+    }
 }
 
 static void read_config(char *role, char *ip) {
@@ -387,10 +403,10 @@ wifi_lq_descriptor_t* get_lq_descriptor()
             desc.disconnect_link_stats_fn = disconnect_link_stats_ext;
             desc.reinit_link_metrics_fn = reinit_link_metrics_ext;
             desc.remove_link_stats_fn = remove_link_stats_ext;
-            desc.add_stats_metrics_fn = add_stats_metrics_ext;
             desc.get_link_metrics_fn = get_link_metrics_ext;
             desc.set_quality_flags_fn = set_quality_flags_ext;
             desc.get_quality_flags_fn = get_quality_flags_ext;
+            desc.process_lq_stats_fn = process_lq_stats_ext;
 	    connect_to_gateway(ip);
         } else {
             // Use Library calls in EasyMesh,Ignite and GW mode
@@ -403,7 +419,6 @@ wifi_lq_descriptor_t* get_lq_descriptor()
             extern int disconnect_link_stats(stats_arg_t *stats);
             extern int reinit_link_metrics(server_arg_t *arg);
             extern int remove_link_stats(stats_arg_t *stats);
-            extern int add_stats_metrics(stats_arg_t *stats,int len);
             extern char* get_link_metrics();
             extern int set_quality_flags(quality_flags_t *flag);
             extern int get_quality_flags(quality_flags_t *flag);
@@ -416,10 +431,10 @@ wifi_lq_descriptor_t* get_lq_descriptor()
             desc.disconnect_link_stats_fn = disconnect_link_stats;
             desc.reinit_link_metrics_fn = reinit_link_metrics;
             desc.remove_link_stats_fn = remove_link_stats;
-            desc.add_stats_metrics_fn = add_stats_metrics;
             desc.get_link_metrics_fn = get_link_metrics;
             desc.set_quality_flags_fn = set_quality_flags;
             desc.get_quality_flags_fn = get_quality_flags;
+            desc.process_lq_stats_fn = process_lq_stats_gw;
             pthread_create(&tid, &attr, run_gateway_thread, NULL);
         }
 

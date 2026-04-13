@@ -32,10 +32,10 @@ typedef int (* stop_link_metrics_t)();
 typedef int (* disconnect_link_stats_t)(stats_arg_t *stats);
 typedef int (* reinit_link_metrics_t)(server_arg_t *arg);
 typedef int (* remove_link_stats_t) (stats_arg_t *stats);
-typedef int (* add_stats_metrics_t) (stats_arg_t *stats,int len);
 typedef char* (* get_link_metrics_t) ();
 typedef int (* set_quality_flags_t) (quality_flags_t *flag);
 typedef int (* get_quality_flags_t) (quality_flags_t *flag);
+typedef int (* process_lq_stats_t)(stats_arg_t *stats, int len, ext_qualitymgr_type_t type);
 
 
 typedef struct {
@@ -47,10 +47,10 @@ typedef struct {
     disconnect_link_stats_t disconnect_link_stats_fn;
     reinit_link_metrics_t reinit_link_metrics_fn;
     remove_link_stats_t remove_link_stats_fn;
-    add_stats_metrics_t add_stats_metrics_fn;
     get_link_metrics_t get_link_metrics_fn;
     set_quality_flags_t set_quality_flags_fn;
     get_quality_flags_t get_quality_flags_fn;
+    process_lq_stats_t process_lq_stats_fn;
 
 } wifi_lq_descriptor_t;
 

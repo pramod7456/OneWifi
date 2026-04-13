@@ -480,6 +480,8 @@ int qmgr_t::run()
             lq = (linkq_t *)hash_map_get_first(m_link_map);
             wifi_util_dbg_print(WIFI_APPS,"%s:%d Processing %d devices in m_link_map\n",
                 __func__,__LINE__, hash_map_count(m_link_map));
+            double lq_sum_sq_iter = 0.0;
+            int lq_count_iter = 0;
             while (lq != NULL) {
                 v = lq->run_test(alarm,update_alarm, rapid_disconnect);
                 // Skip if run_test returned invalid/no data
@@ -496,27 +498,18 @@ int qmgr_t::run()
                 mac_str[sizeof(mac_str) - 1] = '\0';
                 update_json(mac_str, v, out_obj, alarm);
                 
-                // Accumulate RMS for Link Quality Score
+                // Accumulate RMS for Link Quality Score (per-iteration)
                 double lq_score = v.m_val[SCORE_INDEX].m_re;
-                m_rms_lq_sum_sq += lq_score * lq_score;
-                
-                
+                lq_sum_sq_iter += lq_score * lq_score;
+                lq_count_iter++;
+
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             
-            // Calculate and update Link Quality RMS
-            if (m_rms_lq_count > 0) {
-                m_rms_lq_count = hash_map_count(m_link_map);
-                double rms_lq = sqrt(m_rms_lq_sum_sq / m_rms_lq_count);
+            // Calculate and update Link Quality RMS (per-iteration snapshot)
+            if (lq_count_iter > 0) {
+                double rms_lq = sqrt(lq_sum_sq_iter / lq_count_iter);
                 update_rms_lq_aggregate_json(rms_lq);
-                
-                // Reset counter daily
-                if (m_rms_lq_count >= RMS_RESET_COUNT) {
-                    wifi_util_info_print(WIFI_APPS, "%s:%d RMS LQ counter reset after %d samples\n", 
-                        __func__, __LINE__, m_rms_lq_count);
-                    m_rms_lq_sum_sq = 0.0;
-                    m_rms_lq_count = 0;
-                }
             }
             
             // --- Process caffinity in single pass: classify and populate JSON ---
@@ -529,6 +522,8 @@ int qmgr_t::run()
                 // Reset counts for this iteration
                 int connected_count = 0;
                 int unconnected_count = 0;
+                double conn_sum_sq_iter = 0.0;
+                double unconn_sum_sq_iter = 0.0;
                 
                 // Process each client: compute score, classify, populate JSON, accumulate RMS
                 std::unordered_map<std::string, caffinity_t*>::iterator caff_it;
@@ -545,43 +540,25 @@ int qmgr_t::run()
                         // Process connected client
                         populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
                                                       conn_arr, unconn_arr, "ConnectedClients");
-                        m_rms_conn_sum_sq += score * score;
+                        conn_sum_sq_iter += score * score;
                         connected_count++;
                     } else {
                         // Process unconnected client
                         populate_caffinity_client_json(mac_cstr, score, get_local_time(tmp, sizeof(tmp), true),
                                                       unconn_arr, conn_arr, "UnconnectedClients");
-                        m_rms_unconn_sum_sq += score * score;
+                        unconn_sum_sq_iter += score * score;
                         unconnected_count++;
                     }
                 }
                 
-                // Set RMS counts after processing
-                m_rms_conn_count = connected_count;
-                m_rms_unconn_count = unconnected_count;
-                
-                // Calculate RMS values
-                double rms_connected = (m_rms_conn_count > 0) ? sqrt(m_rms_conn_sum_sq / m_rms_conn_count) : 0.0;
-                double rms_unconnected = (m_rms_unconn_count > 0) ? sqrt(m_rms_unconn_sum_sq / m_rms_unconn_count) : 0.0;
-                wifi_util_info_print(WIFI_CTRL, "%s:%d RMS connected %lf samples, RMS unconnected %lf samples\n", 
-                        __func__, __LINE__, rms_connected, rms_unconnected );
+                // Calculate per-iteration RMS values (snapshot, no historical accumulation)
+                double rms_connected = (connected_count > 0) ? sqrt(conn_sum_sq_iter / connected_count) : 0.0;
+                double rms_unconnected = (unconnected_count > 0) ? sqrt(unconn_sum_sq_iter / unconnected_count) : 0.0;
+                wifi_util_info_print(WIFI_CTRL, "%s:%d RMS connected %lf samples, RMS unconnected %lf samples\n",
+                        __func__, __LINE__, rms_connected, rms_unconnected);
                 // Update RMS aggregate JSON
                 update_rms_aggregate_json(rms_connected, rms_unconnected);
-                
-                // Reset counters daily (24*60*60/5 = 17280 samples at 5-second intervals)
-                if (m_rms_conn_count >= RMS_RESET_COUNT) {
-                    wifi_util_info_print(WIFI_APPS, "%s:%d RMS connected counter reset after %d samples\n", 
-                        __func__, __LINE__, m_rms_conn_count);
-                    m_rms_conn_sum_sq = 0.0;
-                    m_rms_conn_count = 0;
-                }
-                if (m_rms_unconn_count >= RMS_RESET_COUNT) {
-                    wifi_util_info_print(WIFI_APPS, "%s:%d RMS unconnected counter reset after %d samples\n", 
-                        __func__, __LINE__, m_rms_unconn_count);
-                    m_rms_unconn_sum_sq = 0.0;
-                    m_rms_unconn_count = 0;
-                }
-                
+
                 pthread_mutex_unlock(&m_json_lock);
             }
             update_caffinity_graph();

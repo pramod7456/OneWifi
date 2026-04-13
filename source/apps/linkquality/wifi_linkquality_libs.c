@@ -33,8 +33,17 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#define MAX_EM_BUFF_SZ  1024
+#define QMGR_FILE "/tmp/qmgr_ready"
+
 int g_sock = -1;
 static char g_gw_ip[50];
+static  int create_autoconfig_resp_msg(unsigned char *buff, unsigned char *dst, 
+    char *interface_name,stats_arg_t *stats, int len,ext_qualitymgr_type_t event);
+
+static int send_frame(unsigned char *buff, unsigned int len, bool multicast,  char *ifname);
 
 int connect_to_gateway(const char *ip) {
     struct sockaddr_in server;
@@ -94,40 +103,48 @@ static int ensure_connected(void)
     return 0;
 }
 
-static int send_qmgr_data_to_gateway(stats_arg_t *stats,int len,ext_qualitymgr_type_t qmgr_val)
+static int send_qmgr_data_to_gateway(stats_arg_t *stats, int len,
+                                     ext_qualitymgr_type_t qmgr_val)
 {
     if (ensure_connected() < 0) {
-        wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d socket not available, dropping caffinity update len=%d\n",
+        wifi_util_error_print(WIFI_APPS,
+            " SOCKET %s:%d socket not available, dropping update len=%d\n",
             __func__, __LINE__, len);
         return -1;
     }
-    for (int i = 0; i < len; i++) {
-        stats[i].ext_event_type = qmgr_val;
-        wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d [%d] mac=%s event=%d dhcp_event=%d dhcp_msg=%d\n",
-            __func__, __LINE__, i, stats[i].mac_str, stats[i].event, stats[i].dhcp_event, stats[i].dhcp_msg_type);
-    }
-    if (send(g_sock, &len, sizeof(int), MSG_NOSIGNAL) < 0) {
-        wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d send count failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
-        close(g_sock);
-        g_sock = -1;
+
+    size_t packet_size = sizeof(qmgr_packet_t) + len * sizeof(stats_arg_t);
+    qmgr_packet_t *packet = malloc(packet_size);
+    if (!packet) {
         return -1;
     }
-    ssize_t sent = send(g_sock, stats, len * sizeof(stats_arg_t), MSG_NOSIGNAL);
+
+    packet->len = len;
+    packet->ext_event_type = qmgr_val;
+    memcpy(packet->stats, stats, len * sizeof(stats_arg_t));
+
+    // Send all packet in a single go
+    ssize_t sent = send(g_sock, packet, packet_size, MSG_NOSIGNAL);
     if (sent < 0) {
-        wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d send payload failed g_sock=%d: %s\n", __func__, __LINE__, g_sock, strerror(errno));
+        wifi_util_error_print(WIFI_APPS,
+            " SOCKET %s:%d send failed g_sock=%d:\n",
+            __func__, __LINE__, g_sock);
         close(g_sock);
         g_sock = -1;
+        free(packet);
         return -1;
     }
-    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d sent len=%d payload_bytes=%zd\n", __func__, __LINE__, len, sent);
+
+    wifi_util_dbg_print(WIFI_APPS,
+        " SOCKET %s:%d sent len=%d payload_bytes=%zd\n",
+        __func__, __LINE__, len, sent);
+
+    free(packet);
     return 0;
 }
-
 void* run_gateway_thread(void *arg) {
     int server_fd, client_fd;
     struct sockaddr_in addr;
-    extern int add_stats_metrics(stats_arg_t *stats, int len);
-    extern int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
@@ -167,83 +184,72 @@ void* run_gateway_thread(void *arg) {
     }
 
     wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d extender connected client_fd=%d\n", __func__, __LINE__, client_fd);
-
     while (1) {
-        int count = 0;
-        int n = recv(client_fd, &count, sizeof(int), MSG_WAITALL);
-        if (n == 0) {
-            wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d extender closed connection\n", __func__, __LINE__);
-            break;
-        }
-        if (n < 0) {
-            wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d recv count failed: %s\n", __func__, __LINE__, strerror(errno));
-            break;
-        }
+        qmgr_packet_t hdr;
 
-        wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d recv count=%d (expected payload=%zu bytes)\n",
-            __func__, __LINE__, count, count * sizeof(stats_arg_t));
-
-        if (count <= 0 || count > 256) {
-            wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d invalid count=%d, closing\n", __func__, __LINE__, count);
+        int n = recv(client_fd, &hdr, sizeof(hdr), MSG_WAITALL);
+        if (n <=0 || n != sizeof(hdr)) {
+            wifi_util_dbg_print(WIFI_APPS, "  %s:%d Received header not valid \n", __func__, __LINE__);
             break;
         }
+        int count = hdr.len;
+        ext_qualitymgr_type_t event = hdr.ext_event_type;
 
-        stats_arg_t *buf = (stats_arg_t *)calloc(count, sizeof(stats_arg_t));
-        if (!buf) {
-            wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d calloc failed count=%d size=%zu: %s\n",
-                __func__, __LINE__, count, count * sizeof(stats_arg_t), strerror(errno));
-            break;
-        }
+        wifi_util_dbg_print(WIFI_APPS,"%s:%d recv header count=%d event=%d\n",
+           __func__, __LINE__, count, event);
 
-        n = recv(client_fd, buf, count * (int)sizeof(stats_arg_t), MSG_WAITALL);
-        if (n == 0) {
-            wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d extender closed during payload recv\n", __func__, __LINE__);
-            free(buf);
-            break;
-        }
-        if (n < 0) {
-            wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d recv payload failed: %s\n", __func__, __LINE__, strerror(errno));
-            free(buf);
-            break;
-        }
-        if (n != count * (int)sizeof(stats_arg_t)) {
-            wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d short read: got=%d expected=%zu\n",
-                __func__, __LINE__, n, count * sizeof(stats_arg_t));
-            free(buf);
-            break;
-        }
-
-        wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d dispatching count=%d ext_event_type=%d mac[0]=%s\n",
-            __func__, __LINE__, count, buf[0].ext_event_type, buf[0].mac_str);
-
-        switch (buf[0].ext_event_type) {
-            case ext_qualitymgr_add_stats:
-                wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d -> add_stats_metrics count=%d\n", __func__, __LINE__, count);
-                add_stats_metrics(buf, count);
-                break;
-            case ext_qualitymgr_periodic_caffinity:
-                wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d -> periodic_caffinity_stats_update count=%d\n", __func__, __LINE__, count);
-                periodic_caffinity_stats_update(buf, count);
-                break;
-            
-	        case ext_qualitymgr_disconnect_link_stats:
-                wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d ->ext_qualitymgr_disconnect_link_stats\n", __func__, __LINE__);
-                disconnect_link_stats(buf);
-                break;
-            
-	        case ext_qualitymgr_remove_link_stats:
-                wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d -> ext_qualitymgr_remove_link_stats\n", __func__, __LINE__);
-                remove_link_stats(buf);
-                break;
-            
-	        default:
-                wifi_util_error_print(WIFI_APPS, " SOCKET %s:%d unknown ext_event_type=%d mac=%s\n",
-                    __func__, __LINE__, buf[0].ext_event_type, buf[0].mac_str);
-                break;
-        }
-        free(buf);
+    if (count <= 0 || count > 256) {
+        wifi_util_error_print(WIFI_APPS," %s:%d invalid count=%d, closing\n",
+            __func__, __LINE__, count);
+        break;
     }
 
+    stats_arg_t *buf = calloc(count, sizeof(stats_arg_t));
+    if (!buf) {
+        wifi_util_error_print(WIFI_APPS,"%s:%d calloc failed count=%d size=%zu:\n",
+            __func__, __LINE__, count, count * sizeof(stats_arg_t));
+        break;
+    }
+
+    n = recv(client_fd, buf, count * sizeof(stats_arg_t), MSG_WAITALL);
+    if (n <= 0 || n != count * (int)sizeof(stats_arg_t)) {
+        wifi_util_dbg_print(WIFI_APPS,
+            " SOCKET %s:%d received payload is less\n",
+            __func__, __LINE__);
+        free(buf);
+        break;
+    }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d:%d:%d\n",__func__, __LINE__, event,count);
+    switch (event) {
+        case ext_qualitymgr_add_stats:
+            add_stats_metrics(buf, count);
+            break;
+
+        case ext_qualitymgr_periodic_caffinity:
+            periodic_caffinity_stats_update(buf, count);
+            break;
+
+        case ext_qualitymgr_disconnect_link_stats:
+            disconnect_link_stats(buf);
+            break;
+
+        case ext_qualitymgr_remove_link_stats:
+            remove_link_stats(buf);
+            break;
+
+        case ext_qualitymgr_lq_affinity:
+            add_stats_metrics(buf,count);
+            periodic_caffinity_stats_update(buf, count);
+            break;
+
+        default:
+            wifi_util_error_print(WIFI_APPS,
+                " SOCKET %s:%d unknown ext_event_type=%d\n",
+                __func__, __LINE__, event);
+            break;
+    }
+    free(buf);
+}
     wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d closing client_fd=%d server_fd=%d\n", __func__, __LINE__, client_fd, server_fd);
     close(client_fd);
     close(server_fd);
@@ -253,8 +259,19 @@ void* run_gateway_thread(void *arg) {
 //Here the stats has to be sent to GW using socket
 static int periodic_caffinity_stats_update_ext(stats_arg_t *stats, int len)
 {
+    unsigned char msg[MAX_EM_BUFF_SZ];
+    //This should be ur sending interface of RPI(Extender)
+    char *ifname = "eth0";
+    int frame_len = 0;
+    //This should be the MAC address of brlan0 of GW
+    unsigned char mac[] = {0xe0, 0xdb, 0xd1, 0xdd,0x08, 0x74};
     wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d g_sock=%d\n", __func__, __LINE__, len, g_sock);
-    send_qmgr_data_to_gateway(stats,len,ext_qualitymgr_periodic_caffinity);
+    if (access(QMGR_FILE, F_OK) == 0) {
+        send_qmgr_data_to_gateway(stats,len,ext_qualitymgr_periodic_caffinity);
+    } else {
+        frame_len = create_autoconfig_resp_msg(msg,(unsigned char*)mac,ifname,stats,len,ext_qualitymgr_periodic_caffinity);
+        send_frame(msg, frame_len, false, ifname);
+    }
     return 0;
 }
 //This function is not needed in extender this is specific to project Ignite
@@ -281,7 +298,18 @@ static int stop_link_metrics_ext()
 static int disconnect_link_stats_ext(stats_arg_t *stats)
 {
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
-    send_qmgr_data_to_gateway(stats,1,ext_qualitymgr_disconnect_link_stats);
+    unsigned char msg[MAX_EM_BUFF_SZ];
+    //This should be ur sending interface of RPI(Extender)
+    char *ifname = "eth0";
+    int frame_len = 0;
+    //This should be the MAC address of brlan0 of GW
+    unsigned char mac[] = {0xe0, 0xdb, 0xd1, 0xdd,0x08, 0x74};
+    if (access(QMGR_FILE, F_OK) == 0) {
+        send_qmgr_data_to_gateway(stats,1,ext_qualitymgr_disconnect_link_stats);
+    } else {
+        frame_len = create_autoconfig_resp_msg(msg,(unsigned char*)mac,ifname,stats,1,ext_qualitymgr_disconnect_link_stats);
+        send_frame(msg, frame_len, false, ifname);
+    }
     return 0;
 }
 
@@ -295,15 +323,39 @@ static int reinit_link_metrics_ext(server_arg_t *arg)
 static int remove_link_stats_ext(stats_arg_t *stats)
 {
     wifi_util_dbg_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
-    send_qmgr_data_to_gateway(stats,1,ext_qualitymgr_remove_link_stats);
+    unsigned char msg[MAX_EM_BUFF_SZ];
+    //This should be ur sending interface of RPI(Extender)
+    char *ifname = "eth0";
+    int frame_len = 0;
+    //This should be the MAC address of brlan0 of GW
+    unsigned char mac[] = {0xe0, 0xdb, 0xd1, 0xdd,0x08, 0x74};
+    if (access(QMGR_FILE, F_OK) == 0) {
+        send_qmgr_data_to_gateway(stats,1,ext_qualitymgr_disconnect_link_stats);
+    } else {
+        frame_len = create_autoconfig_resp_msg(msg,(unsigned char*)mac,ifname,stats,1,ext_qualitymgr_disconnect_link_stats);
+        send_frame(msg, frame_len, false, ifname);
+    }
     return 0;
 }
 //Unified extender dispatcher: fills ext_event_type via send_qmgr_data_to_gateway
-static int process_lq_stats_ext(stats_arg_t *stats, int len, ext_qualitymgr_type_t qmgr_val)
+static int process_lq_stats_ext(stats_arg_t *stats, int len)
 {
-    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d qmgr_val=%d g_sock=%d\n",
-        __func__, __LINE__, len, qmgr_val, g_sock);
-    return send_qmgr_data_to_gateway(stats, len, qmgr_val);
+    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d  g_sock=%d\n",
+        __func__, __LINE__, len, g_sock);
+    unsigned char msg[MAX_EM_BUFF_SZ];
+    //This should be ur sending interface of RPI(Extender)
+    char *ifname = "eth0";
+    int frame_len = 0;
+    //This should be the MAC address of brlan0 of GW
+    unsigned char mac[] = {0xe0, 0xdb, 0xd1, 0xdd,0x08, 0x74};
+    wifi_util_dbg_print(WIFI_APPS, " SOCKET %s:%d len=%d g_sock=%d\n", __func__, __LINE__, len, g_sock);
+    if (access(QMGR_FILE, F_OK) == 0) {
+        send_qmgr_data_to_gateway(stats,len,ext_qualitymgr_lq_affinity);
+    } else {
+        frame_len = create_autoconfig_resp_msg(msg,(unsigned char*)mac,ifname,stats,len,ext_qualitymgr_lq_affinity);
+        send_frame(msg, frame_len, false, ifname);
+    }
+    return 0;
 }
 //This function is not needed in extender this is specific to the Gateway
 static char* get_link_metrics_ext() 
@@ -342,20 +394,12 @@ static int stop_link_metrics_gw()
     return 0;
 }
 //GW-only dispatcher: calls add_stats_metrics or periodic_caffinity_stats_update based on enum
-static int process_lq_stats_gw(stats_arg_t *stats, int len, ext_qualitymgr_type_t qmgr_val)
+static int process_lq_stats_gw(stats_arg_t *stats, int len)
 {
-    extern int add_stats_metrics(stats_arg_t *stats, int len);
-    extern int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
-    wifi_util_dbg_print(WIFI_APPS, "%s:%d len=%d qmgr_val=%d\n", __func__, __LINE__, len, qmgr_val);
-    switch (qmgr_val) {
-        case ext_qualitymgr_add_stats:
-            return add_stats_metrics(stats, len);
-        case ext_qualitymgr_periodic_caffinity:
-            return periodic_caffinity_stats_update(stats, len);
-        default:
-            wifi_util_error_print(WIFI_APPS, "%s:%d unknown qmgr_val=%d\n", __func__, __LINE__, qmgr_val);
-            return -1;
-    }
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d len=%d \n", __func__, __LINE__, len);
+    add_stats_metrics(stats, len);
+    periodic_caffinity_stats_update(stats, len);
+    return 0;
 }
 
 static void read_config(char *role, char *ip) {
@@ -442,3 +486,109 @@ wifi_lq_descriptor_t* get_lq_descriptor()
 
     return &desc;
 }
+
+static int send_frame(unsigned char *buff, unsigned int len, bool multicast,  char *ifname)
+{
+    int ret = 0;
+    multiap_raw_hdr_t *hdr = (multiap_raw_hdr_t *)(buff);
+
+    struct sockaddr_ll sadr_ll;
+    int sock;
+    mac_address_t   multi_addr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    wifi_util_info_print(WIFI_CTRL,"Sending frame on %s\n",ifname);
+
+    sock = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW);
+    if (sock < 0) {
+        return -1;
+    }
+
+    sadr_ll.sll_ifindex = (int)(if_nametoindex(ifname));
+    sadr_ll.sll_halen = ETH_ALEN; // length of destination mac address
+    sadr_ll.sll_protocol = htons(ETH_P_ALL);
+    memcpy(sadr_ll.sll_addr, (multicast == true) ? multi_addr:hdr->dst, sizeof(mac_address_t));
+
+    ret = (int)(sendto(sock, buff, len, 0, (const struct sockaddr*)&sadr_ll, sizeof(struct sockaddr_ll)));
+    wifi_util_info_print(WIFI_CTRL,"Sent frame on %s ret val =%d\n",ifname,ret);
+    close(sock);
+    return ret;
+ }
+
+int create_autoconfig_resp_msg(unsigned char *buff, unsigned char *dst, char *interface_name,stats_arg_t *stats, int num_devs,ext_qualitymgr_type_t event)
+{
+    unsigned short msg_id = multiap_msg_type_autoconf_resp;
+    multiap_cmdu_t *cmdu;
+    multiap_tlv_t *tlv;
+    int len = 0;
+    unsigned char *tmp = buff;
+    unsigned char src_addr[64];
+    char st[64] = { 0 };
+    
+    unsigned short type = htons(ETH_P_1905);
+    
+    mac_address_from_name(interface_name, src_addr);
+
+    uint8_mac_to_string_mac(src_addr, st);
+    wifi_util_info_print(WIFI_APPS, "Source MAC from interface %s = %s\n", interface_name, st);
+
+    uint8_mac_to_string_mac(dst, st);
+    wifi_util_info_print(WIFI_APPS, "Destination MAC = %s\n", st);
+
+    memcpy(tmp, (unsigned char *)dst, sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += (int)(sizeof(mac_address_t));
+
+    memcpy(tmp, (unsigned char *)src_addr, sizeof(mac_address_t));
+    tmp += sizeof(mac_address_t);
+    len += (int)(sizeof(mac_address_t));
+
+    memcpy(tmp, (unsigned char *)(&type), sizeof(unsigned short));
+    tmp += sizeof(unsigned short);
+    len += (int)(sizeof(unsigned short));
+    cmdu = (multiap_cmdu_t *)(tmp);
+
+    memset(tmp, 0, sizeof(multiap_cmdu_t));
+    cmdu->type = htons(msg_id);
+    cmdu->id = msg_id;
+    msg_id++;
+    cmdu->last_frag_ind = 1;
+    cmdu->relay_ind = 1;
+
+    tmp += sizeof(multiap_cmdu_t);
+    len += (int)(sizeof(multiap_cmdu_t));
+
+  // supported service tlv 17.2.1
+    tlv = (multiap_tlv_t *) (tmp);
+    tlv->type = multiap_tlv_type_searched_role;
+    tlv->len = htons(sizeof(unsigned char));
+    
+    memcpy(&tlv->value[1], &event, sizeof(multiap_enum_type_t));
+
+    tmp += (sizeof(multiap_tlv_t) + sizeof(multiap_enum_type_t) + 1);
+    len += (int) (sizeof(multiap_tlv_t) + sizeof(multiap_enum_type_t) + 1);
+
+    /* LinkQualityData TLV */
+    tlv = (multiap_tlv_t *)tmp;
+
+    tlv->type =  multiap_tlv_type_lq;  // or correct type
+    int payload_len = num_devs * sizeof(stats_arg_t);
+
+     tlv->len = htons(payload_len);
+
+    memcpy(tlv->value, stats, payload_len);
+
+    tmp += sizeof(multiap_tlv_t) + payload_len;
+    len += sizeof(multiap_tlv_t) + payload_len;
+    
+    /* End of message */
+    tlv = (multiap_tlv_t *)(tmp);
+    tlv->type = multiap_tlv_type_eom;
+    tlv->len = 0;
+
+    tmp += (sizeof(multiap_tlv_t));
+    len += (int)(sizeof(multiap_tlv_t));
+    wifi_util_info_print(WIFI_APPS, "%s:%d Autoconfig response message created successfully, total_length=%d bytes\n",
+       __func__, __LINE__, len);
+
+    return len;
+}
+

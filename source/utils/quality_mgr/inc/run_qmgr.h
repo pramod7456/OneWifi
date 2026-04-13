@@ -57,6 +57,7 @@ typedef enum {
     ext_qualitymgr_periodic_caffinity,
     ext_qualitymgr_disconnect_link_stats,
     ext_qualitymgr_remove_link_stats,
+    ext_qualitymgr_lq_affinity,
 
 } ext_qualitymgr_type_t;
 
@@ -73,7 +74,6 @@ typedef struct {
     unsigned int status_code;
     int dhcp_event;
     int dhcp_msg_type;
-    ext_qualitymgr_type_t ext_event_type;  /* set by _ext stubs, read by run_gateway_thread */
   } stats_arg_t;
 
 typedef struct {

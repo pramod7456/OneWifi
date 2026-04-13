@@ -949,9 +949,7 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
             stats_array[i].vap_index
         );
     }
-    get_lq_descriptor()->process_lq_stats_fn(stats_array, num_devs, ext_qualitymgr_add_stats);
-    //Based on RFC this can be controlled
-    get_lq_descriptor()->process_lq_stats_fn(stats_array, num_devs, ext_qualitymgr_periodic_caffinity);
+    get_lq_descriptor()->process_lq_stats_fn(stats_array, num_devs);
     free(stats_array);
     //dhcp_cleanup_old_entries();
     return RETURN_OK;

@@ -155,6 +155,7 @@ int caffinity_t::periodic_stats_update(stats_arg_t *arg)
 
     // Update m_connected_time from total_connected_time
     m_connected_time = arg->total_connected_time;
+    
     wifi_util_info_print(WIFI_CTRL, "caffinity stats %s:%d Updated m_connected_time=%ld.%09ld\n",
         __func__, __LINE__, (long)m_connected_time.tv_sec, m_connected_time.tv_nsec);
 

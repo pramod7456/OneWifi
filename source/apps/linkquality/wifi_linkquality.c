@@ -362,9 +362,11 @@ static void *sniffer_thread_func(void *arg)
             struct ethhdr *eth = (struct ethhdr *)buffer;
 	        uint16_t eth_type = ntohs(eth->h_proto);
             if (eth_type == 0x893a) {  // ETH_P_1905
-                 wifi_util_info_print(WIFI_CTRL,"%s:%d Received 1905 frame\n", __func__, __LINE__);
-                 //Based on the network mode type if its GW mode take the stats_arg_t and process it.
-                 continue;  
+                wifi_util_info_print(WIFI_CTRL, "%s:%d Received 1905 frame len=%zd\n",
+                    __func__, __LINE__, len);
+                /* Parse autoconf_resp from EXT and dispatch stats into qmgr */
+                lq_handle_1905_frame(buffer, len);
+                continue;
             }
             
             // ============================================================================
@@ -479,10 +481,12 @@ void dhcp_sniffer_start()
         return;
     }
 
-    // Bind to brlan0 interface
+    /* GW(RPI): backhaul to XB8 is eth0 — receives both DHCP and 1905 frames from XB8.
+     * For production GW (LAN-side clients): change to "brlan0". */
+    // Bind to backhaul interface
     memset(&sll, 0, sizeof(sll));
     memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, "brlan0", IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, "eth0", IFNAMSIZ - 1);
     
     if (ioctl(dhcp_sniffer_fd, SIOCGIFINDEX, &ifr) < 0) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d Failed to get interface index: %s\n", __func__, __LINE__, strerror(errno));
@@ -951,6 +955,14 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
     }
     get_lq_descriptor()->process_lq_stats_fn(stats_array, num_devs);
     free(stats_array);
+
+    /* GW: broadcast autoconf_search so EXT learns our MAC and can address
+     * subsequent autoconf_resp frames to us.
+     * GW(RPI): backhaul to XB8 = eth0; for production GW: change to "brlan0". */
+    if (1) {
+        lq_send_autoconf_search("eth0");
+    }
+
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
 }

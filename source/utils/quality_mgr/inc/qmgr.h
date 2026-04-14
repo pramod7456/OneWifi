@@ -51,6 +51,7 @@ class qmgr_t {
     pthread_t m_thread;
     bool m_run_started;
     bool m_bg_running;
+    static uint8_t m_gw_mac[6];
     cJSON *out_obj;
     cJSON *affinity_obj;
     cJSON *caffinity_out_obj;  // Separate JSON for caffinity telemetry
@@ -103,6 +104,8 @@ public:
     int update_affinity_stats(stats_arg_t *arg,bool flag);
     int caffinity_periodic_stats_update(stats_arg_t *stats);
     bool is_client_connected(const char *mac_str);
+    static int store_gw_mac(uint8_t *mac);
+    static int get_gw_mac(uint8_t *mac);
     ~qmgr_t();
 };
 

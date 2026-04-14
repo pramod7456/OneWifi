@@ -806,6 +806,19 @@ int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg)
     return RETURN_OK;
 
 }
+int link_quality_gw_discovery(wifi_app_t *apps, wifi_event_t *arg)
+{
+    wifi_util_info_print(WIFI_APPS, "%s:%d \n",
+        __func__, __LINE__);
+    /* GW: broadcast autoconf_search so EXT learns our MAC and can address
+     * subsequent autoconf_resp frames to us.
+     * GW(RPI): backhaul to XB8 = eth0; for production GW: change to "brlan0". */
+     lq_send_autoconf_search("eth0");
+
+    return RETURN_OK;
+
+}
+
 int link_quality_ignite_reinit_param(wifi_app_t *apps, wifi_event_t *arg)
 {
     if (!arg) {
@@ -820,6 +833,7 @@ int link_quality_ignite_reinit_param(wifi_app_t *apps, wifi_event_t *arg)
     return RETURN_OK;
 
 }
+
 int link_quality_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
 {
 
@@ -955,13 +969,6 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
     }
     get_lq_descriptor()->process_lq_stats_fn(stats_array, num_devs);
     free(stats_array);
-
-    /* GW: broadcast autoconf_search so EXT learns our MAC and can address
-     * subsequent autoconf_resp frames to us.
-     * GW(RPI): backhaul to XB8 = eth0; for production GW: change to "brlan0". */
-    if (1) {
-        lq_send_autoconf_search("eth0");
-    }
 
     //dhcp_cleanup_old_entries();
     return RETURN_OK;
@@ -1234,6 +1241,11 @@ int link_quality_event(wifi_app_t *app, wifi_event_t *event)
         case wifi_event_type_hal_ind:
             exec_event_hal_ind(app, event->sub_type, event->u.core_data.msg);
             break;
+        
+	case wifi_event_type_command:
+            link_quality_gw_discovery(app, event);
+            break;
+
 
         default:
             break;

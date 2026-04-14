@@ -31,8 +31,8 @@
 #include "wifi_util.h"
 
 qmgr_t* qmgr_t::instance = NULL;
+uint8_t qmgr_t::m_gw_mac[6] = {0};
 extern "C" void qmgr_invoke_batch(const report_batch_t *batch);
-
 qmgr_t* qmgr_t::get_instance()
 {
     static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -1169,4 +1169,21 @@ cJSON* qmgr_t::create_affinity_template(mac_addr_str_t mac_str,
     snprintf(tmp, sizeof(tmp), "Time");
     cJSON_AddItemToObject(obj, tmp, cJSON_CreateArray());
     return obj;
+}
+
+int qmgr_t::store_gw_mac(uint8_t *mac) 
+{
+    wifi_util_info_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
+    memcpy(m_gw_mac,mac,sizeof(m_gw_mac));
+   return 0;
+}
+int qmgr_t::get_gw_mac(uint8_t *mac)
+{
+    wifi_util_info_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
+    if (!mac) {
+        return -1;
+    }
+
+    memcpy(mac, m_gw_mac, sizeof(m_gw_mac));
+    return 0;
 }

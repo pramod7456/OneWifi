@@ -269,3 +269,14 @@ bool is_client_connected(const char *mac_str)
     mgr = qmgr_t::get_instance();   // always returns SAME instance
     return mgr->is_client_connected(mac_str);
 }
+
+int store_gw_mac(uint8_t *mac)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    return qmgr_t::store_gw_mac(mac);
+}
+int get_gw_mac(uint8_t *mac)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    return qmgr_t::get_gw_mac(mac);
+}

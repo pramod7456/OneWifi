@@ -475,6 +475,7 @@ int interfacename_from_mac(const mac_address_t *mac, char *ifname);
 int mac_address_from_name(const char *ifname, mac_address_t mac);
 bool is_zero_mac(const uint8_t *mac);
 bool is_valid_encr_for_mode(wifi_security_modes_t mode, wifi_encryption_method_t encr);
+void copy_assocstats_dev_stats(wifi_associated_dev3_t* assoc_dev,dev_stats_t *dev);
 #ifdef __cplusplus
 }
 #endif

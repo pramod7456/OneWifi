@@ -219,6 +219,9 @@
         PJS_OVS_BOOL(csi_analytics_enabled_rfc) \
         PJS_OVS_BOOL(link_quality_rfc) \
         PJS_OVS_BOOL(xfi_tel_enable_rfc) \
+        PJS_OVS_INT(radio_2g_observed_max_snr) \
+        PJS_OVS_INT(radio_5g_observed_max_snr) \
+        PJS_OVS_INT(radio_6g_observed_max_snr) \
   )
 
 #define PJS_SCHEMA_Wifi_MacFilter_Config \
@@ -2176,6 +2179,9 @@
     COLUMN(csi_analytics_enabled_rfc) \
     COLUMN(link_quality_rfc) \
     COLUMN(xfi_tel_enable_rfc) \
+    COLUMN(radio_2g_observed_max_snr) \
+    COLUMN(radio_5g_observed_max_snr) \
+    COLUMN(radio_6g_observed_max_snr)
 
 #define SCHEMA__Wifi_MacFilter_Config "Wifi_MacFilter_Config"
 #define SCHEMA_COLUMN__Wifi_MacFilter_Config(COLUMN) \
@@ -3557,6 +3563,9 @@
 #define SCHEMA__Wifi_Rfc_Config__csi_analytics_enabled_rfc "csi_analytics_enabled_rfc"
 #define SCHEMA__Wifi_Rfc_Config__link_quality_rfc "link_quality_rfc"
 #define SCHEMA__Wifi_Rfc_Config__xfi_tel_enable_rfc "xfi_tel_enable_rfc"
+#define SCHEMA__Wifi_Rfc_Config__radio_2g_observed_max_snr "radio_2g_observed_max_snr"
+#define SCHEMA__Wifi_Rfc_Config__radio_5g_observed_max_snr "radio_5g_observed_max_snr"
+#define SCHEMA__Wifi_Rfc_Config__radio_6g_observed_max_snr "radio_6g_observed_max_snr"
 
 #define SCHEMA__Alarms__code "code"
 #define SCHEMA__Alarms__timestamp "timestamp"

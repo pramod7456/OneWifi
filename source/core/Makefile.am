@@ -47,8 +47,6 @@ AM_LDFLAGS += -L$(top_builddir)/source/utils/quality_mgr/
 AM_LDFLAGS += -lwifi_quality_manager
 AM_LDFLAGS += -L$(top_builddir)/source/utils/math_utils/
 AM_LDFLAGS += -lwifi_math_utils
-AM_LDFLAGS += -L$(top_builddir)/source/utils/webserver/
-AM_LDFLAGS += -lwifi_webserver
 if WITH_LIBWEBCONFIG
 AM_LDFLAGS += -L$(top_builddir)/source/webconfig/
 AM_LDFLAGS += -L$(top_builddir)/source/platform/
@@ -231,8 +229,6 @@ OneWifi_LDFLAGS += -L$(top_builddir)/source/utils/quality_mgr/
 OneWifi_LDFLAGS += -lwifi_quality_manager
 OneWifi_LDFLAGS += -L$(top_builddir)/source/utils/math_utils/
 OneWifi_LDFLAGS += -lwifi_math_utils
-OneWifi_LDFLAGS += -L$(top_builddir)/source/utils/webserver/
-OneWifi_LDFLAGS += -lwifi_webserver
 if WITH_LIBWEBCONFIG
 OneWifi_LDFLAGS += -L$(top_builddir)/source/platform/
 OneWifi_LDFLAGS += -L$(top_builddir)/source/webconfig/

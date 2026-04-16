@@ -53,8 +53,6 @@ endif
 #libwifi_quality_manager_la_LIBADD = -lrbus -lstdc++
 
 libwifi_quality_manager_la_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}${includedir}/opensync_headers
-libwifi_quality_manager_la_LDFLAGS += -L$(top_builddir)/source/utils/webserver
-libwifi_quality_manager_la_LDFLAGS += -lwifi_webserver
 libwifi_quality_manager_la_LDFLAGS += -L$(top_builddir)/source/utils/math_utils
 libwifi_quality_manager_la_LDFLAGS += -lwifi_math_utils
 noinst_HEADERS = $(top_srcdir)/source/utils/wifi_util.h

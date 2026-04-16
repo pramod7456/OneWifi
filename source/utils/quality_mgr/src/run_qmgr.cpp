@@ -220,14 +220,6 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val)
     return 0;
 }
 
-int update_affinity_stats(stats_arg_t *arg,bool flag)
-{
-    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
-    qmgr_t *mgr;
-    mgr = qmgr_t::get_instance();   // always returns SAME instance
-    mgr->update_affinity_stats(arg,flag);
-    return 0;
-}
 
 int periodic_caffinity_stats_update(stats_arg_t *stats,int len)
 {

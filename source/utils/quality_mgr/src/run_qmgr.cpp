@@ -18,7 +18,6 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <errno.h>
-#include "web.h"
 #include "vector.h"
 #include "sequence.h"
 #include "wifi_hal.h"
@@ -86,28 +85,6 @@ extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
 
 }
 
-int run_web_server()
-{
-    web_t *web;
-    char path[64] = "/www/data";
-    wifi_util_info_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
-    web = web_t::get_instance(path);
-    web->start();
-    wifi_util_info_print(WIFI_APPS,"%s:%d \n",__func__,__LINE__); 
-    return 0;
-}
-
-int stop_web_server()
- {
-    wifi_util_info_print(WIFI_APPS,"stoping web_server %s:%d \n",__func__,__LINE__);
-    char path[64] = "/www/data";
-    web_t *web;
-    web = web_t::get_instance(path);   // always returns SAME instance
-    wifi_util_info_print(WIFI_APPS,"Got web instance\n");
-    web->stop();
-    wifi_util_info_print(WIFI_APPS,"stopped web_server\n");
-    return 0;
-  }
 
 int reinit_link_metrics(server_arg_t *ser_arg)
 {

@@ -101,6 +101,16 @@ static void mac_to_key(const unsigned char *mac, char *key)
         "%02x:%02x:%02x:%02x:%02x:%02x",
         mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 }
+/* Register callback BEFORE starting qmgr */
+void publish_t2_events(char **str,int len)
+{
+
+    wifi_util_error_print(WIFI_CTRL,"  %s:%d  %d\n", __func__, __LINE__,len);
+    for(int i =0;i<len;i++) {
+    wifi_util_error_print(WIFI_CTRL," Each station metrics %s:%d  %s\n", __func__, __LINE__,str[i]);
+    }
+    return;
+}
 
 /* Register callback BEFORE starting qmgr */
 void publish_qmgr_subdoc(const report_batch_t* report)
@@ -728,6 +738,8 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
         wifi_util_info_print(WIFI_APPS, "%s:%d ctrl->network_mode=%d\n",
             __func__, __LINE__, ctrl->network_mode);
     }
+    /* Register a t2 event callback from library */
+    qmgr_register_t2_callback(publish_t2_events);
 
     if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0 ||
         rfc_param->radio_6g_observed_max_snr == 0) {

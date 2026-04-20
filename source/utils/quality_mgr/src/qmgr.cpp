@@ -33,6 +33,7 @@
 qmgr_t* qmgr_t::instance = NULL;
 uint8_t qmgr_t::m_gw_mac[6] = {0};
 extern "C" void qmgr_invoke_batch(const report_batch_t *batch);
+extern "C" void qmgr_invoke_t2_callback(char **str,int count);
 
 qmgr_t* qmgr_t::get_instance()
 {
@@ -114,10 +115,12 @@ int qmgr_t::run()
     vector_t v;
     mac_addr_str_t mac_str;
     unsigned char *sta_mac;
+    std::vector<std::string> payload_list;
     bool alarm = false;
     bool rapid_disconnect = false;
     long elapsed_sec  = 0;
     bool update_alarm = false;
+   std::string device_json;
     gettimeofday(&start_time, NULL);
     pthread_mutex_lock(&m_lock);
     while (m_exit == false) {
@@ -162,6 +165,22 @@ int qmgr_t::run()
                 // Accumulate RMS for Link Quality Score (per-iteration)
                 double lq_score = v.m_val[SCORE_INDEX].m_re;
                 lq_sum_sq_iter += lq_score * lq_score;
+
+                device_json += "{";
+                device_json += "\"mac\":\"" + std::string(lq->get_mac_addr()) + "\",";
+                device_json += "\"score\":" + std::to_string(lq_score) + ",";
+                device_json += "\"values\":[";
+
+                for (int i = 0; i < v.m_num; i++) {
+                    device_json += std::to_string(v.m_val[i].m_re);
+                    if (i != v.m_num - 1) device_json += ",";
+                }
+
+               device_json += "]}";
+               //wifi_util_info_print(WIFI_CTRL,"Pramod %s:%d device_json = %s\n",__func__,__LINE__,device_json.c_str());
+               payload_list.push_back(device_json);
+	       device_json = "";
+		lq_sum_sq_iter += lq_score * lq_score;
                 lq_count_iter++;
 
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
@@ -224,8 +243,21 @@ int qmgr_t::run()
                 if (qmgr_is_batch_registered()) {
                     push_reporting_subdoc();   // batch mode
                 }
+		int count1 = payload_list.size();
+
+                char** payload_array = new char*[count1];
+
+                for (int i = 0; i < count1; i++) {
+                    payload_array[i] = strdup(payload_list[i].c_str());
+                }
 		// Here send the t2 event for all linkquality and connectedaffinity scores
-            }
+	        qmgr_invoke_t2_callback(payload_array, count1);
+		for (int i = 0; i < count1; i++) {
+                    free(payload_array[i]);
+                }
+                delete[] payload_array;
+	    }
+	    payload_list.clear();
             pthread_mutex_lock(&m_lock);
         } else {
             wifi_util_error_print(WIFI_APPS,"%s:%d em exited with rc - %d",__func__,__LINE__,rc);

@@ -453,8 +453,6 @@ void linkq_t::update_window_per()
     if (last.err_recv >= first.err_recv)
         err_recv_delta = last.err_recv - first.err_recv;
     pthread_mutex_unlock(&m_deque_lock);
-    wifi_util_dbg_print(WIFI_APPS,"DOWNLINK_PER last.pkt_sent=%d first.pkt_sent=%d sent_delta=%d err_sent_delta=%d\n",
-        last.pkt_sent,first.pkt_sent,sent_delta,err_sent_delta);
     if (sent_delta > 0)
         m_window_downlink_per =
             ((double)err_sent_delta / (double)(sent_delta + err_sent_delta)) * 100.0;
@@ -466,8 +464,6 @@ void linkq_t::update_window_per()
             ((double)err_recv_delta / (double)(recv_delta + err_recv_delta)) * 100.0;
     else
         m_window_uplink_per = 0.0;
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d DOWNLINK_PER m_window_downlink_per=%f and m_window_uplink_per=%f\n"
-        ,__func__,__LINE__,m_window_downlink_per,m_window_uplink_per);
     return;
 
 }
@@ -556,9 +552,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
     sample.pkt_recv = m_stats_arr[0].dev.cli_PacketsReceived;
     sample.err_sent = m_stats_arr[0].dev.cli_RetransCount;
     sample.err_recv = m_stats_arr[0].dev.cli_RxRetries;
-    wifi_util_dbg_print(WIFI_APPS,"DOWNLINK_PER sample.pkt_sent=%dsample.err_sent=%d\n",sample.pkt_sent,sample.err_sent);
     // Push latest sample
-    wifi_util_info_print(WIFI_APPS,"Pramod channel_utilization = %d\n",m_stats_arr[0].channel_utilization);
     pthread_mutex_lock(&m_deque_lock);
 
     // Maintain fixed window size

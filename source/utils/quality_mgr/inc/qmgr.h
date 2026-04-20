@@ -64,7 +64,7 @@ class qmgr_t {
     // Link Quality RMS tracking
     double m_rms_lq_sum_sq;
     int m_rms_lq_count;
-    static const int SCORE_INDEX = 11;  // Index of aggregate "Score" in m_score_params
+    static const int SCORE_INDEX = 9;  // Index of aggregate "Score" in m_score_params
 
 public:
     int init(stats_arg_t *arg,bool create_flag);

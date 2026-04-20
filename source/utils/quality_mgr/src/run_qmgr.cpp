@@ -29,11 +29,18 @@
 static qmgr_report_batch_cb_t qmgr_batch_cb = NULL;
 static qmgr_report_score_cb_t qmgr_score_cb = NULL;
 static qmgr_max_snr_cb_t g_qmgr_snr_cb = NULL;
+static qmgr_t2_cb_t qmgr_t2_cb = NULL;
+
 
 //Register callback functions
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb)
 {
     qmgr_batch_cb = cb;
+}
+
+void qmgr_register_t2_callback(qmgr_t2_cb_t cb)
+{
+    qmgr_t2_cb = cb;
 }
 
 void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb)
@@ -85,6 +92,15 @@ extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
 
 }
 
+
+extern "C" void qmgr_invoke_t2_callback(char **str,int count)
+{
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+    if (qmgr_t2_cb) 
+        qmgr_t2_cb(str,count);
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+
+}
 
 int reinit_link_metrics(server_arg_t *ser_arg)
 {

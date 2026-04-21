@@ -102,13 +102,39 @@ static void mac_to_key(const unsigned char *mac, char *key)
         mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 }
 /* Register callback BEFORE starting qmgr */
-void publish_t2_events(char **str,int len)
+void publish_t2_events(char **str,int len,double avg_lq_score,double avg_caff_score,double avg_ucaff_score)
 {
-
-    wifi_util_error_print(WIFI_CTRL,"  %s:%d  %d\n", __func__, __LINE__,len);
+    char telemetry_buff[64] = {0};
+    char telemetry_val[128] = {0};
+//    wifi_util_error_print(WIFI_CTRL,"  %s:%d  %d\n", __func__, __LINE__,len);
+    
     for(int i =0;i<len;i++) {
-    wifi_util_error_print(WIFI_CTRL," Each station metrics %s:%d  %s\n", __func__, __LINE__,str[i]);
+  //  wifi_util_error_print(WIFI_CTRL," Each station metrics %s:%d  %s\n", __func__, __LINE__,str[i]);
+    snprintf(telemetry_buff,sizeof(telemetry_buff),"WIFI_LQ_SCORE");
+     get_stubs_descriptor()->t2_event_s_fn(telemetry_buff, str[i]);
     }
+    //wifi_util_error_print(WIFI_CTRL," %s:%d Homelq %f connectedaff =%f and unconnectedaff =%f\n", __func__, __LINE__,avg_lq_score,avg_caff_score,avg_ucaff_score);
+
+     memset(telemetry_buff, 0, sizeof(telemetry_buff));
+     memset(telemetry_val, 0, sizeof(telemetry_val));
+    snprintf(telemetry_buff,sizeof(telemetry_buff),"WIFI_HOMELQ_SCORE");
+    snprintf(telemetry_val,sizeof(telemetry_val),"%f",avg_lq_score);
+    get_stubs_descriptor()->t2_event_s_fn(telemetry_buff,telemetry_val);
+     
+     memset(telemetry_buff, 0, sizeof(telemetry_buff));
+     memset(telemetry_val, 0, sizeof(telemetry_val));
+    snprintf(telemetry_buff,sizeof(telemetry_buff),"WIFI_HOMECONNECTED_SCORE");
+    snprintf(telemetry_val,sizeof(telemetry_val),"%f",avg_caff_score);
+    get_stubs_descriptor()->t2_event_s_fn(telemetry_buff,telemetry_val);
+     
+     memset(telemetry_buff, 0, sizeof(telemetry_buff));
+     memset(telemetry_val, 0, sizeof(telemetry_val));
+    snprintf(telemetry_buff,sizeof(telemetry_buff),"WIFI_HOMEUNCONNECTED_SCORE");
+    snprintf(telemetry_val,sizeof(telemetry_val),"%f",avg_ucaff_score);
+    get_stubs_descriptor()->t2_event_s_fn(telemetry_buff,telemetry_val);
+   wifi_util_error_print(WIFI_CTRL,"  %s:%d  %d\n", __func__, __LINE__,len);
+     
+     
     return;
 }
 

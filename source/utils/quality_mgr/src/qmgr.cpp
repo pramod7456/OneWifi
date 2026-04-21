@@ -33,7 +33,7 @@
 qmgr_t* qmgr_t::instance = NULL;
 uint8_t qmgr_t::m_gw_mac[6] = {0};
 extern "C" void qmgr_invoke_batch(const report_batch_t *batch);
-extern "C" void qmgr_invoke_t2_callback(char **str,int count);
+extern "C" void qmgr_invoke_t2_callback(char **str,int count,double avg_lq_score,double avg_caff_score,double avg_ucaff_score);
 
 qmgr_t* qmgr_t::get_instance()
 {
@@ -121,6 +121,7 @@ int qmgr_t::run()
     long elapsed_sec  = 0;
     bool update_alarm = false;
    std::string device_json;
+   double rms_lq_score,rms_caffinity_score,rms_ucaffinity_score;
     gettimeofday(&start_time, NULL);
     pthread_mutex_lock(&m_lock);
     while (m_exit == false) {
@@ -168,7 +169,7 @@ int qmgr_t::run()
 
                 device_json += "{";
                 device_json += "\"mac\":\"" + std::string(lq->get_mac_addr()) + "\",";
-                device_json += "\"score\":" + std::to_string(lq_score) + ",";
+                device_json += "\"lq_score\":" + std::to_string(lq_score) + ",";
                 device_json += "\"values\":[";
 
                 for (int i = 0; i < v.m_num; i++) {
@@ -176,8 +177,10 @@ int qmgr_t::run()
                     if (i != v.m_num - 1) device_json += ",";
                 }
 
-               device_json += "]}";
-               //wifi_util_info_print(WIFI_CTRL,"Pramod %s:%d device_json = %s\n",__func__,__LINE__,device_json.c_str());
+               device_json += "]";
+                device_json += "\"caff_score\":" +  std::to_string(0.888) + ",\"values\":[";
+	       device_json +=  std::to_string(29.4455) +"]}";
+               wifi_util_info_print(WIFI_CTRL,"Pramod %s:%d device_json = %s\n",__func__,__LINE__,device_json.c_str());
                payload_list.push_back(device_json);
 	       device_json = "";
 		lq_sum_sq_iter += lq_score * lq_score;
@@ -189,6 +192,7 @@ int qmgr_t::run()
             // Calculate and update Link Quality RMS (per-iteration snapshot)
             if (lq_count_iter > 0) {
                 double rms_lq = sqrt(lq_sum_sq_iter / lq_count_iter);
+                rms_lq_score = rms_lq;
             }
             
             // --- Process caffinity in single pass: classify and populate JSON ---
@@ -227,6 +231,8 @@ int qmgr_t::run()
                 // Calculate per-iteration RMS values (snapshot, no historical accumulation)
                 double rms_connected = (connected_count > 0) ? sqrt(conn_sum_sq_iter / connected_count) : 0.0;
                 double rms_unconnected = (unconnected_count > 0) ? sqrt(unconn_sum_sq_iter / unconnected_count) : 0.0;
+                rms_caffinity_score = rms_connected;
+                rms_ucaffinity_score = rms_unconnected;
                 wifi_util_info_print(WIFI_CTRL, "%s:%d RMS connected %lf samples, RMS unconnected %lf samples\n",
                         __func__, __LINE__, rms_connected, rms_unconnected);
                 // Update RMS aggregate JSON
@@ -251,7 +257,7 @@ int qmgr_t::run()
                     payload_array[i] = strdup(payload_list[i].c_str());
                 }
 		// Here send the t2 event for all linkquality and connectedaffinity scores
-	        qmgr_invoke_t2_callback(payload_array, count1);
+	        qmgr_invoke_t2_callback(payload_array, count1,rms_lq_score,rms_caffinity_score,rms_ucaffinity_score);
 		for (int i = 0; i < count1; i++) {
                     free(payload_array[i]);
                 }
@@ -453,13 +459,9 @@ int qmgr_t::caffinity_periodic_stats_update(stats_arg_t *stats)
         }
     } else {
         caff = it->second;
-        wifi_util_dbg_print(WIFI_APPS, "CAFF qmgr_t %s:%d Found existing caffinity_t for MAC %s\n",
-            __func__, __LINE__, mac_str);
     }
 
     if (caff) {
-        wifi_util_info_print(WIFI_APPS, "CAFF qmgr_t %s:%d Calling caffinity_t::periodic_stats_update() for MAC %s\n",
-            __func__, __LINE__, mac_str);
         caff->periodic_stats_update(stats);
     }
 

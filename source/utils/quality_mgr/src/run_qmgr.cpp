@@ -93,11 +93,11 @@ extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
 }
 
 
-extern "C" void qmgr_invoke_t2_callback(char **str,int count)
+extern "C" void qmgr_invoke_t2_callback(char **str,int count,double avg_lq_score,double avg_caff_score,double avg_ucaff_score)
 {
     wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
     if (qmgr_t2_cb) 
-        qmgr_t2_cb(str,count);
+        qmgr_t2_cb(str,count,avg_lq_score,avg_caff_score,avg_ucaff_score);
     wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
 
 }

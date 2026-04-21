@@ -108,7 +108,7 @@ typedef struct {
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
 typedef void (*qmgr_report_score_cb_t)(const char *str, double score,double threshold);
 typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
-typedef void (*qmgr_t2_cb_t)(char  **str,int len);
+typedef void (*qmgr_t2_cb_t)(char  **str,int len,double avg_lq_score,double avg_caff_score,double avg_ucaff_score);
 
 /* Registration function (called from C main) */
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb);
@@ -123,7 +123,7 @@ void reset_qmgr_score_cb(void);
 void qmgr_invoke_batch(const report_batch_t *batch);
 void qmgr_invoke_score(const char *str, double score,double threshold);
 void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
-void qmgr_invoke_t2_callback(char **str,int count);
+void qmgr_invoke_t2_callback(char **str,int count,double avg_lq_score,double avg_caff_score ,double avg_ucaff_score);
 
 
 

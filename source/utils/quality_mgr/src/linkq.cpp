@@ -82,12 +82,7 @@ static inline double apply_rapid_reconnect(double norm,int remaining,
     if (progress > 1.0) progress = 1.0;
     
     factor = ((1.0 - exp(-4.0 * progress))/(1.0 - exp(-4.0)));
-    wifi_util_info_print(WIFI_APPS,"%s:%d factor=%f\n",__func__,__LINE__,factor);
     val = norm * factor;
-
-    wifi_util_info_print(WIFI_APPS,
-        "%s:%d remaining=%d total=%d progress=%f factor=%f val=%f\n",
-        __func__, __LINE__, remaining, total, progress, factor, val);
 
     return val;
 }
@@ -203,7 +198,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         m_data_sample.phy   = v.m_val[2].m_re;
          
     } else {
-        wifi_util_dbg_print(WIFI_APPS,"%s:%d Not In Aggregte\n",__func__,__LINE__);
         v.m_val[0].m_re = 0;
         v.m_val[1].m_re = 0;
         v.m_val[2].m_re = 0;
@@ -239,7 +233,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * 
             (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
     }
-    wifi_util_error_print(WIFI_APPS,"%s:%d Pramod now Downlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
 
     // -------------------------------------------------
     // UPLINK Score
@@ -269,7 +262,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt) *
             (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
     }
-    wifi_util_error_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
 
     // -------------------------------------------------
     // Aggregate Score
@@ -289,7 +281,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt) *
             (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization))));
     }
-    wifi_util_error_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
 
     // -------------------------------------------------
     // Alarm logic
@@ -348,7 +339,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     
     if (update_alarm) {
         alarm = (m_threshold_cross_counter >= ceil(0.8 * m_sampled));
-        wifi_util_dbg_print(WIFI_APPS," in update alarm = %d counter=%d and threshold=%f\n",alarm,m_threshold_cross_counter,m_threshold);
         m_alarm = alarm;
         m_sampled = 0;
         m_threshold_cross_counter = 0;

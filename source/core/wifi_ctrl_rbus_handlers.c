@@ -26,7 +26,6 @@
 #include "wifi_util.h"
 #include "wifi_monitor.h"
 #include "wifi_webconfig.h"
-#include "run_qmgr.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -114,49 +113,19 @@ static int get_subdoc_type(wifi_provider_response_t *response, webconfig_subdoc_
     }
     return ret;
 }
-static uint32_t quality_flags_to_mask(const quality_flags_t* f)
-{
-    uint32_t mask = 0;
-
-    if(f->downlink_snr) mask |= LINKQ_DL_SNR;
-    if(f->downlink_per) mask |= LINKQ_DL_PER;
-    if(f->downlink_phy) mask |= LINKQ_DL_PHY;
-    if(f->uplink_snr)   mask |= LINKQ_UL_SNR;
-    if(f->uplink_per)   mask |= LINKQ_UL_PER;
-    if(f->uplink_phy)   mask |= LINKQ_UL_PHY;
-    if(f->aggregate)    mask |= LINKQ_AGGREGATE;
-    if(f->int_reconn)   mask |= LINKQ_INT_RECONN;
-
-    return mask;
-}
-
-static void mask_to_quality_flags(uint32_t mask, quality_flags_t* f)
-{
-    memset(f, 0, sizeof(*f));
-
-    f->downlink_snr = mask & LINKQ_DL_SNR;
-    f->downlink_per = mask & LINKQ_DL_PER;
-    f->downlink_phy = mask & LINKQ_DL_PHY;
-    f->uplink_snr   = mask & LINKQ_UL_SNR;
-    f->uplink_per   = mask & LINKQ_UL_PER;
-    f->uplink_phy   = mask & LINKQ_UL_PHY;
-    f->aggregate    = mask & LINKQ_AGGREGATE;
-    f->int_reconn   = mask & LINKQ_INT_RECONN;
-}
-
-bus_error_t get_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void)user_data;
-    bus_error_t rc = bus_error_success;
-    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    if (ctrl == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
-        return bus_error_general;
-    }
-    p_data->data_type = bus_data_type_boolean;
-    p_data->raw_data.b = ctrl->rf_status_down;
-    return rc;
-}
+ bus_error_t get_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data) 
+{                                   
+     (void)user_data;
+     bus_error_t rc = bus_error_success;
+     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
+     if (ctrl == NULL) {
+         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
+         return bus_error_general;
+     }
+      p_data->data_type = bus_data_type_boolean;
+      p_data->raw_data.b = ctrl->rf_status_down;
+     return rc;
+}    
 
 bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -183,7 +152,6 @@ bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t 
     start_station_vaps(rf_status);
     if (rf_status) {
 	    wifi_util_info_print(WIFI_CTRL, "IGNITE_RF_DOWN: Docsis disabled. Starting Station Vaps\n");
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
 
         wifi_global_config_t *global_cfg = get_wifidb_wifi_global_config();
         if (global_cfg != NULL &&
@@ -193,21 +161,12 @@ bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t 
                 "%s:%d Applying ignite_link_quality_threshold=%f on EndPoint enable\n",
                 __func__, __LINE__, threshold);
 
-            linkquality_data_t *lq_data =
-                (linkquality_data_t *)malloc(sizeof(linkquality_data_t));
-            if (lq_data != NULL) {
-                memset(lq_data, 0, sizeof(linkquality_data_t));
-                lq_data->server_arg.threshold = threshold;
-                apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec,
-                    wifi_event_exec_link_param_reinit, lq_data, sizeof(linkquality_data_t));
             } else {
                 wifi_util_error_print(WIFI_CTRL,
                     "%s:%d Failed to allocate linkquality_data_t\n", __func__, __LINE__);
             }
-        }
     } else {
        wifi_util_info_print(WIFI_CTRL, "IGNITE_RF_DOWN: Docsis enabled. Stoping Station Vaps\n");
-       apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_stop, NULL, 0);
        //Stop station vaps
        stop_extender_vaps(WIFI_ALL_RADIO_INDICES);
     }
@@ -215,28 +174,6 @@ bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t 
     return rc;
 
 }
-
-bus_error_t set_linkq_gw(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void)user_data;
-    bus_error_t rc = bus_error_success;
-    wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
-    if (ctrl == NULL) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL pointers\n", __func__, __LINE__);
-        return bus_error_general;
-    }
-
-    if (p_data->data_type != bus_data_type_boolean) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid data input\n", __func__, __LINE__);
-        return bus_error_general;
-    }
-    wifi_util_info_print(WIFI_CTRL, "%s:%d value=%d\n",__func__,__LINE__,p_data->raw_data.b);
-    if (p_data->raw_data.b) {
-        apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_command, wifi_event_type_link_quality_rfc, NULL, 0);
-    }
-    return rc;
-}
-
 
 int stats_bus_publish(wifi_ctrl_t *ctrl, void *stats_data)
 {
@@ -716,77 +653,7 @@ int set_managed_guest_interfaces(char *interface_name, int radio_index)
     return RETURN_OK;
 }
 
-bus_error_t wifi_get_link_quality_flags(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void)user_data;
-    quality_flags_t flags;
-    uint32_t mask;
-    get_quality_flags(&flags);
-    mask = quality_flags_to_mask(&flags);
 
-    p_data->data_type = bus_data_type_uint32;
-    p_data->raw_data.u32 = mask;
-    p_data->raw_data_len = sizeof(mask);
-    wifi_util_info_print(WIFI_APPS, "%s:%d linkqualityflags=%d\n",__func__,__LINE__,mask);
-    return bus_error_success;
-}
-
-bus_error_t wifi_set_link_quality_flags(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void)user_data;
-    quality_flags_t flags;
-    uint32_t mask;
-    
-    if (p_data->data_type != bus_data_type_uint32) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid data input\n", __func__, __LINE__);
-        return bus_error_general;
-    }
-    mask = p_data->raw_data.u32;
-
-    wifi_util_info_print(WIFI_APPS, "%s:%d linkqualityflags=%d \n",__func__,__LINE__,mask);
-    if(mask & ~LINKQ_VALID_MASK)
-    {
-        wifi_util_error_print(WIFI_APPS,
-            "Invalid bits set in LinkQuality Flags: 0x%x\n", mask);
-        return bus_error_invalid_input;
-    }
-    mask_to_quality_flags(mask, &flags);
-    set_quality_flags(&flags);
-
-    return bus_error_success;
-}
-
-bus_error_t wifi_get_link_quality_data(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
-{
-    (void)user_data;
-    uint32_t bytes_size;
-    wifi_util_info_print(WIFI_CTRL,"%s:%d\n",__func__,__LINE__);
-    char *str = get_link_metrics();
-
-    if (str == NULL) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d get_link_metrics returned NULL\n",
-                          __func__, __LINE__);
-        return bus_error_general;
-    } 
-    bytes_size =  strlen(str);
-    p_data->data_type = bus_data_type_string;
-    p_data->raw_data.bytes = (uint8_t *)strdup(str);
-    
-    if (!p_data->raw_data.bytes) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d memory allocation is failed:%d\r\n",__func__,
-             __LINE__,strlen(str));
-        free(str);     
-        return bus_error_out_of_resources;
-    }
-    p_data->raw_data_len = bytes_size;
-    wifi_util_info_print(WIFI_CTRL,"%s:%d\n",__func__,__LINE__);
-    if (str)
-        cJSON_free(str); //Since the memory is allocated from cJSON_PrintUnformatted
-
-    wifi_util_info_print(WIFI_CTRL,"%s:%d\n",__func__,__LINE__);
-    return RETURN_OK;
-
-}
 
 bus_error_t webconfig_init_data_get_subdoc(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -4216,18 +4083,9 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_CSA_BEACON_FRAME_RECEIVED, bus_element_type_event,
                                     { NULL, NULL, NULL, NULL, eventSubHandler, NULL}, high_speed, ZERO_TABLE,
                                     { bus_data_type_bytes, false, 0, 0, 0, NULL } },
-                                { WIFI_LINK_QUALITY_DATA, bus_element_type_method,
-                                    { wifi_get_link_quality_data, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-                                    { bus_data_type_string, false, 0, 0, 0, NULL } },
-                                { WIFI_LINK_QUALITY_FLAGS, bus_element_type_method,
-                                    { wifi_get_link_quality_flags, wifi_set_link_quality_flags, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-                                    {bus_data_type_uint32, false, 0, 0, 0, NULL } },
                                 { WIFI_IGNITE_STATUS, bus_element_type_event,
                                     { NULL, NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, false, 0, 0, 0, NULL } },
-                                { WIFI_LINK_QUALITY_GW, bus_element_type_method,
-                                    { NULL, set_linkq_gw, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-                                    { bus_data_type_boolean, false, 0, 0, 0, NULL } },
     };
 
     rc = get_bus_descriptor()->bus_open_fn(&ctrl->handle, component_name);

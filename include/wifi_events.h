@@ -177,7 +177,6 @@ typedef enum {
     wifi_event_type_csi_analytics_rfc,
     wifi_event_type_xfi_tel_enable_rfc,
     wifi_event_type_sm_app_enable,
-    wifi_event_type_link_quality_rfc,
     wifi_event_command_max,
 
     wifi_event_monitor_diagnostics = wifi_event_type_base

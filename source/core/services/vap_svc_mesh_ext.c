@@ -2057,8 +2057,6 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                     uint8_mac_to_string_mac(temp_vap_info->u.sta_info.bssid, bssid_mac_str);
                     wifi_util_dbg_print(WIFI_CTRL, "%s:%d bssid mac=%s\n", __func__, __LINE__,
                         bssid_mac_str);
-                    apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec,
-                        wifi_event_exec_register_station, bssid_mac_str, MAC_ADDR_STR_LEN);
                 }
             }
         /* Self heal to check if the connected interface received valid ip after a timeout if not trigger a reconnection */
@@ -2137,8 +2135,6 @@ int process_ext_sta_conn_status(vap_svc_t *svc, void *arg)
                 uint8_mac_to_string_mac(sta_data->bss_info.bssid, bssid_mac_str);
                 wifi_util_dbg_print(WIFI_CTRL, "%s:%d bssid mac=%s\n", __func__, __LINE__,
                     bssid_mac_str);
-                apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec,
-                    wifi_event_exec_unregister_station, bssid_mac_str, MAC_ADDR_STR_LEN);
             }
         }
 

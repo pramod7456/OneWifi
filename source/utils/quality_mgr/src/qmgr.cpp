@@ -142,15 +142,6 @@ void qmgr_t::update_json(const char *str, vector_t v, cJSON *out_obj, bool &alar
     return;
 }
 
-char* qmgr_t::update_graph()
-{
-    pthread_mutex_lock(&m_json_lock);
-    char *json = cJSON_PrintUnformatted(out_obj);
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d ijson=%s\n",__func__,__LINE__,json); 
-
-    pthread_mutex_unlock(&m_json_lock);
-    return json;
-}
 
 int qmgr_t::push_reporting_subdoc()
 {
@@ -208,6 +199,19 @@ int qmgr_t::push_reporting_subdoc()
     free(report);
     return 0;
 }
+void qmgr_t::update_graph( cJSON *out_obj)
+{
+    pthread_mutex_lock(&m_json_lock);
+    char *json = cJSON_PrintUnformatted(out_obj);
+    FILE *fp = fopen(m_args.output_file, "w");
+    if (fp) {
+        fputs(json, fp);
+        fclose(fp);
+    }
+    free(json);
+    pthread_mutex_unlock(&m_json_lock);
+    return ;
+}
 int qmgr_t::run()
 {
     int rc,count = 0;
@@ -260,9 +264,13 @@ int qmgr_t::run()
                 lq = (linkq_t *)hash_map_get_next(m_link_map, lq);
             }
             count = hash_map_count(m_link_map);
+            if (count == 0 ) {
+                remove(m_args.output_file);
+            }
             if (update_alarm) {
                 start_time = tm;
                 update_alarm = false;
+                update_graph(out_obj);
                 if (qmgr_is_batch_registered()) {
                     push_reporting_subdoc();   // batch mode
                 }
@@ -314,11 +322,12 @@ cJSON *qmgr_t::create_dev_template(mac_addr_str_t mac_str,unsigned int vap_index
     snprintf(tmp, sizeof(tmp), "ConnectionAffinity");
     cJSON_AddItemToObject(obj, tmp, ca_obj);
        
-    cJSON *score_arr = cJSON_CreateArray();
-    snprintf(tmp, sizeof(tmp), "Time");
+    
+      cJSON *score_arr = cJSON_CreateArray();
+      snprintf(tmp, sizeof(tmp), "Time");
 
-    cJSON_AddItemToObject(ca_obj, "Score", score_arr);
-    cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
+      cJSON_AddItemToObject(ca_obj, "Score", score_arr);
+      cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
 
     snprintf(tmp, sizeof(tmp), "Alarms");
     cJSON_AddItemToObject(ca_obj, tmp, cJSON_CreateArray());
@@ -394,23 +403,27 @@ int qmgr_t::reinit(server_arg_t *args)
 
 int qmgr_t::init(stats_arg_t *stats, bool create_flag)
 {
-    char tmp[MAX_FILE_NAME_SZ];
-    cJSON *dev_arr;
+    const char *dev_key = "Devices";
+    cJSON *dev_arr = NULL;
+    linkq_t *lq = NULL;
     mac_addr_str_t mac_str;
+    bool device_exists = false;
+
+    if (!stats)
+        return -1;
 
     strncpy(mac_str, stats->mac_str, sizeof(mac_str) - 1);
     mac_str[sizeof(mac_str) - 1] = '\0';
 
-    snprintf(tmp, sizeof(tmp), "Devices");
     pthread_mutex_lock(&m_json_lock);
-    dev_arr = cJSON_GetObjectItem(out_obj, tmp);
+    /* ---------- Get Devices array ---------- */
+    dev_arr = cJSON_GetObjectItem(out_obj, dev_key);
     if (!dev_arr) {
         dev_arr = cJSON_CreateArray();
-        cJSON_AddItemToObject(out_obj, tmp, dev_arr);
+        cJSON_AddItemToObject(out_obj, dev_key, dev_arr);
     }
 
-    // ---------- FIND EXISTING DEVICE ----------
-    bool device_exists = false;
+    /* ---------- Check if device exists in JSON ---------- */
     for (int i = 0; i < cJSON_GetArraySize(dev_arr); i++) {
         cJSON *dev = cJSON_GetArrayItem(dev_arr, i);
         const char *existing_mac =
@@ -421,47 +434,66 @@ int qmgr_t::init(stats_arg_t *stats, bool create_flag)
         }
     }
 
-    // ---------- DELETE PATH ----------
+    /* ---------- DELETE DEVICE ---------- */
     if (!create_flag) {
-        if (device_exists) {
-            wifi_util_info_print(WIFI_APPS,"Removing device %s\n", mac_str);
 
-            // remove from Devices JSON
-            remove_device_from_out_obj(out_obj, mac_str);
-            // remove from hashmap
-            linkq_t *lq = (linkq_t *)hash_map_get(m_link_map, mac_str);
-            if (lq) {
-                hash_map_remove(m_link_map, mac_str);
-                delete lq;
-            }
-        } else {
-            wifi_util_info_print(WIFI_APPS,"Device %s not found, nothing to delete\n", mac_str);
+        wifi_util_info_print(WIFI_APPS,
+            "Removing device %s vap_index=%d\n",
+            mac_str, stats->vap_index);
+
+        lq = (linkq_t *)hash_map_get(m_link_map, mac_str);
+
+        if (lq && (lq->get_vap_index() == stats->vap_index)) {
+            hash_map_remove(m_link_map, mac_str);
+            delete lq;
         }
+
+        if (device_exists)
+            remove_device_from_out_obj(out_obj, mac_str);
+
         pthread_mutex_unlock(&m_json_lock);
         return 0;
     }
 
-    // ---------- CREATE PATH ----------
-    if (!device_exists) {
-        wifi_util_info_print(WIFI_APPS,"Adding new device %s\n", mac_str);
-        cJSON_AddItemToArray(dev_arr, create_dev_template(mac_str, stats->vap_index));
-    }
+    /* ---------- CREATE / UPDATE DEVICE ---------- */
 
-    linkq_t *lq = (linkq_t *)hash_map_get(m_link_map, mac_str);
-    if (!lq) {
+    lq = (linkq_t *)hash_map_get(m_link_map, mac_str);
+
+    if (!lq || (lq->get_vap_index() != stats->vap_index)) {
+
+        /* Remove old entry if exists */
+        if (lq) {
+            hash_map_remove(m_link_map, mac_str);
+            delete lq;
+        }
+        /* Update JSON */
+        if (device_exists)
+            remove_device_from_out_obj(out_obj, mac_str);
+
+        /* Create new linkq */
         lq = new linkq_t(mac_str, stats->vap_index);
         hash_map_put(m_link_map, strdup(mac_str), lq);
+
+
+        cJSON_AddItemToArray(
+            dev_arr,
+            create_dev_template(mac_str, stats->vap_index));
     }
 
-    wifi_util_dbg_print(WIFI_APPS,"Initializing linkq for %s\n", mac_str);
-    lq->init(m_args.threshold,
-             m_args.reporting ,
-             stats);
     pthread_mutex_unlock(&m_json_lock);
+
+    /* ---------- Initialize outside lock ---------- */
+    wifi_util_dbg_print(WIFI_APPS,
+        "Initializing linkq for %s\n", mac_str);
+
+    lq->init(m_args.threshold,
+             m_args.reporting,
+             stats);
     return 0;
 }
 int qmgr_t::rapid_disconnect(stats_arg_t *stats)
 {
+    wifi_util_info_print(WIFI_APPS,"%s:%d\n",__func__,__LINE__);
     if (!stats || stats->mac_str[0] == '\0') {
         wifi_util_error_print(WIFI_APPS, "%s:%d invalid stats or empty MAC\n", __func__, __LINE__);
         return -1;
@@ -540,12 +572,20 @@ void qmgr_t::unregister_station_mac(const char* str)
     return;
 }
 
+int qmgr_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
+{
+    linkq_t::set_max_snr_radios(max_snr_val);
+    return 0;   
+}
+
 qmgr_t::qmgr_t()
 {
     memset(&m_args, 0, sizeof(server_arg_t));
     m_args.threshold = THRESHOLD;
     m_args.sampling = SAMPLING_INTERVAL;
     m_args.reporting = REPORTING_INTERVAL;
+    snprintf(m_args.output_file, sizeof(m_args.output_file), "%s", "/www/data/telemetry.json");
+    snprintf(m_args.path, sizeof(m_args.path), "%s", "/www/data");
     m_link_map = hash_map_create();
     out_obj = cJSON_CreateObject();
     m_bg_running = false;

@@ -235,7 +235,37 @@ int link_quality_unregister_station(wifi_app_t *apps, wifi_event_t *arg)
 
     return RETURN_OK;
 }
+int update_radio_max_snr_observance(int radio, int max_snr)
+{
+    wifi_util_info_print(WIFI_APPS, "%s:%d radio=%d and max_snr=%d\n", __func__, __LINE__,radio,max_snr);
+    wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
+    if (rfc_param == NULL) {
+        wifi_util_error_print(WIFI_CTRL, "Unable to fetch CTRL RFC %s:%d\n", __func__, __LINE__);
+        return RETURN_OK;
+    }
+    switch(radio) {
+        case 0:
+            if ( max_snr > rfc_param->radio_2g_observed_max_snr) {
+                rfc_param->radio_2g_observed_max_snr = max_snr ;
+            }
+            break;
+        case 1:
+            if ( max_snr > rfc_param->radio_5g_observed_max_snr) {
+                rfc_param->radio_5g_observed_max_snr = max_snr;
+            }
+            break;
+        case 2:
+            if ( max_snr > rfc_param->radio_6g_observed_max_snr) {
+                rfc_param->radio_6g_observed_max_snr = max_snr;
+            }
+            break;
+        default:
+            wifi_util_info_print(WIFI_CTRL,"Not a valid radio\n");
 
+    }
+    get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param);
+    return RETURN_OK;
+}
 int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
 {
       
@@ -247,7 +277,47 @@ int link_quality_event_exec_start(wifi_app_t *apps, void *arg)
         qmgr_register_batch_callback(publish_qmgr_subdoc);
         wifi_util_info_print(WIFI_APPS, "%s:%d ctrl->network_mode=%d\n", __func__, __LINE__,ctrl->network_mode);
     } 
+    radio_max_snr_t max_snr = {0};
+    //qmgr_register_callback(publish_qmgr_subdoc);
     start_link_metrics();
+    wifi_rfc_dml_parameters_t *rfc_param = (wifi_rfc_dml_parameters_t *)get_ctrl_rfc_parameters();
+    if (rfc_param->link_quality_rfc) {
+          wifi_util_error_print(WIFI_CTRL,"%s:%d start link_event \n", __func__, __LINE__);
+    }
+    if (rfc_param->radio_2g_observed_max_snr == 0 || rfc_param->radio_5g_observed_max_snr == 0|| 
+        rfc_param->radio_6g_observed_max_snr == 0) {
+        if (rfc_param->radio_2g_observed_max_snr == 0) {
+            max_snr.radio_2g_max_snr = 25;
+            rfc_param->radio_2g_observed_max_snr = 25;
+	} else {
+            max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
+	}
+        if (rfc_param->radio_5g_observed_max_snr == 0) {
+            max_snr.radio_5g_max_snr = 25;
+            rfc_param->radio_5g_observed_max_snr = 25;
+	} else {
+            max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
+	}
+        if (rfc_param->radio_6g_observed_max_snr == 0) {
+            max_snr.radio_6g_max_snr = 25;
+            rfc_param->radio_6g_observed_max_snr = 25;
+	} else {
+            max_snr.radio_6g_max_snr = rfc_param->radio_6g_observed_max_snr;
+	}
+        get_wifidb_obj()->desc.update_rfc_config_fn(0, rfc_param);
+
+          wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
+    } else {
+	max_snr.radio_2g_max_snr = rfc_param->radio_2g_observed_max_snr;
+	max_snr.radio_5g_max_snr = rfc_param->radio_5g_observed_max_snr;
+        max_snr.radio_6g_max_snr = rfc_param->radio_6g_observed_max_snr;
+        wifi_util_error_print(WIFI_CTRL,"%s:%d setting max_snr \n", __func__, __LINE__);
+    }
+    
+    wifi_util_info_print(WIFI_APPS, "%s:%d %d:%d:%d \n", __func__, __LINE__,
+    max_snr.radio_2g_max_snr,max_snr.radio_5g_max_snr,max_snr.radio_6g_max_snr);
+    set_max_snr_radios(&max_snr);
+    qmgr_register_max_snr_callback(update_radio_max_snr_observance);
     return RETURN_OK;
 }
 
@@ -269,7 +339,7 @@ int link_quality_event_exec_stop(wifi_app_t *apps, void *arg)
     return RETURN_OK;
 }
 
-int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg, int len)
+int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg)
 {
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
@@ -366,7 +436,7 @@ int link_quality_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
     return RETURN_OK;
 }
 
-int link_quality_hal_disconnect(wifi_app_t *apps, void *arg, int len)
+int link_quality_hal_disconnect(wifi_app_t *apps, void *arg,int len)
  {           
     if (!arg) {
         wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
@@ -374,19 +444,46 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg, int len)
     }
 
     linkquality_data_t *data = (linkquality_data_t *)arg;
-    stats_arg_t *stats = &data->stats;
-    wifi_util_error_print( WIFI_CTRL,
-         "%s:%d  mac=%s  snr=%d phy=%d\n",
-         __func__, __LINE__,
-         stats->mac_str,
-         stats->dev.cli_SNR,
-         stats->dev.cli_LastDataDownlinkRate
-    );      
+    /* The number of devices is stored in the first element */
+    int num_devs = len;
+            
+    for (int i = 0; i < num_devs; i++) {        
+        stats_arg_t *stats = &data[i].stats; 
+        wifi_util_error_print( WIFI_CTRL,
+             "%s:%d  mac=%s  vap_index=%d ",
+             __func__, __LINE__,
+            stats->mac_str,
+            stats->vap_index
+        );      
  
-    remove_link_stats(stats);
+        remove_link_stats(stats);
+    }
     return RETURN_OK;
              
- } 
+} 
+
+int link_quality_ignite_param_reinit(wifi_app_t *apps, wifi_event_t *arg)
+{
+    if (!arg) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    linkquality_data_t *data = (linkquality_data_t *)arg;
+
+     server_arg_t *server_arg = &data->server_arg;
+        wifi_util_dbg_print(
+            WIFI_APPS,
+            "%s:%d  threshold=%f reporting=%d\n",
+            __func__, __LINE__,
+            server_arg->threshold,
+            server_arg->reporting
+        );
+        reinit_link_metrics(server_arg);
+
+    return RETURN_OK;
+}
+
 int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
 {
     if (!arg) {
@@ -409,7 +506,8 @@ int link_quality_event_exec_timeout(wifi_app_t *apps, void *arg, int len)
             i,
             stats->mac_str,
             stats->dev.cli_SNR,
-            stats->dev.cli_LastDataDownlinkRate
+            stats->dev.cli_LastDataDownlinkRate,
+            stats->vap_index
         );
 
         add_stats_metrics(stats);
@@ -456,6 +554,7 @@ int exec_event_link_quality(wifi_app_t *apps, wifi_event_subtype_t sub_type, voi
 
 int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
 {
+    wifi_util_info_print(WIFI_APPS,"Enter %s:%d\n",__func__,__LINE__);
     switch (event->sub_type) {
         case wifi_event_exec_start:
             break;
@@ -466,15 +565,19 @@ int exec_event_webconfig_event(wifi_app_t *apps, wifi_event_t *event)
         case wifi_event_webconfig_set_data_ovsm:
             link_quality_param_reinit(apps, event);
             break;
+        case wifi_event_exec_timeout:
+            link_quality_ignite_param_reinit(apps, event);
+            break;
         default:
-            wifi_util_dbg_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
+            wifi_util_error_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
             wifi_event_subtype_to_string(event->sub_type));
             break;
     }
     return RETURN_OK;
 }
-int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg, int len)
+int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg,int len)
 {
+    wifi_util_info_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
     switch (sub_type) {
         case wifi_event_exec_start:
             break;
@@ -484,10 +587,30 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             break;
 
         case wifi_event_exec_timeout:
-            link_quality_hal_rapid_connect(apps, arg,len);
+            link_quality_hal_rapid_connect(apps, arg);
             break;
+
+        case wifi_event_hal_auth_frame:
+            break;
+     
+        case wifi_event_hal_assoc_req_frame:
+            break;
+ 
+        case wifi_event_hal_assoc_rsp_frame:
+            break;
+
+        case wifi_event_hal_reassoc_req_frame:
+            break;
+        case wifi_event_hal_reassoc_rsp_frame:
+            break;
+     
+        case wifi_event_hal_sta_conn_status:
+            break;
+        case wifi_event_hal_disassoc_device:
+            break;
+        
         default:
-            wifi_util_dbg_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
+            wifi_util_error_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
             wifi_event_subtype_to_string(sub_type));
             break;
     }

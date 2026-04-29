@@ -32,9 +32,9 @@ void matrix_t::print()
     for (i = 0; i < m_rows; i++) {
         for (j = 0; j < m_cols; j++) {
             m_val[i][j].print();
-            wifi_util_dbg_print(WIFI_LIB, "\t\t");
+            wifi_util_dbg_print(WIFI_LIB, const_cast<char*>("\t\t"));
         }
-        wifi_util_dbg_print(WIFI_LIB, "\n");
+        wifi_util_dbg_print(WIFI_LIB, const_cast<char*>("\n"));
     }
 }
 
@@ -47,8 +47,7 @@ matrix_t matrix_t::inverse()
     unsigned int i, j;
 
     if (m_rows != m_cols) {
-        wifi_util_error_print(WIFI_LIB, "%s:%d: Cannot be inverted in matrix\n", __func__,
-            __LINE__);
+        wifi_util_error_print(WIFI_LIB, "%s:%d: Cannot be inverted in matrix\n", __func__, __LINE__);
         return out;
     }
 
@@ -340,7 +339,7 @@ int matrix_t::eigen(vector_t &vals, matrix_t &vecs)
     if (m_rows != m_cols) {
         return -1;
     }
-
+    
     polynomial_t(faddeev_leverrier()).resolve(vals);
     vals.sort();
     vals.print();
@@ -453,7 +452,7 @@ number_t matrix_t::determinant()
 matrix_t matrix_t::covariance()
 {
     unsigned int i, j;
-    matrix_t t(0, 0), c, out(0, 0);
+    matrix_t t(0,0), c, out(0, 0);
 
     if (m_rows == 1) {
         wifi_util_error_print(WIFI_LIB,
@@ -462,15 +461,15 @@ matrix_t matrix_t::covariance()
             __func__, __LINE__);
         return out;
     }
-
+    
     c = center();
     t = c.transpose();
 
     out.m_rows = m_cols;
     out.m_cols = m_cols;
-
-    out = t * c;
-
+    
+    out = t*c;
+    
     for (j = 0; j < out.m_cols; j++) {
         for (i = 0; i < out.m_rows; i++) {
             out.m_val[i][j].m_re /= (m_rows - 1);
@@ -651,65 +650,12 @@ vector_t matrix_t::get_col(unsigned int col)
     return out;
 }
 
-void matrix_t::push(vector_t v)
-{
-    unsigned int i, j;
-
-    if (m_cols == 0) {
-        m_cols = ((v.m_num < m_col_capacity) ? v.m_num : m_col_capacity);
-    }
-
-    if (v.m_num != m_cols) {
-        return;
-    }
-
-    if (m_rows < m_row_capacity) {
-        for (j = 0; j < m_cols; j++) {
-            m_val[m_rows][j] = v.m_val[j];
-        }
-        m_rows++;
-        return;
-    }
-
-    // remove the top one to add at the end
-    for (i = 0; i < m_rows - 1; i++) {
-        for (j = 0; j < m_cols; j++) {
-            m_val[i][j] = m_val[i + 1][j];
-        }
-    }
-
-    for (j = 0; j < m_cols; j++) {
-        m_val[i][j] = v.m_val[j];
-    }
-}
-
-void matrix_t::push(matrix_t m)
-{
-    unsigned int i;
-    unsigned int rows = m.get_num_rows();
-
-    if (m_cols == 0) {
-        m_cols = m.m_cols;
-    }
-
-    if (m.m_cols != m_cols) {
-        return;
-    }
-
-    for (i = 0; i < rows; i++) {
-        push(m.get_row(i));
-    }
-}
-
 matrix_t::matrix_t(unsigned int rows, unsigned int cols, number_t n[])
 {
     unsigned int i, j, k = 0;
 
     m_rows = rows;
     m_cols = cols;
-
-    m_row_capacity = MAX_MTRX_LEN;
-    m_col_capacity = MAX_MTRX_LEN;
 
     for (i = 0; i < m_rows; i++) {
         for (j = 0; j < m_cols; j++) {
@@ -726,9 +672,6 @@ matrix_t::matrix_t(unsigned int rows, unsigned int cols)
     m_rows = rows;
     m_cols = cols;
 
-    m_row_capacity = MAX_MTRX_LEN;
-    m_col_capacity = MAX_MTRX_LEN;
-
     for (i = 0; i < m_rows; i++) {
         for (j = 0; j < m_cols; j++) {
             m_val[i][j] = number_t(0, 0);
@@ -736,15 +679,12 @@ matrix_t::matrix_t(unsigned int rows, unsigned int cols)
     }
 }
 
-matrix_t::matrix_t(const matrix_t &m)
+matrix_t::matrix_t(const matrix_t & m)
 {
     unsigned int i, j;
 
     m_rows = m.m_rows;
     m_cols = m.m_cols;
-
-    m_row_capacity = MAX_MTRX_LEN;
-    m_col_capacity = MAX_MTRX_LEN;
 
     for (i = 0; i < m_rows; i++) {
         for (j = 0; j < m_cols; j++) {
@@ -756,9 +696,6 @@ matrix_t::matrix_t(const matrix_t &m)
 matrix_t::matrix_t(vector_t v, bool as_row)
 {
     unsigned int i, j;
-
-    m_row_capacity = MAX_MTRX_LEN;
-    m_col_capacity = MAX_MTRX_LEN;
 
     if (as_row) {
         m_rows = 1;
@@ -779,8 +716,6 @@ matrix_t::matrix_t()
 {
     m_rows = 0;
     m_cols = 0;
-    m_row_capacity = MAX_MTRX_LEN;
-    m_col_capacity = MAX_MTRX_LEN;
 }
 
 matrix_t::~matrix_t()

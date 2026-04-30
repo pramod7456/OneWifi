@@ -66,7 +66,7 @@ linkq_params_t* linkq_t::get_score_params() {
 
 quality_flags_t linkq_t::m_quality_flag = { true, true, true, false, false, false, false,true };
 
-static inline double apply_rapid_reconnect(double norm,int remaining,
+ double linkq_t::apply_rapid_reconnect(double norm,int remaining,
                                     int total)
 {
     double factor = 1.0;
@@ -82,11 +82,12 @@ static inline double apply_rapid_reconnect(double norm,int remaining,
     if (progress > 1.0) progress = 1.0;
     
     factor = ((1.0 - exp(-4.0 * progress))/(1.0 - exp(-4.0)));
+    m_reconnect_factor = factor;
     val = norm * factor;
 
     wifi_util_dbg_print(WIFI_APPS,
-        "%s:%d remaining=%d total=%d progress=%f factor=%f val=%f\n",
-        __func__, __LINE__, remaining, total, progress, factor, val);
+        "%s:%d remaining=%d total=%d progress=%f factor=%f val=%f m_reconnect_factor=%f\n",
+        __func__, __LINE__, remaining, total, progress, factor, val,m_reconnect_factor);
 
     return val;
 }
@@ -224,19 +225,17 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
             ? pow(v.m_val[4].m_re, 2)
             :(1 - pow(v.m_val[4].m_re, 2));
         cnt++;
-        m_data_sample.per   = v.m_val[4].m_re;
     }
     if (m_quality_flag.downlink_phy) {
         v.m_val[9].m_re += m_linkq_params[2].booster
             ? pow(v.m_val[5].m_re, 2)
             : (1 - pow(v.m_val[5].m_re, 2));
         cnt++;
-        m_data_sample.phy   = v.m_val[5].m_re;
     }
     if (v.m_val[9].m_re < 0.0 || cnt == 0)
         v.m_val[9].m_re = 0.0;
     else {
-        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * 
+        v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * m_reconnect_factor *
             (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
     wifi_util_dbg_print(WIFI_APPS,"%s:%d Downlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
@@ -250,7 +249,6 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
             ? pow(v.m_val[6].m_re, 2)
             : (1 - pow(v.m_val[6].m_re, 2));
         cnt++;
-        m_data_sample.phy   = v.m_val[6].m_re;
     }
     if (m_quality_flag.uplink_per) {
         v.m_val[10].m_re += m_linkq_params[4].booster
@@ -263,12 +261,11 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
             ? pow(v.m_val[8].m_re, 2)
             : (1 - pow(v.m_val[8].m_re, 2));
         cnt++;
-        m_data_sample.phy   = v.m_val[8].m_re;
     }
     if (v.m_val[10].m_re < 0.0 || cnt == 0)
         v.m_val[10].m_re = 0.0;
     else {
-        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt) *
+        v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt) * m_reconnect_factor *
            (1.0 -  (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
     wifi_util_dbg_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
@@ -288,11 +285,10 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     if (v.m_val[11].m_re < 0.0 || cnt == 0)
         v.m_val[11].m_re = 0.0;
     else {
-        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt) *
+        v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt) * m_reconnect_factor *
             (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
     wifi_util_dbg_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
-    get_local_time(m_data_sample.time, sizeof(m_data_sample.time),false);
     // -------------------------------------------------
     // Alarm logic
     // -------------------------------------------------
@@ -697,6 +693,7 @@ linkq_t::linkq_t(mac_addr_str_t mac,unsigned int vap_index)
     m_recs = 0;
     m_alarm = false;
     m_current = 0;
+    m_reconnect_factor = 1;
     m_disconnected =  false;
     m_disconnect_samples = 0;
     m_recovery_remaining = 0;

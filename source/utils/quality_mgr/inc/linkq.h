@@ -50,6 +50,7 @@ class linkq_t {
     unsigned int m_recs;
     unsigned int m_current;
     double m_threshold;
+    double m_reconnect_factor;
     unsigned int m_reporting_mult;
     unsigned int m_threshold_cross_counter;
     unsigned int m_sampled;
@@ -85,6 +86,7 @@ public:
     unsigned int get_vap_index() const{ return m_vapindex; }
     bool get_alarm() const{ return m_alarm; }
     void clear_window_samples();
+    double apply_rapid_reconnect(double norm,int remaining,int total);
     static void register_station_mac(const char* str);
     static void unregister_station_mac(const char* str);
     static int set_max_snr_radios(radio_max_snr_t *max_snr_val);

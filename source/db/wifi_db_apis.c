@@ -92,10 +92,10 @@
 #define ONEWIFI_DB_VERSION_IGNITE_FLAG 100045
 #define ONEWIFI_DB_VERSION_ENCR_GCMP_FLAG 100048
 #define ONEWIFI_DB_VERSION_ENCR_NEW_FLAG 100049
+#define ONEWIFI_DB_VERSION_TCM_PER_VAP_FLAG 100050
 
 #define IGNITE_MIN_CHUTIL_THRESHOLD  50
 #define IGNITE_MAX_CHUTIL_THRESHOLD 100
-#define IGNITE_SNR_THRESHOLD   0
 #define IGNITE_SNR_DIFFERENCE 5
 
 ovsdb_table_t table_Wifi_Radio_Config;
@@ -333,14 +333,13 @@ void callback_Wifi_Ignite_Config(ovsdb_update_monitor_t *mon,
        return;
       }
 
-      wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite-config : [%s %d %d %d %d]\n", __func__, __LINE__, new_rec->ignite_name, new_rec->min_chanutil_threshold, new_rec->max_chanutil_threshold, new_rec->snr_threshold, new_rec->snr_difference);
+      wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite-config : [%s %d %d %d]\n", __func__, __LINE__, new_rec->ignite_name, new_rec->min_chanutil_threshold, new_rec->max_chanutil_threshold, new_rec->snr_difference);
       if ((mon->mon_type == OVSDB_UPDATE_NEW) || (mon->mon_type == OVSDB_UPDATE_MODIFY)) {
           wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite config newly added or updated\n", __func__, __LINE__);
           pthread_mutex_lock(&g_wifidb->data_cache_lock);
           strcpy(ignite_cfg->ignite_name, new_rec->ignite_name);
           ignite_cfg->min_chanutil_threshold = (float)new_rec->min_chanutil_threshold;
           ignite_cfg->max_chanutil_threshold = (float)new_rec->max_chanutil_threshold;
-          ignite_cfg->SNR_threshold = (float)new_rec->snr_threshold;
           ignite_cfg->SNR_difference = (float)new_rec->snr_difference;
           pthread_mutex_unlock(&g_wifidb->data_cache_lock);
       }
@@ -3288,14 +3287,12 @@ int wifidb_update_ignite_config(ignite_config_t *ignite_cfg)
     // Convert float → integer
     cfg.min_chanutil_threshold = (int)ignite_cfg->min_chanutil_threshold;
     cfg.max_chanutil_threshold = (int)ignite_cfg->max_chanutil_threshold;
-    cfg.snr_threshold = (int)ignite_cfg->SNR_threshold;
     cfg.snr_difference = (int)ignite_cfg->SNR_difference;
     wifi_util_dbg_print(WIFI_CTRL,
-            "%s:%d Ignite data → [%s %d %d %d %d]\n", __func__, __LINE__,
+            "%s:%d Ignite data → [%s %d %d %d]\n", __func__, __LINE__,
             cfg.ignite_name,
             cfg.min_chanutil_threshold,
             cfg.max_chanutil_threshold,
-            cfg.snr_threshold,
             cfg.snr_difference
             );
 
@@ -3303,7 +3300,6 @@ int wifidb_update_ignite_config(ignite_config_t *ignite_cfg)
     cfg.ignite_name_exists = true;
     cfg.min_chanutil_threshold_exists = true;
     cfg.max_chanutil_threshold_exists = true;
-    cfg.snr_threshold_exists = true;
     cfg.snr_difference_exists = true;
 
     /* clear uuid/version for insert */
@@ -3503,12 +3499,10 @@ int wifidb_get_wifi_ignite_config(ignite_config_t *ignite_cfg)
         pcfg->ignite_name,
         pcfg->min_chanutil_threshold,
         pcfg->max_chanutil_threshold,
-        pcfg->snr_threshold,
         pcfg->snr_difference);
     strncpy(ignite_cfg->ignite_name, pcfg->ignite_name, MAX_NAME_LEN);
     ignite_cfg->min_chanutil_threshold = (float)pcfg->min_chanutil_threshold;
     ignite_cfg->max_chanutil_threshold = (float)pcfg->max_chanutil_threshold;
-    ignite_cfg->SNR_threshold          = (float)pcfg->snr_threshold;
     ignite_cfg->SNR_difference         = (float)pcfg->snr_difference;
     return 0;
 }
@@ -4882,9 +4876,8 @@ static void wifidb_upgrade_wifi_ignite_config(int r_index)
         }
         g_wifidb->ignite_config[r_index].min_chanutil_threshold = IGNITE_MIN_CHUTIL_THRESHOLD;
         g_wifidb->ignite_config[r_index].max_chanutil_threshold = IGNITE_MAX_CHUTIL_THRESHOLD;
-        g_wifidb->ignite_config[r_index].SNR_threshold = IGNITE_SNR_THRESHOLD;
         g_wifidb->ignite_config[r_index].SNR_difference = IGNITE_SNR_DIFFERENCE;
-        wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite name [%s] Ch-util-threshold [%f %f] SNR [%f %f]\n", __func__, __LINE__, g_wifidb->ignite_config[r_index].ignite_name, g_wifidb->ignite_config[r_index].min_chanutil_threshold, g_wifidb->ignite_config[r_index].max_chanutil_threshold, g_wifidb->ignite_config[r_index].SNR_threshold, g_wifidb->ignite_config[r_index].SNR_difference);
+        wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite name [%s] Ch-util-threshold [%f %f] SNR [%f]\n", __func__, __LINE__, g_wifidb->ignite_config[r_index].ignite_name, g_wifidb->ignite_config[r_index].min_chanutil_threshold, g_wifidb->ignite_config[r_index].max_chanutil_threshold, g_wifidb->ignite_config[r_index].SNR_difference);
     }
     return;
 }
@@ -7215,9 +7208,8 @@ int wifidb_init_ignite_config_default(int radio_index, ignite_config_t *ignite_c
     //Configured commonly for now. Based on the radio, we can update in the above switch cases.
     local_ignite_config.min_chanutil_threshold = IGNITE_MIN_CHUTIL_THRESHOLD;
     local_ignite_config.max_chanutil_threshold = IGNITE_MAX_CHUTIL_THRESHOLD;
-    local_ignite_config.SNR_threshold = IGNITE_SNR_THRESHOLD;
     local_ignite_config.SNR_difference = IGNITE_SNR_DIFFERENCE;
-    wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite name [%s] Ch-util-threshold [%f %f] SNR [%f %f]\n", __func__, __LINE__, local_ignite_config.ignite_name, local_ignite_config.min_chanutil_threshold, local_ignite_config.max_chanutil_threshold, local_ignite_config.SNR_threshold, local_ignite_config.SNR_difference);
+    wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite name [%s] Ch-util-threshold [%f %f] SNR [%f]\n", __func__, __LINE__, local_ignite_config.ignite_name, local_ignite_config.min_chanutil_threshold, local_ignite_config.max_chanutil_threshold, local_ignite_config.SNR_difference);
     pthread_mutex_lock(&g_wifidb->data_cache_lock);
     memcpy(ignite_cfg,&local_ignite_config,sizeof(local_ignite_config));
     pthread_mutex_unlock(&g_wifidb->data_cache_lock);
@@ -8301,6 +8293,7 @@ void init_wifidb_data()
     wifi_rfc_dml_parameters_t *rfc_param = get_wifi_db_rfc_parameters();
     ignite_config_t *ignite_cfg;
     char country_code[COUNTRY_CODE_LEN] = {0};
+	bool update_rfc_config = false;
 
     wifi_util_info_print(WIFI_DB,"%s:%d No of radios %d\n",__func__, __LINE__,getNumberRadios());
 
@@ -8363,7 +8356,7 @@ void init_wifidb_data()
                 pthread_mutex_unlock(&g_wifidb->data_cache_lock);
                 return;
             }
-            wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite entries : [%s %f %f %f %f]\n", __func__, __LINE__, ignite_cfg->ignite_name, ignite_cfg->min_chanutil_threshold, ignite_cfg->max_chanutil_threshold, ignite_cfg->SNR_threshold, ignite_cfg->SNR_difference);
+            wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite entries : [%s %f %f %f]\n", __func__, __LINE__, ignite_cfg->ignite_name, ignite_cfg->min_chanutil_threshold, ignite_cfg->max_chanutil_threshold, ignite_cfg->SNR_difference);
             if (wifidb_update_ignite_config(ignite_cfg) != RETURN_OK) {
                 pthread_mutex_unlock(&g_wifidb->data_cache_lock);
                 wifi_util_dbg_print(WIFI_DB,"%s:%d: Failed to update ignite config\n", __func__, __LINE__);
@@ -8390,6 +8383,19 @@ void init_wifidb_data()
         dbwritten = true;
         if (wifidb_get_rfc_config(0,rfc_param) != 0) {
             wifi_util_error_print(WIFI_DB,"%s:%d: Error getting RFC config\n",__func__, __LINE__);
+        } else {
+            if (g_wifidb->db_version < ONEWIFI_DB_VERSION_TCM_PER_VAP_FLAG) {
+                rfc_param->tcm_open_2g_rfc = true;
+                rfc_param->tcm_open_5g_rfc = true;
+                rfc_param->tcm_open_6g_rfc = true;
+                rfc_param->tcm_secure_2g_rfc = true;
+                rfc_param->tcm_secure_5g_rfc = true;
+                rfc_param->tcm_secure_6g_rfc = true;
+                update_rfc_config = true;
+            }
+        }
+        if (update_rfc_config == true) {
+            wifidb_update_rfc_config(0, rfc_param);
         }
 #ifdef ALWAYS_ENABLE_AX_2G
         wifidb_update_rfc_config(0, rfc_param);
@@ -8471,7 +8477,7 @@ void init_wifidb_data()
             }
             wifidb_get_wifi_ignite_config(ignite_cfg); 
             wifidb_upgrade_wifi_ignite_config(r_index);        
-            wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite entries : [%s %f %f %f %f]\n", __func__, __LINE__, ignite_cfg->ignite_name, ignite_cfg->min_chanutil_threshold, ignite_cfg->max_chanutil_threshold, ignite_cfg->SNR_threshold, ignite_cfg->SNR_difference);
+            wifi_util_dbg_print(WIFI_CTRL, "[%s %d] Ignite entries : [%s %f %f %f]\n", __func__, __LINE__, ignite_cfg->ignite_name, ignite_cfg->min_chanutil_threshold, ignite_cfg->max_chanutil_threshold, ignite_cfg->SNR_difference);
             if (wifidb_update_ignite_config(ignite_cfg) != RETURN_OK) {
                 pthread_mutex_unlock(&g_wifidb->data_cache_lock);
                 wifi_util_error_print(WIFI_DB,"%s:%d: Failed to update ignite config\n", __func__, __LINE__);
@@ -9714,7 +9720,7 @@ int wifi_db_update_psm_values()
 }
 
 //static void bus_subscription_handler(bus_handle_t handle, bus_event_t *event,
-static void bus_subscription_handler(char *event_name, bus_data_prop_t *p_data, void *userData)
+static void bus_subscription_handler(char *event_name, raw_data_t *p_data, void *userData)
 {
     (void)p_data;
     (void)userData;

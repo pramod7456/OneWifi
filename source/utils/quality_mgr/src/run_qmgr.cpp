@@ -30,6 +30,7 @@
 static qmgr_report_batch_cb_t qmgr_batch_cb = NULL;
 static qmgr_report_score_cb_t qmgr_score_cb = NULL;
 static qmgr_max_snr_cb_t g_qmgr_snr_cb = NULL;
+static qmgr_max_phy_cb_t g_qmgr_phy_cb = NULL;
 
 //Register callback functions
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb)
@@ -40,6 +41,11 @@ void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb)
 void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb)
 {
     g_qmgr_snr_cb = cb;
+}
+
+void qmgr_register_max_phy_callback(qmgr_max_phy_cb_t cb)
+{
+    g_qmgr_phy_cb = cb;
 }
 
 void qmgr_register_score_callback(qmgr_report_score_cb_t cb)
@@ -76,11 +82,20 @@ extern "C" void qmgr_invoke_score(const char *str, double score,double threshold
         qmgr_score_cb(str, score,threshold);
     wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
 }
+
 extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr)
 {
     wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
     if (g_qmgr_snr_cb) 
         g_qmgr_snr_cb(radio_index,max_snr);
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+
+}
+extern "C" void qmgr_invoke_max_phy_callback(int radio_index,int max_snr)
+{
+    wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
+    if (g_qmgr_phy_cb) 
+        g_qmgr_phy_cb(radio_index,max_snr);
     wifi_util_error_print(WIFI_CTRL,"%s:%d \n",__func__,__LINE__); 
 
 }
@@ -237,5 +252,14 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val)
     qmgr_t *mgr;
     mgr = qmgr_t::get_instance();   // always returns SAME instance
     mgr->set_max_snr_radios(max_snr_val);
+    return 0;
+}
+
+int set_max_phy_radios(radio_max_phy_t *max_phy_val)
+{
+    wifi_util_info_print(WIFI_APPS,"started  %s:%d \n",__func__,__LINE__);
+    qmgr_t *mgr;
+    mgr = qmgr_t::get_instance();   // always returns SAME instance
+    mgr->set_max_phy_radios(max_phy_val);
     return 0;
 }

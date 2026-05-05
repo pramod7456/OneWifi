@@ -882,6 +882,9 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
     rfc_config.radio_2g_observed_max_snr = rfc_param->radio_2g_observed_max_snr;
     rfc_config.radio_5g_observed_max_snr = rfc_param->radio_5g_observed_max_snr;
     rfc_config.radio_6g_observed_max_snr = rfc_param->radio_6g_observed_max_snr;
+    rfc_config.radio_2g_observed_max_phy = rfc_param->radio_2g_observed_max_phy;
+    rfc_config.radio_5g_observed_max_phy = rfc_param->radio_5g_observed_max_phy;
+    rfc_config.radio_6g_observed_max_phy = rfc_param->radio_6g_observed_max_phy;
     pthread_mutex_lock(&g_wifidb->data_cache_lock);
     g_wifidb->rfc_dml_parameters = rfc_config;
     pthread_mutex_unlock(&g_wifidb->data_cache_lock);

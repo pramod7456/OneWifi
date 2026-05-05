@@ -31,13 +31,15 @@
 extern "C" void qmgr_invoke_score(const char *str, double score, double threshold);
 // static member initialization
 
-linkq_params_t linkq_t::m_linkq_params[MAX_LINKQ_PARAMS] = {{"DOWNLINK_SNR", true}, {"DOWNLINK_PER", false}, {"DOWNLINK_PHY", true},{"UPLINK_SNR", true}, {"UPLINK_PER", false}, {"UPLINK_PHY", true}};
+linkq_params_t linkq_t::m_linkq_params[MAX_LINKQ_PARAMS] = {{"DOWNLINK_SNR", true}, {"DOWNLINK_PER", false}, {"DOWNLINK_PHY", true},{"UPLINK_SNR", true}, {"UPLINK_PER", false}, {"UPLINK_PHY", true},{"DOWNLINK_EFF_PHY",true},{"UPLINK_EFF_PHY",true}};
 
 mac_addr_str_t linkq_t::ignite_station_mac = "";
 
 extern "C" void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
+extern "C" void qmgr_invoke_max_phy_callback(int radio_index,int max_snr);
 
 radio_max_snr_t linkq_t::max_snr_radio_val = {25,25,25};
+radio_max_phy_t linkq_t::max_phy_radio_val = {150,500,500};
 linkq_params_t linkq_t::m_score_params[] = {
     // ---------- Aggregate metrics ----------
     { "SNR",   true  },
@@ -54,9 +56,20 @@ linkq_params_t linkq_t::m_score_params[] = {
     { "UPLINK_PER",   false },
     { "UPLINK_PHY",   true  },
     
+    // --------Link score ----------
     { "DOWNLINK_Score", true  },
     { "UPLINK_Score", true  },
-    { "Score", true  }
+    { "Score", true  },
+    
+    //----------Efficency PHY ---------
+    { "DOWNLINK_EFF_PHY",   true },
+    { "UPLINK_EFF_PHY",   true  },
+    { "AGG_EFF_PHY",   true  },
+
+    //----------Efficency score ---------
+    { "DOWNLINK_EFF_Score", true  },
+    { "UPLINK_EFF_Score", true  },
+    { "EFF_Score", true  }
 };
 
 // Return pointer to the static array
@@ -99,7 +112,7 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     vector_t v;
     alarm = false;
 
-    double norm[6] = {0.0};
+    double norm[8] = {0.0};
     double x, y;
     bool is_ignite_station = false;
     memset(&m_data_sample,0,sizeof(sample_t));
@@ -118,14 +131,14 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         m_quality_flag.downlink_snr,m_quality_flag.downlink_per,m_quality_flag.downlink_phy,m_quality_flag.uplink_snr,
         m_quality_flag.uplink_per,m_quality_flag.uplink_phy,m_quality_flag.aggregate);
     
-    v.m_num = 12;
+    v.m_num = 18;
     for (int i = 0; i < v.m_num; i++)
         v.m_val[i].m_re = 0.0;
 
     // -------------------------------------------------
     // Normalize enabled inputs
     // -------------------------------------------------
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 8; i++) {
         bool enabled = false;
 
         switch (i) {
@@ -135,10 +148,13 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
             case 3: enabled = m_quality_flag.uplink_snr;   break;
             case 4: enabled = m_quality_flag.uplink_per;   break;
             case 5: enabled = m_quality_flag.uplink_phy;   break;
+            case 6: enabled = m_quality_flag.downlink_phy; break;
+            case 7: enabled = m_quality_flag.uplink_phy; break;
+
         }
 
         if (!enabled) continue;
-
+ 
         y = m_seq[i].get_max().m_re - m_seq[i].get_min().m_re;
 
         if (y > 0.0) {
@@ -149,17 +165,27 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
             norm[i] = 0.0;
         }
         // Smooth uplink PHY (i == 5) using last 5 samples
-        if (i == 5) {
-            m_uplink_phy_history.push_back(norm[i]);
-            if (m_uplink_phy_history.size() > UPLINK_PHY_WINDOW)
-                m_uplink_phy_history.pop_front();
-
+        if (i == 5 ) {
+                m_uplink_phy_history.push_back(norm[i]);
+                if (m_uplink_phy_history.size() > UPLINK_PHY_WINDOW)
+                    m_uplink_phy_history.pop_front();
             double sum = 0.0;
             for (size_t j = 0; j < m_uplink_phy_history.size(); j++)
                 sum += m_uplink_phy_history[j];
 
             if (!m_uplink_phy_history.empty())
                 norm[i] = sum / m_uplink_phy_history.size();
+        }
+        if (i == 7 ) {
+                m_uplink_phyeff_history.push_back(norm[i]);
+                if (m_uplink_phyeff_history.size() > UPLINK_PHY_WINDOW)
+                    m_uplink_phyeff_history.pop_front();
+            double sum = 0.0;
+            for (size_t j = 0; j < m_uplink_phyeff_history.size(); j++)
+                sum += m_uplink_phyeff_history[j];
+
+            if (!m_uplink_phyeff_history.empty())
+                norm[i] = sum / m_uplink_phyeff_history.size();
         }
 
         norm[i] = apply_rapid_reconnect(norm[i],m_recovery_remaining,m_recovery_total);
@@ -175,6 +201,10 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
     v.m_val[6].m_re  = m_quality_flag.uplink_snr   ? norm[3] : 0.0;
     v.m_val[7].m_re  = m_quality_flag.uplink_per   ? norm[4] : 0.0;
     v.m_val[8].m_re = m_quality_flag.uplink_phy   ? norm[5] : 0.0;
+    v.m_val[12].m_re =  norm[6];
+    v.m_val[13].m_re = norm[7]; 
+    wifi_util_dbg_print(WIFI_APPS,"Pramod%s:%d 12=%f 13=%f norm[2]=%f norm[5]= %f norm[6]=%f norm[7]=%f\n"
+    ,__func__,__LINE__,v.m_val[12].m_re,v.m_val[13].m_re,norm[2],norm[5],norm[6],norm[7]);
 
     // -------------------------------------------------
     // Aggregate SNR / PER / PHY
@@ -196,17 +226,25 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         if (m_quality_flag.downlink_phy) { v.m_val[2].m_re += norm[2]; cnt++; }
         if (m_quality_flag.uplink_phy)   { v.m_val[2].m_re += norm[5]; cnt++; }
         if (cnt) v.m_val[2].m_re /= cnt;
-
-        m_data_sample.snr   = v.m_val[0].m_re;
+        
+	cnt = 0;
+        if (m_quality_flag.downlink_phy) { v.m_val[14].m_re += norm[6]; cnt++; }
+        if (m_quality_flag.uplink_phy)   { v.m_val[14].m_re += norm[7]; cnt++; }
+        if (cnt) v.m_val[14].m_re /= cnt;
+        
+	m_data_sample.snr   = v.m_val[0].m_re;
         m_data_sample.per   = v.m_val[1].m_re;
         m_data_sample.phy   = v.m_val[2].m_re;
+        wifi_util_dbg_print(WIFI_APPS,"In Aggregte %s:%d v.m_val[2].m_re=%f v.m_val[14].m_re=%f\n"
+	,__func__,__LINE__,v.m_val[2].m_re,v.m_val[14].m_re);
          
     } else {
-        wifi_util_dbg_print(WIFI_APPS,"%s:%d Not In Aggregte\n",__func__,__LINE__);
         v.m_val[0].m_re = 0;
         v.m_val[1].m_re = 0;
         v.m_val[2].m_re = 0;
         v.m_val[11].m_re = 0;
+        v.m_val[14].m_re = 0;
+        v.m_val[17].m_re = 0;
 
     }
     // -------------------------------------------------
@@ -217,11 +255,17 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[9].m_re += m_linkq_params[0].booster
             ? pow(v.m_val[3].m_re, 2)
             : (1 - pow(v.m_val[3].m_re, 2));
+        v.m_val[15].m_re += m_linkq_params[0].booster
+            ? pow(v.m_val[3].m_re, 2)
+            :(1 - pow(v.m_val[3].m_re, 2));
         cnt++;
         m_data_sample.snr   = v.m_val[3].m_re;
     }
     if (m_quality_flag.downlink_per) {
         v.m_val[9].m_re += m_linkq_params[1].booster
+            ? pow(v.m_val[4].m_re, 2)
+            :(1 - pow(v.m_val[4].m_re, 2));
+        v.m_val[15].m_re += m_linkq_params[1].booster
             ? pow(v.m_val[4].m_re, 2)
             :(1 - pow(v.m_val[4].m_re, 2));
         cnt++;
@@ -230,6 +274,9 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[9].m_re += m_linkq_params[2].booster
             ? pow(v.m_val[5].m_re, 2)
             : (1 - pow(v.m_val[5].m_re, 2));
+        v.m_val[15].m_re += m_linkq_params[2].booster
+            ? pow(v.m_val[12].m_re, 2)
+            :(1 - pow(v.m_val[12].m_re, 2));
         cnt++;
     }
     if (v.m_val[9].m_re < 0.0 || cnt == 0)
@@ -238,7 +285,16 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[9].m_re = sqrt(v.m_val[9].m_re / cnt) * m_reconnect_factor *
             (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d Downlink score = %f\n",__func__,__LINE__,v.m_val[9].m_re);
+    //This is link efficency score calculation
+    if (v.m_val[15].m_re < 0.0 || cnt == 0)
+        v.m_val[15].m_re = 0.0;
+    else {
+        v.m_val[15].m_re = sqrt(v.m_val[15].m_re / cnt) * m_reconnect_factor *
+            (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
+    }
+
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d Downlink score = %f, Downlink effic score=%f\n",
+    __func__,__LINE__,v.m_val[9].m_re,v.m_val[15].m_re);
 
     // -------------------------------------------------
     // UPLINK Score
@@ -248,10 +304,16 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[10].m_re += m_linkq_params[3].booster
             ? pow(v.m_val[6].m_re, 2)
             : (1 - pow(v.m_val[6].m_re, 2));
+        v.m_val[16].m_re += m_linkq_params[3].booster
+            ? pow(v.m_val[6].m_re, 2)
+            : (1 - pow(v.m_val[6].m_re, 2));
         cnt++;
     }
     if (m_quality_flag.uplink_per) {
         v.m_val[10].m_re += m_linkq_params[4].booster
+            ? pow(v.m_val[7].m_re, 2)
+            : (1 - pow(v.m_val[7].m_re, 2));
+        v.m_val[16].m_re += m_linkq_params[4].booster
             ? pow(v.m_val[7].m_re, 2)
             : (1 - pow(v.m_val[7].m_re, 2));
             cnt++;
@@ -260,6 +322,9 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[10].m_re += m_linkq_params[5].booster
             ? pow(v.m_val[8].m_re, 2)
             : (1 - pow(v.m_val[8].m_re, 2));
+        v.m_val[16].m_re += m_linkq_params[5].booster
+            ? pow(v.m_val[13].m_re, 2)
+            : (1 - pow(v.m_val[13].m_re, 2));
         cnt++;
     }
     if (v.m_val[10].m_re < 0.0 || cnt == 0)
@@ -268,7 +333,15 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[10].m_re = sqrt(v.m_val[10].m_re / cnt) * m_reconnect_factor *
            (1.0 -  (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%dUplink score = %f\n",__func__,__LINE__,v.m_val[10].m_re);
+    
+    if (v.m_val[16].m_re < 0.0 || cnt == 0)
+        v.m_val[16].m_re = 0.0;
+    else {
+        v.m_val[16].m_re = sqrt(v.m_val[16].m_re / cnt) * m_reconnect_factor *
+           (1.0 -  (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
+    }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%dUplink score = %f uplink efficency score=%f\n",
+    __func__,__LINE__,v.m_val[10].m_re,v.m_val[16].m_re);
 
     // -------------------------------------------------
     // Aggregate Score
@@ -288,7 +361,29 @@ vector_t linkq_t::run_algorithm(linkq_data_t data,
         v.m_val[11].m_re = sqrt(v.m_val[11].m_re / cnt) * m_reconnect_factor *
             (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%dAggregate score = %f\n",__func__,__LINE__,v.m_val[11].m_re);
+    
+    cnt = 0;
+    for (int i = 0; i < 2; i++) {
+        if (v.m_val[i].m_re > 0.0) {
+            v.m_val[17].m_re += m_linkq_params[i].booster
+                ? pow(v.m_val[i].m_re, 2)
+                :(1 - pow(v.m_val[i].m_re, 2));
+            cnt++;
+        }
+    }
+    v.m_val[17].m_re += m_linkq_params[5].booster
+            ? pow(v.m_val[14].m_re, 2)
+            : (1 - pow(v.m_val[14].m_re, 2));
+    cnt++;
+
+    if (v.m_val[17].m_re < 0.0 || cnt == 0)
+        v.m_val[17].m_re = 0.0;
+    else {
+        v.m_val[17].m_re = sqrt(v.m_val[17].m_re / cnt) * m_reconnect_factor *
+            (1.0 - (1.0 / (1.0 + exp(-(LINK_QTY_B0 + LINK_QTY_B1 * channel_utilization)))));
+    }
+    wifi_util_dbg_print(WIFI_APPS,"%s:%dAggregate score = %f Aggregate_effic_score =%f\n",
+    __func__,__LINE__,v.m_val[11].m_re,v.m_val[17].m_re);
     // -------------------------------------------------
     // Alarm logic
     // -------------------------------------------------
@@ -405,7 +500,15 @@ vector_t linkq_t::run_test(bool &alarm, bool update_alarm, bool &rapid_disconnec
             data[i] = m_window_uplink_per; 
         } else if (strcmp(m_linkq_params[i].name, "UPLINK_PHY") == 0) {
             data[i] = stat.dev.cli_LastDataUplinkRate;
+        } else if (strcmp(m_linkq_params[i].name, "DOWNLINK_EFF_PHY") == 0) {
+            data[i] = stat.dev.cli_LastDataDownlinkRate;; 
+        } else if (strcmp(m_linkq_params[i].name, "UPLINK_EFF_PHY") == 0) {
+            data[i] = stat.dev.cli_LastDataUplinkRate;; 
         }
+    }
+    for (unsigned int i = 0; i < MAX_LINKQ_PARAMS; i++) {
+        wifi_util_error_print(WIFI_APPS,"%s:%d i = %d data[i]= %f\n",
+	__func__,__LINE__,i,data[i]);
     }
 
     v = run_algorithm(data, alarm, update_alarm,stat.channel_utilization);
@@ -537,6 +640,7 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
     char *buff, tmp[MAX_LINE_SIZE];
     unsigned int i;
     int normalize_snr = 0;
+    int efficency_phy = 0;
     
     m_threshold = threshold;
     m_reporting_mult = reporting_mult;
@@ -581,6 +685,13 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
                 qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_2g_max_snr);
             }
             normalize_snr =  max_snr_radio_val.radio_2g_max_snr;             
+            
+	    if (m_stats_arr[0].dev.cli_MaxDownlinkRate > max_phy_radio_val.radio_2g_max_phy) {
+                max_phy_radio_val.radio_2g_max_phy = m_stats_arr[0].dev.cli_MaxDownlinkRate;
+                qmgr_invoke_max_phy_callback(m_stats_arr[0].radio_index,max_phy_radio_val.radio_2g_max_phy);
+            }
+	    efficency_phy = max_phy_radio_val.radio_2g_max_phy;
+
 	    break;
         case 1:
             wifi_util_info_print(WIFI_APPS,"radio index=%d\n",m_stats_arr[0].radio_index);
@@ -589,6 +700,13 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
                 qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_5g_max_snr);
             }
             normalize_snr =  max_snr_radio_val.radio_5g_max_snr;             
+	    
+	    if (m_stats_arr[0].dev.cli_MaxDownlinkRate > max_phy_radio_val.radio_5g_max_phy) {
+                max_phy_radio_val.radio_5g_max_phy = m_stats_arr[0].dev.cli_MaxDownlinkRate;
+                qmgr_invoke_max_phy_callback(m_stats_arr[0].radio_index,max_phy_radio_val.radio_5g_max_phy);
+            }
+	    efficency_phy = max_phy_radio_val.radio_5g_max_phy;
+
 	    break;
         case 2:
             wifi_util_info_print(WIFI_APPS,"radio index=%d\n",m_stats_arr[0].radio_index);
@@ -597,6 +715,13 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
                 qmgr_invoke_max_snr_callback(m_stats_arr[0].radio_index,max_snr_radio_val.radio_6g_max_snr);
             }
             normalize_snr =  max_snr_radio_val.radio_6g_max_snr;             
+	    
+	    if (m_stats_arr[0].dev.cli_MaxDownlinkRate > max_phy_radio_val.radio_6g_max_phy) {
+                max_phy_radio_val.radio_6g_max_phy = m_stats_arr[0].dev.cli_MaxDownlinkRate;
+                qmgr_invoke_max_phy_callback(m_stats_arr[0].radio_index,max_phy_radio_val.radio_6g_max_phy);
+            }
+	    efficency_phy = max_phy_radio_val.radio_6g_max_phy;
+
 	    break;
     }
     for (i = 0; i < MAX_LINKQ_PARAMS; i++) {
@@ -615,12 +740,18 @@ int linkq_t::init(double threshold, unsigned int reporting_mult, stats_arg_t *st
         } else if (strncmp(m_linkq_params[i].name, "UPLINK_PER", strlen("UPLINK_PER")) == 0) {
             m_seq[i].set_max(number_t( 25, 0));
             m_seq[i].set_min(number_t(0, 0));
-        } else if (strncmp(m_linkq_params[i].name, "UPLINK_PHY", strlen("UPLINKK_PHY")) == 0) {
+        } else if (strncmp(m_linkq_params[i].name, "UPLINK_PHY", strlen("UPLINK_PHY")) == 0) {
             m_seq[i].set_max(number_t( m_stats_arr[0].dev.cli_MaxUplinkRate, 0));
+            m_seq[i].set_min(number_t(0, 0));
+        } else if (strncmp(m_linkq_params[i].name, "DOWNLINK_EFF_PHY", strlen("DOWNLINK_EFF_PHY")) == 0) {
+            m_seq[i].set_max(number_t(efficency_phy, 0));
+            m_seq[i].set_min(number_t(0, 0));
+        } else if (strncmp(m_linkq_params[i].name, "UPLINK_EFF_PHY", strlen("UPLINK_EFF_PHY")) == 0) {
+            m_seq[i].set_max(number_t(efficency_phy, 0));
             m_seq[i].set_min(number_t(0, 0));
         }
     }
-    wifi_util_error_print(WIFI_APPS," %s:%d  m_recs =%d m_current=%d m_max_phy=%d normalize_snr=%d\n",__func__,__LINE__,m_recs,m_current,m_stats_arr[0].dev.cli_MaxDownlinkRate,normalize_snr); 
+    wifi_util_error_print(WIFI_APPS," %s:%d  m_recs =%d m_current=%d m_max_phy=%d normalize_snr=%d eff_phy=%d max_uplink_phy=%f\n",__func__,__LINE__,m_recs,m_current,m_stats_arr[0].dev.cli_MaxDownlinkRate,normalize_snr,efficency_phy,m_stats_arr[0].dev.cli_MaxUplinkRate); 
     return 0;
 }
 
@@ -679,6 +810,15 @@ int linkq_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
     max_snr_radio_val = *max_snr_val;
     wifi_util_error_print(WIFI_APPS,"Pramod %s:%d %d:%d:%d\n", __func__,__LINE__,max_snr_radio_val.radio_2g_max_snr,max_snr_radio_val.radio_5g_max_snr,
 	    max_snr_radio_val.radio_6g_max_snr);
+    return 0;
+}
+
+int linkq_t::set_max_phy_radios(radio_max_phy_t *max_phy_val)
+{
+    wifi_util_error_print(WIFI_APPS,"Pramod %s:%d\n",__func__,__LINE__);
+    max_phy_radio_val = *max_phy_val;
+    wifi_util_error_print(WIFI_APPS,"Pramod %s:%d %d:%d:%d\n", __func__,__LINE__,max_phy_radio_val.radio_2g_max_phy,max_phy_radio_val.radio_5g_max_phy,
+	    max_phy_radio_val.radio_6g_max_phy);
     return 0;
 }
 

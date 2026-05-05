@@ -24,8 +24,8 @@ extern "C" {
 #define MAX_LINE_SIZE   1024
  #define MAX_FILE_NAME_SZ 1024
 
-#define MAX_LINKQ_PARAMS    6
-#define MAX_SCORE_PARAMS    12
+#define MAX_LINKQ_PARAMS    8
+#define MAX_SCORE_PARAMS    18
 #define THRESHOLD 0.4
 #define SAMPLING_INTERVAL 5
 #define REPORTING_INTERVAL 5
@@ -78,6 +78,12 @@ typedef struct {
 } radio_max_snr_t;
 
 typedef struct {
+    int radio_2g_max_phy;
+    int radio_5g_max_phy;
+    int radio_6g_max_phy;
+} radio_max_phy_t;
+
+typedef struct {
     bool downlink_snr;
     bool downlink_per;
     bool downlink_phy;
@@ -92,11 +98,13 @@ typedef struct {
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
 typedef void (*qmgr_report_score_cb_t)(const char *str, double score,double threshold);
 typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
+typedef int (*qmgr_max_phy_cb_t)(int radio_index,int score);
 
 /* Registration function (called from C main) */
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb);
 void qmgr_register_score_callback(qmgr_report_score_cb_t cb);
 void qmgr_register_max_snr_callback(qmgr_max_snr_cb_t cb);
+void qmgr_register_max_phy_callback(qmgr_max_phy_cb_t cb);
 
 bool qmgr_is_batch_registered(void);
 bool qmgr_is_score_registered(void);
@@ -105,6 +113,7 @@ void reset_qmgr_score_cb(void);
 void qmgr_invoke_batch(const report_batch_t *batch);
 void qmgr_invoke_score(const char *str, double score,double threshold);
 void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
+void qmgr_invoke_max_phy_callback(int radio_index,int max_snr);
 
 int run_web_server();
 int stop_web_server();
@@ -125,6 +134,7 @@ void register_station_mac(const char* str);
 void unregister_station_mac(const char* str);
 
 int set_max_snr_radios(radio_max_snr_t *max_snr_val);
+int set_max_phy_radios(radio_max_phy_t *max_phy_val);
 #ifdef __cplusplus
 }
 #endif

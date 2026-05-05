@@ -28,8 +28,8 @@
 #include <deque>
 
 #define MAX_LINE_SIZE   1024
-#define MAX_LINKQ_PARAMS    6
-#define MAX_SCORE_PARAMS    12
+#define MAX_LINKQ_PARAMS    8
+#define MAX_SCORE_PARAMS    18
 #define PER_WINDOW_SIZE   36
 #define UPLINK_PHY_WINDOW  5
 
@@ -58,6 +58,7 @@ class linkq_t {
     int m_recovery_total;
     std::deque<window_per_param_t> m_per_window;
     std::deque<double> m_uplink_phy_history;
+    std::deque<double> m_uplink_phyeff_history;
     bool m_alarm;
     bool m_disconnected;
     int m_disconnect_samples;
@@ -71,6 +72,8 @@ class linkq_t {
     char *get_local_time(char *buff, unsigned int len,bool flag); 
     static quality_flags_t m_quality_flag;
     static radio_max_snr_t max_snr_radio_val;
+    static radio_max_phy_t max_phy_radio_val;
+
 public:
     vector_t run_test(bool &alarm,bool update_alarm,bool &rapid_disconnect);
     vector_t run_algorithm(linkq_data_t data, bool &alarm, bool update_alarm,int channel_util);
@@ -90,6 +93,7 @@ public:
     static void register_station_mac(const char* str);
     static void unregister_station_mac(const char* str);
     static int set_max_snr_radios(radio_max_snr_t *max_snr_val);
+    static int set_max_phy_radios(radio_max_phy_t *max_phy_val);
     linkq_t(mac_addr_str_t mac,unsigned int vap_index);
     ~linkq_t();
 };

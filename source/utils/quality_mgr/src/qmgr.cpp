@@ -578,6 +578,12 @@ int qmgr_t::set_max_snr_radios(radio_max_snr_t *max_snr_val)
     return 0;   
 }
 
+int qmgr_t::set_max_phy_radios(radio_max_phy_t *max_phy_val)
+{
+    linkq_t::set_max_phy_radios(max_phy_val);
+    return 0;   
+}
+
 qmgr_t::qmgr_t()
 {
     memset(&m_args, 0, sizeof(server_arg_t));

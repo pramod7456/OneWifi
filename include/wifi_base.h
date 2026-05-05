@@ -568,6 +568,9 @@ typedef struct {
     int radio_2g_observed_max_snr;
     int radio_5g_observed_max_snr;
     int radio_6g_observed_max_snr;
+    int radio_2g_observed_max_phy;
+    int radio_5g_observed_max_phy;
+    int radio_6g_observed_max_phy;
 } wifi_rfc_dml_parameters_t;
 
 typedef struct {

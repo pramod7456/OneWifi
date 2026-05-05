@@ -280,6 +280,9 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
         rfc_param->radio_2g_observed_max_snr = new_rec->radio_2g_observed_max_snr;
         rfc_param->radio_5g_observed_max_snr = new_rec->radio_5g_observed_max_snr;
         rfc_param->radio_6g_observed_max_snr = new_rec->radio_6g_observed_max_snr;
+        rfc_param->radio_2g_observed_max_phy = new_rec->radio_2g_observed_max_phy;
+        rfc_param->radio_5g_observed_max_phy = new_rec->radio_5g_observed_max_phy;
+        rfc_param->radio_6g_observed_max_phy = new_rec->radio_6g_observed_max_phy;
 
         wifi_util_dbg_print(WIFI_DB,
             "%s:%d wifipasspoint_rfc=%d wifiinterworking_rfc=%d radiusgreylist_rfc=%d "
@@ -289,7 +292,8 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
             "hotspot_secure_5g_last_enabled=%d hotspot_secure_6g_last_enabled=%d "
             "wifi_offchannelscan_app_rfc=%d offchannelscan=%d rfc_id=%s "
             "MemwrapTool=%d levl_enabled_rfc=%d tcm_enabled_rfc=%d wpa3_compatibility_enable=%d "
-            "csi_analytics_enabled_rfc=%d link_quality_rfc=%d radio_2g_observed_max_snr=%d radio_5g_observed_max_snr=%d radio_6g_observed_max_snr\r\n",
+            "csi_analytics_enabled_rfc=%d link_quality_rfc=%d radio_2g_observed_max_snr=%d radio_5g_observed_max_snr=%d radio_6g_observed_max_snr=%d "
+	    "radio_2g_observed_max_phy=%d radio_5g_observed_max_phy=%d radio_6g_observed_max_phy=%d\r\n",
             __func__, __LINE__, rfc_param->wifipasspoint_rfc, rfc_param->wifiinterworking_rfc,
             rfc_param->radiusgreylist_rfc, rfc_param->dfsatbootup_rfc, rfc_param->dfs_rfc,
             rfc_param->wpa3_rfc, rfc_param->twoG80211axEnable_rfc,
@@ -299,7 +303,8 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
             rfc_param->wifi_offchannelscan_app_rfc, rfc_param->wifi_offchannelscan_sm_rfc,
             rfc_param->rfc_id, rfc_param->memwraptool_app_rfc, rfc_param->levl_enabled_rfc,
             rfc_param->tcm_enabled_rfc, rfc_param->wpa3_compatibility_enable, rfc_param->csi_analytics_enabled_rfc,rfc_param->link_quality_rfc,
-	    rfc_param->radio_2g_observed_max_snr,rfc_param->radio_5g_observed_max_snr,rfc_param->radio_6g_observed_max_snr);
+	    rfc_param->radio_2g_observed_max_snr,rfc_param->radio_5g_observed_max_snr,rfc_param->radio_6g_observed_max_snr,
+	    rfc_param->radio_2g_observed_max_phy,rfc_param->radio_5g_observed_max_phy,rfc_param->radio_6g_observed_max_phy);
         pthread_mutex_unlock(&g_wifidb->data_cache_lock);
     }
 }
@@ -1976,8 +1981,11 @@ int wifidb_get_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_info)
     rfc_info->link_quality_rfc = pcfg->link_quality_rfc;
     rfc_info->xfi_tel_enable_rfc = pcfg->xfi_tel_enable_rfc;
     rfc_info->radio_2g_observed_max_snr = pcfg->radio_2g_observed_max_snr;
+    rfc_info->radio_2g_observed_max_snr = pcfg->radio_2g_observed_max_snr;
     rfc_info->radio_5g_observed_max_snr = pcfg->radio_5g_observed_max_snr;
-    rfc_info->radio_6g_observed_max_snr = pcfg->radio_6g_observed_max_snr;
+    rfc_info->radio_6g_observed_max_phy = pcfg->radio_6g_observed_max_phy;
+    rfc_info->radio_5g_observed_max_phy = pcfg->radio_5g_observed_max_phy;
+    rfc_info->radio_6g_observed_max_phy = pcfg->radio_6g_observed_max_phy;
     free(pcfg);
     return 0;
 }
@@ -4845,6 +4853,9 @@ void wifidb_init_rfc_config_default(wifi_rfc_dml_parameters_t *config)
     rfc_config.radio_2g_observed_max_snr = 25;
     rfc_config.radio_5g_observed_max_snr = 25;
     rfc_config.radio_6g_observed_max_snr = 25;
+    rfc_config.radio_2g_observed_max_phy = 150;
+    rfc_config.radio_5g_observed_max_phy = 500;
+    rfc_config.radio_6g_observed_max_phy = 500;
     pthread_mutex_lock(&g_wifidb->data_cache_lock);
     memcpy(config,&rfc_config,sizeof(wifi_rfc_dml_parameters_t));
     pthread_mutex_unlock(&g_wifidb->data_cache_lock);
@@ -6317,6 +6328,9 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
     cfg.radio_2g_observed_max_snr = rfc_param->radio_2g_observed_max_snr;
     cfg.radio_5g_observed_max_snr = rfc_param->radio_5g_observed_max_snr;
     cfg.radio_6g_observed_max_snr = rfc_param->radio_6g_observed_max_snr;
+    cfg.radio_2g_observed_max_phy = rfc_param->radio_2g_observed_max_phy;
+    cfg.radio_5g_observed_max_phy = rfc_param->radio_5g_observed_max_phy;
+    cfg.radio_6g_observed_max_phy = rfc_param->radio_6g_observed_max_phy;
     if (update == true) {
         where = onewifi_ovsdb_tran_cond(OCLM_STR, "rfc_id", OFUNC_EQ, index); 
         ret = onewifi_ovsdb_table_update_where(g_wifidb->wifidb_sock_path, &table_Wifi_Rfc_Config, where, &cfg);

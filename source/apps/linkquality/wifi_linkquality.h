@@ -35,6 +35,8 @@ extern "C" {
 #define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
 #define IGNITE_INITIAL_PUBLISH_ITERATIONS 5
 #define MAX_LQ_PROBE_ENTRIES 50
+#define MAX_LQ_CONNECTED_STA_ENTRIES 50
+#define LQ_CORRELATION_THRESHOLD 80
 
 #define BUFFER_SIZE 65536
 #define DHCP_BOOTP 1
@@ -84,12 +86,22 @@ typedef struct {
 } lq_probe_req_elem_t;
 
 typedef struct {
+    mac_addr_str_t mac_str;
+    frame_data_t msg_data;
+    time_t timestamp;
+    int ap_index;
+    int sig_dbm;
+} lq_connected_sta_elem_t;
+
+typedef struct {
     stats_arg_t stats;
     server_arg_t server_arg;
     int size;
     ignite_lq_state_t ignite;
     hash_map_t *probe_req_map;
     pthread_mutex_t probe_map_lock;
+    hash_map_t *connected_sta_map;
+    pthread_mutex_t connected_sta_lock;
 } linkquality_data_t;
 
 typedef uint8_t mac_address_t[MAC_ADDRESS_LEN];

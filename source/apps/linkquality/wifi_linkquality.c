@@ -1162,6 +1162,136 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     return RETURN_OK;
 }
 
+static void lq_dump_probe_req_frame(frame_data_t *msg)
+{
+    struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)msg->data;
+    mac_addr_str_t sa_str = { 0 };
+    mac_addr_str_t da_str = { 0 };
+    mac_addr_str_t bssid_str = { 0 };
+
+    to_mac_str(frame->sa, sa_str);
+    to_mac_str(frame->da, da_str);
+    to_mac_str(frame->bssid, bssid_str);
+
+    wifi_util_info_print(WIFI_APPS,
+        "PROBE_REQ %s:%d ap_index=%d len=%d sig_dbm=%d phy_rate=%d recv_freq=%d "
+        "sa=%s da=%s bssid=%s\n",
+        __func__, __LINE__,
+        msg->frame.ap_index, msg->frame.len, msg->frame.sig_dbm,
+        msg->frame.phy_rate, msg->frame.recv_freq,
+        sa_str, da_str, bssid_str);
+
+    /* Dump IEs: Probe Request body is just tagged parameters (IEs) starting
+     * after the 802.11 management header (24 bytes for non-HT frames). */
+    unsigned int mgmt_hdr_len = 24; /* fc(2)+dur(2)+da(6)+sa(6)+bssid(6)+seq(2) */
+    if (msg->frame.len > mgmt_hdr_len) {
+        const uint8_t *ie = msg->data + mgmt_hdr_len;
+        int ie_len = msg->frame.len - mgmt_hdr_len;
+
+        wifi_util_info_print(WIFI_APPS,
+            "PROBE_REQ %s:%d IEs total_len=%d\n", __func__, __LINE__, ie_len);
+
+        while (ie_len >= 2) {
+            uint8_t id = ie[0];
+            uint8_t len = ie[1];
+            if (ie_len < 2 + len)
+                break;
+            wifi_util_info_print(WIFI_APPS,
+                "PROBE_REQ   IE id=%u len=%u\n", id, len);
+            ie += 2 + len;
+            ie_len -= 2 + len;
+        }
+    }
+}
+
+static void lq_evict_oldest_probe_entry(wifi_app_t *app)
+{
+    hash_map_t *map = app->data.u.linkquality.probe_req_map;
+    lq_probe_req_elem_t *elem;
+    lq_probe_req_elem_t *oldest = NULL;
+    char *oldest_key = NULL;
+
+    elem = (lq_probe_req_elem_t *)hash_map_get_first(map);
+    while (elem != NULL) {
+        if (oldest == NULL || elem->timestamp < oldest->timestamp) {
+            oldest = elem;
+            oldest_key = elem->mac_str;
+        }
+        elem = (lq_probe_req_elem_t *)hash_map_get_next(map, elem);
+    }
+
+    if (oldest_key) {
+        elem = (lq_probe_req_elem_t *)hash_map_remove(map, oldest_key);
+        if (elem) {
+            wifi_util_dbg_print(WIFI_APPS,
+                "PROBE_REQ %s:%d Evicted oldest entry mac=%s\n",
+                __func__, __LINE__, oldest_key);
+            free(elem);
+        }
+    }
+}
+
+static int link_quality_probe_req_event(wifi_app_t *apps, void *arg)
+{
+    if (!arg) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d NULL arg\n", __func__, __LINE__);
+        return RETURN_ERR;
+    }
+
+    frame_data_t *msg = (frame_data_t *)arg;
+    struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)msg->data;
+    mac_addr_str_t mac_str = { 0 };
+
+    to_mac_str(frame->sa, mac_str);
+
+    /* Dump frame for debug */
+    lq_dump_probe_req_frame(msg);
+
+    pthread_mutex_lock(&apps->data.u.linkquality.probe_map_lock);
+
+    if (apps->data.u.linkquality.probe_req_map == NULL) {
+        wifi_util_error_print(WIFI_APPS, "%s:%d probe_req_map is NULL\n", __func__, __LINE__);
+        pthread_mutex_unlock(&apps->data.u.linkquality.probe_map_lock);
+        return RETURN_ERR;
+    }
+
+    /* Enforce max entries - evict oldest if at limit */
+    if (hash_map_count(apps->data.u.linkquality.probe_req_map) >= MAX_LQ_PROBE_ENTRIES) {
+        lq_probe_req_elem_t *existing = (lq_probe_req_elem_t *)hash_map_get(
+            apps->data.u.linkquality.probe_req_map, mac_str);
+        if (!existing) {
+            lq_evict_oldest_probe_entry(apps);
+        }
+    }
+
+    lq_probe_req_elem_t *elem = (lq_probe_req_elem_t *)hash_map_get(
+        apps->data.u.linkquality.probe_req_map, mac_str);
+
+    if (elem == NULL) {
+        elem = (lq_probe_req_elem_t *)malloc(sizeof(lq_probe_req_elem_t));
+        if (!elem) {
+            wifi_util_error_print(WIFI_APPS, "%s:%d malloc failed\n", __func__, __LINE__);
+            pthread_mutex_unlock(&apps->data.u.linkquality.probe_map_lock);
+            return RETURN_ERR;
+        }
+        memset(elem, 0, sizeof(lq_probe_req_elem_t));
+        memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
+        memcpy(elem->mac_str, mac_str, sizeof(mac_addr_str_t));
+        elem->timestamp = (time_t)get_current_time_in_sec();
+        hash_map_put(apps->data.u.linkquality.probe_req_map, strdup(mac_str), elem);
+        wifi_util_info_print(WIFI_APPS,
+            "PROBE_REQ %s:%d New entry mac=%s ap_index=%d rssi=%d\n",
+            __func__, __LINE__, mac_str, msg->frame.ap_index, msg->frame.sig_dbm);
+    } else {
+        /* Update existing entry with latest frame data */
+        memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
+        elem->timestamp = (time_t)get_current_time_in_sec();
+    }
+
+    pthread_mutex_unlock(&apps->data.u.linkquality.probe_map_lock);
+    return RETURN_OK;
+}
+
 int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *arg)
 {
     wifi_util_info_print(WIFI_APPS," %s:%d\n",__func__,__LINE__);
@@ -1221,6 +1351,11 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             wifi_util_info_print(WIFI_APPS," %s:%d event = %d\n",__func__,__LINE__,sub_type);
             link_quality_apps_disassoc_event(apps,true,sub_type,arg);
             break;
+
+        case wifi_event_hal_probe_req_frame:
+            wifi_util_dbg_print(WIFI_APPS," %s:%d event = %d\n",__func__,__LINE__,sub_type);
+            link_quality_probe_req_event(apps, arg);
+            break;
         
         default:
             wifi_util_dbg_print(WIFI_APPS, "%s:%d: event not handle %s\r\n", __func__, __LINE__,
@@ -1276,6 +1411,9 @@ int link_quality_init(wifi_app_t *app, unsigned int create_flag)
     ignite->last_service_state = -1;
     ignite->iteration_count = 0;
 
+    app->data.u.linkquality.probe_req_map = hash_map_create();
+    pthread_mutex_init(&app->data.u.linkquality.probe_map_lock, NULL);
+
     rc = get_bus_descriptor()->bus_open_fn(&app->handle, component_name);
     if (rc != bus_error_success) {
         wifi_util_error_print(WIFI_APPS, "%s:%d bus: bus_open_fn open failed for component:%s, rc:%d\n",
@@ -1302,5 +1440,23 @@ int link_quality_deinit(wifi_app_t *app)
     }
     ignite->last_service_state = -1;
     ignite->iteration_count = 0;
+
+    pthread_mutex_lock(&app->data.u.linkquality.probe_map_lock);
+    if (app->data.u.linkquality.probe_req_map) {
+        lq_probe_req_elem_t *elem = (lq_probe_req_elem_t *)hash_map_get_first(
+            app->data.u.linkquality.probe_req_map);
+        while (elem) {
+            lq_probe_req_elem_t *tmp = elem;
+            elem = (lq_probe_req_elem_t *)hash_map_get_next(
+                app->data.u.linkquality.probe_req_map, elem);
+            hash_map_remove(app->data.u.linkquality.probe_req_map, tmp->mac_str);
+            free(tmp);
+        }
+        hash_map_destroy(app->data.u.linkquality.probe_req_map);
+        app->data.u.linkquality.probe_req_map = NULL;
+    }
+    pthread_mutex_unlock(&app->data.u.linkquality.probe_map_lock);
+    pthread_mutex_destroy(&app->data.u.linkquality.probe_map_lock);
+
     return RETURN_OK;
 }

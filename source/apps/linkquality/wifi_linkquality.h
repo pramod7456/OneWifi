@@ -23,6 +23,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <pthread.h>
 #include "run_qmgr.h"
 #include "wifi_base.h"
 #include "wifi_webconfig.h"
@@ -33,6 +34,7 @@ extern "C" {
 #define MAX_BUFF_LEN 1048
 #define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
 #define IGNITE_INITIAL_PUBLISH_ITERATIONS 5
+#define MAX_LQ_PROBE_ENTRIES 50
 
 #define BUFFER_SIZE 65536
 #define DHCP_BOOTP 1
@@ -76,10 +78,18 @@ typedef struct {
 } ignite_lq_state_t;
 
 typedef struct {
+    mac_addr_str_t mac_str;
+    frame_data_t msg_data;
+    time_t timestamp;
+} lq_probe_req_elem_t;
+
+typedef struct {
     stats_arg_t stats;
     server_arg_t server_arg;
     int size;
     ignite_lq_state_t ignite;
+    hash_map_t *probe_req_map;
+    pthread_mutex_t probe_map_lock;
 } linkquality_data_t;
 
 typedef uint8_t mac_address_t[MAC_ADDRESS_LEN];

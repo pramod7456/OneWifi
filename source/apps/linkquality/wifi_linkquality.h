@@ -34,7 +34,7 @@ extern "C" {
 #define MAX_BUFF_LEN 1048
 #define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
 #define IGNITE_INITIAL_PUBLISH_ITERATIONS 5
-#define MAX_LQ_PROBE_ENTRIES 50
+#define MAX_LQ_PROBE_ENTRIES 100
 #define MAX_LQ_CONNECTED_STA_ENTRIES 50
 #define LQ_CORRELATION_THRESHOLD 80
 
@@ -91,6 +91,7 @@ typedef struct {
     time_t timestamp;
     int ap_index;
     int sig_dbm;
+    int sub_event; /* wifi_event_hal_assoc_req_frame or wifi_event_hal_reassoc_req_frame */
 } lq_connected_sta_elem_t;
 
 typedef struct {

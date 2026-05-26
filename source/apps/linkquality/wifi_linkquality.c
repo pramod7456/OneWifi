@@ -67,7 +67,8 @@ static volatile int dhcp_sniffer_exit = 0;
 
 static char *wifi_health_log = "/rdklogs/logs/wifihealth.txt";
 
-static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg);
+static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg, int sub_event);
+static void lq_correlate_sta_with_probes(wifi_app_t *app, lq_connected_sta_elem_t *sta);
 
 static int dhcp_get_msg_type(uint8_t *options, ssize_t options_len)
 {
@@ -1096,6 +1097,9 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
         wifi_util_info_print(WIFI_APPS,"re/assoc req %s:%d\n", __func__,__LINE__);
         affinity_arg->event = sub_event;
         get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg, 1);
+
+        /* Populate connected_sta_map on assoc/reassoc request (capture client IEs) */
+        lq_add_connected_sta(app, msg, sub_event);
     } else {
         wifi_util_info_print(WIFI_APPS,"re/assoc resp %s:%d\n", __func__,__LINE__);
         // Check sub_event for wifi_event_hal_assoc_rsp_frame OR wifi_event_hal_reassoc_rsp_frame
@@ -1122,8 +1126,48 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
                         __func__, __LINE__, affinity_arg->ap_mac_str, affinity_arg->mac_str);
                 }
 
-                /* Add to connected_sta_map and run correlation with probe_req_map */
-                lq_add_connected_sta(app, msg);
+                /* Response success: trigger correlation with probe_req_map */
+                mac_addr_str_t sta_mac_str = { 0 };
+                to_mac_str(msg->frame.sta_mac, sta_mac_str);
+
+                pthread_mutex_lock(&app->data.u.linkquality.connected_sta_lock);
+                lq_connected_sta_elem_t *sta_elem = NULL;
+                if (app->data.u.linkquality.connected_sta_map != NULL) {
+                    sta_elem = (lq_connected_sta_elem_t *)hash_map_get(
+                        app->data.u.linkquality.connected_sta_map, sta_mac_str);
+                }
+                pthread_mutex_unlock(&app->data.u.linkquality.connected_sta_lock);
+
+                if (sta_elem != NULL) {
+                    wifi_util_info_print(WIFI_APPS,
+                        "CORR %s:%d Response success, triggering correlation for STA=%s\n",
+                        __func__, __LINE__, sta_mac_str);
+                    pthread_mutex_lock(&app->data.u.linkquality.probe_map_lock);
+                    lq_correlate_sta_with_probes(app, sta_elem);
+                    pthread_mutex_unlock(&app->data.u.linkquality.probe_map_lock);
+                } else {
+                    wifi_util_info_print(WIFI_APPS,
+                        "CORR %s:%d Response success but STA=%s not found in connected_sta_map (no prior request)\n",
+                        __func__, __LINE__, sta_mac_str);
+                }
+            } else {
+                /* Response failure: remove STA from connected_sta_map */
+                mac_addr_str_t sta_mac_str = { 0 };
+                to_mac_str(msg->frame.sta_mac, sta_mac_str);
+
+                wifi_util_info_print(WIFI_APPS,
+                    "CORR %s:%d Response failure (status=%u), removing STA=%s from connected_sta_map\n",
+                    __func__, __LINE__, status, sta_mac_str);
+
+                pthread_mutex_lock(&app->data.u.linkquality.connected_sta_lock);
+                if (app->data.u.linkquality.connected_sta_map != NULL) {
+                    lq_connected_sta_elem_t *removed = (lq_connected_sta_elem_t *)hash_map_remove(
+                        app->data.u.linkquality.connected_sta_map, sta_mac_str);
+                    if (removed) {
+                        free(removed);
+                    }
+                }
+                pthread_mutex_unlock(&app->data.u.linkquality.connected_sta_lock);
             }
             wifi_util_info_print(WIFI_CTRL, " %s:%d Calling get_lq_descriptor()->periodic_caffinity_stats_update_fn for MAC %s, event=%d, status=%d\n",
                 __func__, __LINE__, affinity_arg->mac_str, sub_event, status);
@@ -1215,21 +1259,30 @@ static const uint8_t *lq_get_probe_req_ies(frame_data_t *msg, int *out_len)
 }
 
 /*
- * Get pointer to IE blob and its length from an assoc response frame.
- * Assoc Response body: capab_info(2) + status_code(2) + aid(2) = 6 bytes fixed, then IEs.
+ * Get pointer to IE blob and its length from an assoc/reassoc request frame
+ * stored in connected_sta_map.
+ * Assoc Request body: capab_info(2) + listen_interval(2) = 4 bytes fixed, then IEs.
+ * Reassoc Request body: capab_info(2) + listen_interval(2) + current_ap(6) = 10 bytes fixed, then IEs.
  */
-static const uint8_t *lq_get_assoc_resp_ies(frame_data_t *msg, int *out_len)
+static const uint8_t *lq_get_assoc_req_ies(lq_connected_sta_elem_t *sta, int *out_len)
 {
     unsigned int mgmt_hdr_len = 24;
-    unsigned int assoc_resp_fixed = 6; /* capab(2) + status(2) + aid(2) */
-    unsigned int offset = mgmt_hdr_len + assoc_resp_fixed;
+    unsigned int fixed_len;
 
-    if (msg->frame.len <= offset) {
+    if (sta->sub_event == wifi_event_hal_reassoc_req_frame) {
+        fixed_len = 10; /* capab(2) + listen_interval(2) + current_ap(6) */
+    } else {
+        fixed_len = 4;  /* capab(2) + listen_interval(2) */
+    }
+
+    unsigned int offset = mgmt_hdr_len + fixed_len;
+
+    if (sta->msg_data.frame.len <= offset) {
         *out_len = 0;
         return NULL;
     }
-    *out_len = msg->frame.len - offset;
-    return msg->data + offset;
+    *out_len = sta->msg_data.frame.len - offset;
+    return sta->msg_data.data + offset;
 }
 
 /*
@@ -1316,7 +1369,7 @@ static int lq_compute_correlation(lq_connected_sta_elem_t *sta,
                                   lq_probe_req_elem_t *probe)
 {
     int sta_ies_len = 0, probe_ies_len = 0;
-    const uint8_t *sta_ies = lq_get_assoc_resp_ies(&sta->msg_data, &sta_ies_len);
+    const uint8_t *sta_ies = lq_get_assoc_req_ies(sta, &sta_ies_len);
     const uint8_t *probe_ies = lq_get_probe_req_ies(&probe->msg_data, &probe_ies_len);
 
     if (!sta_ies || !probe_ies || sta_ies_len == 0 || probe_ies_len == 0) {
@@ -1396,6 +1449,18 @@ static int lq_compute_correlation(lq_connected_sta_elem_t *sta,
 /*
  * Run correlation for a given connected STA against all probe_req_map entries.
  * Must be called with probe_map_lock held.
+ *
+ * Currently LQ_CORRELATION_THRESHOLD is of 80 (can be discussed),
+ * means probe req vs assoc req IE match 80% will mark it is correlated.
+ *
+ * TO-DO for better correlation need to consider below parameters.
+ * - sequence_number from 80211 header
+ * - timestamp details
+ * - rssi (probe req vs assoc req rssi can vary ~5%?)
+ *
+ * - Vicinity will be calcualte for devices that are connected initially later disconnected
+ * - probe requests with specific SSID's (not wildcard ssid)
+ *
  */
 static void lq_correlate_sta_with_probes(wifi_app_t *app, lq_connected_sta_elem_t *sta)
 {
@@ -1437,19 +1502,19 @@ static void lq_correlate_sta_with_probes(wifi_app_t *app, lq_connected_sta_elem_
 }
 
 /*
- * Add a connected STA to connected_sta_map from a successful assoc response,
- * then run correlation against probe_req_map.
+ * Add a connected STA to connected_sta_map from an assoc/reassoc request.
+ * Does NOT trigger correlation - that happens on successful response.
  */
-static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg)
+static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg, int sub_event)
 {
     mac_addr_str_t mac_str = { 0 };
 
-    /* Key is the STA MAC (destination of assoc response = the client) */
+    /* Key is the STA MAC (source of assoc request = the client) */
     to_mac_str(msg->frame.sta_mac, mac_str);
 
     wifi_util_info_print(WIFI_APPS,
-        "CORR %s:%d Adding connected STA mac=%s ap_index=%d rssi=%d\n",
-        __func__, __LINE__, mac_str, msg->frame.ap_index, msg->frame.sig_dbm);
+        "CORR %s:%d Adding connected STA mac=%s ap_index=%d rssi=%d sub_event=%d (Request phase)\n",
+        __func__, __LINE__, mac_str, msg->frame.ap_index, msg->frame.sig_dbm, sub_event);
 
     pthread_mutex_lock(&app->data.u.linkquality.connected_sta_lock);
 
@@ -1484,6 +1549,7 @@ static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg)
         elem->timestamp = (time_t)get_current_time_in_sec();
         elem->ap_index = msg->frame.ap_index;
         elem->sig_dbm = msg->frame.sig_dbm;
+        elem->sub_event = sub_event;
         hash_map_put(app->data.u.linkquality.connected_sta_map, strdup(mac_str), elem);
     } else {
         /* Update existing entry */
@@ -1491,14 +1557,10 @@ static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg)
         elem->timestamp = (time_t)get_current_time_in_sec();
         elem->ap_index = msg->frame.ap_index;
         elem->sig_dbm = msg->frame.sig_dbm;
+        elem->sub_event = sub_event;
     }
 
     pthread_mutex_unlock(&app->data.u.linkquality.connected_sta_lock);
-
-    /* Run correlation against probe_req_map */
-    pthread_mutex_lock(&app->data.u.linkquality.probe_map_lock);
-    lq_correlate_sta_with_probes(app, elem);
-    pthread_mutex_unlock(&app->data.u.linkquality.probe_map_lock);
 }
 
 static void lq_dump_probe_req_frame(frame_data_t *msg)

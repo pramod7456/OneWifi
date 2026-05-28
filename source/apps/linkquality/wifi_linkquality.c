@@ -1055,6 +1055,18 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
     memset(affinity_arg, 0, sizeof(stats_arg_t));
     
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
+
+    /* Filter: drop events except private VAPs (private_ssid*) */
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    if (mgr != NULL) {
+        if (is_vap_private(&mgr->hal_cap.wifi_prop, msg->frame.ap_index) != TRUE) {
+            wifi_util_info_print(WIFI_APPS,
+                "%s:%d dropping MAC: %s: vap_index=%u is not a private VAP\n",
+                __func__, __LINE__, affinity_arg->mac_str, msg->frame.ap_index);
+            return 0;
+        }
+    }
+
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index,&affinity_arg->channel_utilization);
@@ -1088,6 +1100,19 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
     
     // Populate MAC address from frame
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
+
+    // TO-DO: define a macro for this check later
+    /* Filter: drop events except private VAPs (private_ssid*) */
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    if (mgr != NULL) {
+        if (is_vap_private(&mgr->hal_cap.wifi_prop, msg->frame.ap_index) != TRUE) {
+            wifi_util_info_print(WIFI_APPS,
+                "%s:%d dropping MAC: %s: vap_index=%u is not a private VAP\n",
+                __func__, __LINE__, affinity_arg->mac_str, msg->frame.ap_index);
+            return 0;
+        }
+    }
+
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
@@ -1199,6 +1224,18 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     
     memset(affinity_arg, 0, sizeof(stats_arg_t));
     to_mac_str(msg->frame.sta_mac, affinity_arg->mac_str);
+
+    /* Filter: drop events except private VAPs (private_ssid*) */
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    if (mgr != NULL) {
+        if (is_vap_private(&mgr->hal_cap.wifi_prop, msg->frame.ap_index) != TRUE) {
+            wifi_util_info_print(WIFI_APPS,
+                "%s:%d dropping MAC: %s: vap_index=%u is not a private VAP\n",
+                __func__, __LINE__, affinity_arg->mac_str, msg->frame.ap_index);
+            return 0;
+        }
+    }
+
     affinity_arg->vap_index = msg->frame.ap_index;
     affinity_arg->radio_index = getRadioIndexFromAp(msg->frame.ap_index);
     get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
@@ -1645,6 +1682,17 @@ static int link_quality_probe_req_event(wifi_app_t *apps, void *arg)
 
     to_mac_str(frame->sa, mac_str);
 
+    /* Filter: drop events except private VAPs (private_ssid*) */
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    if (mgr != NULL) {
+        if (is_vap_private(&mgr->hal_cap.wifi_prop, msg->frame.ap_index) != TRUE) {
+            wifi_util_info_print(WIFI_APPS,
+                "%s:%d dropping MAC: %s: vap_index=%u is not a private VAP\n",
+                __func__, __LINE__, mac_str, msg->frame.ap_index);
+            return 0;
+        }
+    }
+
     /* Dump frame for debug */
     lq_dump_probe_req_frame(msg);
 
@@ -1745,7 +1793,7 @@ int exec_event_hal_ind(wifi_app_t *apps, wifi_event_subtype_t sub_type, void *ar
             //move the func call to here
             wifi_util_info_print(WIFI_APPS," %s:%d event = %d\n",__func__,__LINE__,sub_type);
             //may be here new function has to be used in this case the station has to be moved to connected 
-	        link_quality_apps_assoc_event(apps,false,sub_type,arg);
+	    link_quality_apps_assoc_event(apps,false,sub_type,arg);
             break;
         case wifi_event_hal_disassoc_device:
             //may be here new function has to be used in this case the station has to be moved to disconnect/removed. 

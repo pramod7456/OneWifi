@@ -50,6 +50,17 @@
 #define LQ_IPC_MSG_REINIT_METRICS    9
 #define LQ_IPC_MSG_SET_MAX_SNR      10
 #define LQ_IPC_MSG_SET_SCORE_PARAMS 11
+#define LQ_IPC_MSG_CORRELATION_STATS 12
+
+/*
+ * Payload for LQ_IPC_MSG_CORRELATION_STATS.
+ * Sent by OneWifi after probe–association correlation completes.
+ */
+typedef struct {
+    char assoc_mac[18];  /* MAC of the associated/connected client */
+    char probe_mac[18];  /* MAC of the correlated probe-request entry */
+    int  score;          /* Final correlation score (0–100+; log if > 100) */
+} lq_correlation_stats_t;
 
 /*
  * LQ TLV — the entire datagram is a single TLV, no wrapper header.

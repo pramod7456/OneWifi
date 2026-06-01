@@ -41,6 +41,7 @@ static const char *lq_msg_type_str(uint32_t type)
     case LQ_IPC_MSG_REINIT_METRICS:   return "REINIT_METRICS";
     case LQ_IPC_MSG_SET_MAX_SNR:      return "SET_MAX_SNR";
     case LQ_IPC_MSG_SET_SCORE_PARAMS: return "SET_SCORE_PARAMS";
+    case LQ_IPC_MSG_CORRELATION_STATS: return "CORRELATION_STATS";
     default:                          return "UNKNOWN";
     }
 }

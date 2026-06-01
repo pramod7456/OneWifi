@@ -51,6 +51,7 @@
 #include "wifi_monitor.h"
 #include "scheduler.h"
 #include "common/ieee802_11_defs.h"
+#include "lq_ipc_sender.h"
 
 
 int dhcp_sniffer_fd = -1;
@@ -1262,7 +1263,10 @@ static void lq_evict_oldest_connected_sta(wifi_app_t *app)
 
     elem = (lq_connected_sta_elem_t *)hash_map_get_first(map);
     while (elem != NULL) {
-        if (oldest == NULL || elem->timestamp < oldest->timestamp) {
+        if (oldest == NULL ||
+            (elem->timestamp.tv_sec < oldest->timestamp.tv_sec) ||
+            (elem->timestamp.tv_sec == oldest->timestamp.tv_sec &&
+             elem->timestamp.tv_nsec < oldest->timestamp.tv_nsec)) {
             oldest = elem;
             oldest_key = elem->mac_str;
         }
@@ -1484,20 +1488,51 @@ static int lq_compute_correlation(lq_connected_sta_elem_t *sta,
 }
 
 /*
+ * Extract the 802.11 sequence number from the management frame header.
+ * seq_ctrl (little-endian 16-bit): bits[15:4] = sequence number, bits[3:0] = fragment.
+ * Sequence number wraps at LQ_SEQNUM_MAX (4096).
+ */
+static uint16_t lq_extract_seq_num(frame_data_t *msg)
+{
+    if (msg->frame.len < 24)
+        return 0;
+    const struct ieee80211_mgmt *mgmt = (const struct ieee80211_mgmt *)msg->data;
+    uint16_t seq_ctrl = le_to_host16(mgmt->seq_ctrl);
+    return (seq_ctrl >> 4) & 0x0FFF;
+}
+
+/*
+ * Compute absolute difference between two struct timespec values in milliseconds.
+ */
+static int64_t lq_ts_diff_ms(const struct timespec *a, const struct timespec *b)
+{
+    int64_t diff_ns = ((int64_t)(a->tv_sec  - b->tv_sec)  * 1000000000LL) +
+                       (int64_t)(a->tv_nsec - b->tv_nsec);
+    if (diff_ns < 0) diff_ns = -diff_ns;
+    return diff_ns / 1000000LL;
+}
+
+/*
+ * Compute sequence-number difference with wraparound (max 4095).
+ * Returns the minimum of the forward and reverse distances on the ring.
+ */
+static int lq_seq_diff(uint16_t a, uint16_t b)
+{
+    int forward = (int)((b - a + LQ_SEQNUM_MAX) % LQ_SEQNUM_MAX);
+    int backward = (int)((a - b + LQ_SEQNUM_MAX) % LQ_SEQNUM_MAX);
+    return (forward < backward) ? forward : backward;
+}
+
+/*
  * Run correlation for a given connected STA against all probe_req_map entries.
  * Must be called with probe_map_lock held.
  *
- * Currently LQ_CORRELATION_THRESHOLD is of 80 (can be discussed),
- * means probe req vs assoc req IE match 80% will mark it is correlated.
- *
- * TO-DO for better correlation need to consider below parameters.
- * - sequence_number from 80211 header
- * - timestamp details
- * - rssi (probe req vs assoc req rssi can vary ~5%?)
- *
- * - Vicinity will be calcualte for devices that are connected initially later disconnected
- * - probe requests with specific SSID's (not wildcard ssid)
- *
+ * Enhanced correlation:
+ *   Final Score = IE match% + RSSI_weight(10) + Timestamp_weight(10) + SeqNum_weight(10)
+ *   Strong correlation: all three parameter thresholds (RSSI, timestamp, seq num) pass.
+ *   High correlation  : final score >= LQ_CORRELATION_THRESHOLD (80%)
+ *   Medium confidence : LQ_MEDIUM_CORR_THRESHOLD (70%) <= score < LQ_CORRELATION_THRESHOLD
+ *                       → probe MAC stored in connected_sta_map entry for later reference.
  */
 static void lq_correlate_sta_with_probes(wifi_app_t *app, lq_connected_sta_elem_t *sta)
 {
@@ -1505,33 +1540,111 @@ static void lq_correlate_sta_with_probes(wifi_app_t *app, lq_connected_sta_elem_
     if (!probe_map)
         return;
 
+    uint16_t assoc_seq = lq_extract_seq_num(&sta->msg_data);
+
     lq_probe_req_elem_t *probe = (lq_probe_req_elem_t *)hash_map_get_first(probe_map);
     while (probe != NULL) {
         wifi_util_info_print(WIFI_APPS,
             "CORR %s:%d Comparing connected STA=%s with probe MAC=%s\n",
             __func__, __LINE__, sta->mac_str, probe->mac_str);
 
-        int correlation = lq_compute_correlation(sta, probe);
+        /* ---- IE match percentage (base score) ---- */
+        int ie_match = lq_compute_correlation(sta, probe);
+
+        /* ---- RSSI comparison ---- */
+        int rssi_diff = sta->sig_dbm - probe->msg_data.frame.sig_dbm;
+        if (rssi_diff < 0) rssi_diff = -rssi_diff;
+        int rssi_weight = 0;
+        if (rssi_diff <= LQ_RSSI_THRESHOLD_DB) {
+            rssi_weight = LQ_PARAM_WEIGHT;
+        } else {
+            wifi_util_info_print(WIFI_APPS,
+                "CORR %s:%d RSSI diff %d dB exceeds threshold %d dB "
+                "(assoc=%d probe=%d) STA=%s probe=%s\n",
+                __func__, __LINE__, rssi_diff, LQ_RSSI_THRESHOLD_DB,
+                sta->sig_dbm, probe->msg_data.frame.sig_dbm,
+                sta->mac_str, probe->mac_str);
+        }
+
+        /* ---- Timestamp comparison ---- */
+        int64_t ts_diff_ms = lq_ts_diff_ms(&sta->timestamp, &probe->timestamp);
+        int ts_weight = 0;
+        if (ts_diff_ms <= LQ_TIMESTAMP_THRESHOLD_MS) {
+            ts_weight = LQ_PARAM_WEIGHT;
+        } else {
+            wifi_util_info_print(WIFI_APPS,
+                "CORR %s:%d Timestamp diff %lld ms exceeds threshold %d ms "
+                "STA=%s probe=%s\n",
+                __func__, __LINE__, (long long)ts_diff_ms, LQ_TIMESTAMP_THRESHOLD_MS,
+                sta->mac_str, probe->mac_str);
+        }
+
+        /* ---- Sequence number comparison ---- */
+        uint16_t probe_seq = lq_extract_seq_num(&probe->msg_data);
+        int seq_diff = lq_seq_diff(assoc_seq, probe_seq);
+        int seq_weight = 0;
+        if (seq_diff < LQ_SEQNUM_THRESHOLD) {
+            seq_weight = LQ_PARAM_WEIGHT;
+        } else {
+            wifi_util_info_print(WIFI_APPS,
+                "CORR %s:%d Seq num diff %d exceeds threshold %d "
+                "(assoc_seq=%u probe_seq=%u) STA=%s probe=%s\n",
+                __func__, __LINE__, seq_diff, LQ_SEQNUM_THRESHOLD,
+                assoc_seq, probe_seq, sta->mac_str, probe->mac_str);
+        }
+
+        /* ---- Strong correlation flag ---- */
+        bool strong_correlation = (rssi_weight && ts_weight && seq_weight);
+
+        /* ---- Final composite score ---- */
+        int final_score = ie_match + rssi_weight + ts_weight + seq_weight;
+
+        if (final_score > 100) {
+            wifi_util_info_print(WIFI_APPS,
+                "CORR %s:%d Final score %d%% exceeds 100%% "
+                "(ie=%d rssi_w=%d ts_w=%d seq_w=%d) STA=%s probe=%s\n",
+                __func__, __LINE__, final_score,
+                ie_match, rssi_weight, ts_weight, seq_weight,
+                sta->mac_str, probe->mac_str);
+        }
 
         wifi_util_info_print(WIFI_APPS,
-            "CORR %s:%d Result: STA=%s vs Probe=%s -> Correlation=%d%%\n",
-            __func__, __LINE__, sta->mac_str, probe->mac_str, correlation);
+            "CORR %s:%d Result: STA=%s vs Probe=%s -> "
+            "IE=%d%% RSSI_w=%d TS_w=%d SEQ_w=%d Final=%d%% strong=%d\n",
+            __func__, __LINE__, sta->mac_str, probe->mac_str,
+            ie_match, rssi_weight, ts_weight, seq_weight, final_score,
+            (int)strong_correlation);
 
-        if (correlation >= LQ_CORRELATION_THRESHOLD) {
+        if (final_score >= LQ_CORRELATION_THRESHOLD) {
             wifi_util_error_print(WIFI_APPS,
-                "CORR HIGH CORRELATION DETECTED: %d%%\n"
+                "CORR HIGH CORRELATION DETECTED: %d%% (strong=%d)\n"
                 "  Connected Client:\n"
-                "    MAC: %s\n"
-                "    ap_index: %d\n"
-                "    RSSI: %d\n"
+                "    MAC: %s  ap_index: %d  RSSI: %d  seq: %u\n"
                 "  Probe Request Entry:\n"
-                "    MAC: %s\n"
-                "    ap_index: %d\n"
-                "    RSSI: %d\n",
-                correlation,
-                sta->mac_str, sta->ap_index, sta->sig_dbm,
+                "    MAC: %s  ap_index: %d  RSSI: %d  seq: %u\n"
+                "  Params: ie=%d%% rssi_diff=%d ts_diff=%lldms seq_diff=%d\n",
+                final_score, (int)strong_correlation,
+                sta->mac_str, sta->ap_index, sta->sig_dbm, assoc_seq,
                 probe->mac_str, probe->msg_data.frame.ap_index,
-                probe->msg_data.frame.sig_dbm);
+                probe->msg_data.frame.sig_dbm, probe_seq,
+                ie_match, rssi_diff, (long long)ts_diff_ms, seq_diff);
+
+            /* Send LQ_IPC_CORRELATION_STATS event to WEI */
+            lq_correlation_stats_t corr_stats;
+            memset(&corr_stats, 0, sizeof(corr_stats));
+            strncpy(corr_stats.assoc_mac, sta->mac_str, sizeof(corr_stats.assoc_mac) - 1);
+            strncpy(corr_stats.probe_mac, probe->mac_str, sizeof(corr_stats.probe_mac) - 1);
+            corr_stats.score = final_score;
+            lq_ipc_send(LQ_IPC_MSG_CORRELATION_STATS, &corr_stats, 1,
+                        sizeof(lq_correlation_stats_t));
+
+        } else if (final_score >= LQ_MEDIUM_CORR_THRESHOLD) {
+            /* Medium confidence: record the probe MAC on the connected_sta entry */
+            wifi_util_info_print(WIFI_APPS,
+                "CORR MEDIUM CONFIDENCE: %d%% STA=%s probe=%s "
+                "(storing probe MAC for reference)\n",
+                final_score, sta->mac_str, probe->mac_str);
+            memcpy(sta->probe_mac, probe->mac_str, sizeof(mac_addr_str_t));
         }
 
         probe = (lq_probe_req_elem_t *)hash_map_get_next(probe_map, probe);
@@ -1583,7 +1696,7 @@ static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg, int sub_eve
         memset(elem, 0, sizeof(lq_connected_sta_elem_t));
         memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
         memcpy(elem->mac_str, mac_str, sizeof(mac_addr_str_t));
-        elem->timestamp = (time_t)get_current_time_in_sec();
+        clock_gettime(CLOCK_REALTIME, &elem->timestamp);
         elem->ap_index = msg->frame.ap_index;
         elem->sig_dbm = msg->frame.sig_dbm;
         elem->sub_event = sub_event;
@@ -1591,7 +1704,7 @@ static void lq_add_connected_sta(wifi_app_t *app, frame_data_t *msg, int sub_eve
     } else {
         /* Update existing entry */
         memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
-        elem->timestamp = (time_t)get_current_time_in_sec();
+        clock_gettime(CLOCK_REALTIME, &elem->timestamp);
         elem->ap_index = msg->frame.ap_index;
         elem->sig_dbm = msg->frame.sig_dbm;
         elem->sub_event = sub_event;
@@ -1651,7 +1764,10 @@ static void lq_evict_oldest_probe_entry(wifi_app_t *app)
 
     elem = (lq_probe_req_elem_t *)hash_map_get_first(map);
     while (elem != NULL) {
-        if (oldest == NULL || elem->timestamp < oldest->timestamp) {
+        if (oldest == NULL ||
+            (elem->timestamp.tv_sec < oldest->timestamp.tv_sec) ||
+            (elem->timestamp.tv_sec == oldest->timestamp.tv_sec &&
+             elem->timestamp.tv_nsec < oldest->timestamp.tv_nsec)) {
             oldest = elem;
             oldest_key = elem->mac_str;
         }
@@ -1726,7 +1842,7 @@ static int link_quality_probe_req_event(wifi_app_t *apps, void *arg)
         memset(elem, 0, sizeof(lq_probe_req_elem_t));
         memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
         memcpy(elem->mac_str, mac_str, sizeof(mac_addr_str_t));
-        elem->timestamp = (time_t)get_current_time_in_sec();
+        clock_gettime(CLOCK_REALTIME, &elem->timestamp);
         hash_map_put(apps->data.u.linkquality.probe_req_map, strdup(mac_str), elem);
         wifi_util_info_print(WIFI_APPS,
             "PROBE_REQ %s:%d New entry mac=%s ap_index=%d rssi=%d\n",
@@ -1734,7 +1850,7 @@ static int link_quality_probe_req_event(wifi_app_t *apps, void *arg)
     } else {
         /* Update existing entry with latest frame data */
         memcpy(&elem->msg_data, msg, sizeof(frame_data_t));
-        elem->timestamp = (time_t)get_current_time_in_sec();
+        clock_gettime(CLOCK_REALTIME, &elem->timestamp);
     }
 
     pthread_mutex_unlock(&apps->data.u.linkquality.probe_map_lock);

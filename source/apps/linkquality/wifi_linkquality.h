@@ -37,6 +37,16 @@ extern "C" {
 #define MAX_LQ_PROBE_ENTRIES 100
 #define MAX_LQ_CONNECTED_STA_ENTRIES 50
 #define LQ_CORRELATION_THRESHOLD 80
+#define LQ_MEDIUM_CORR_THRESHOLD 70
+
+/* Per-parameter comparison thresholds */
+#define LQ_RSSI_THRESHOLD_DB      5      /* Allowed RSSI difference (dB) */
+#define LQ_TIMESTAMP_THRESHOLD_MS 100    /* Allowed timestamp difference (ms) */
+#define LQ_SEQNUM_THRESHOLD       100    /* Allowed sequence-number difference */
+#define LQ_SEQNUM_MAX             4096   /* 802.11 sequence number wraps at 4095 */
+
+/* Weight (%) contributed by each validated parameter to the final score */
+#define LQ_PARAM_WEIGHT           10
 
 #define BUFFER_SIZE 65536
 #define DHCP_BOOTP 1
@@ -82,16 +92,17 @@ typedef struct {
 typedef struct {
     mac_addr_str_t mac_str;
     frame_data_t msg_data;
-    time_t timestamp;
+    struct timespec timestamp;  /* Capture time (CLOCK_REALTIME, ns precision) */
 } lq_probe_req_elem_t;
 
 typedef struct {
     mac_addr_str_t mac_str;
     frame_data_t msg_data;
-    time_t timestamp;
+    struct timespec timestamp;  /* Capture time (CLOCK_REALTIME, ns precision) */
     int ap_index;
     int sig_dbm;
     int sub_event; /* wifi_event_hal_assoc_req_frame or wifi_event_hal_reassoc_req_frame */
+    mac_addr_str_t probe_mac; /* Probe-req MAC correlated at medium confidence (70-80%) */
 } lq_connected_sta_elem_t;
 
 typedef struct {

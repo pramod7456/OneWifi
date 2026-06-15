@@ -123,35 +123,6 @@ static int get_subdoc_type(wifi_provider_response_t *response, webconfig_subdoc_
     }
     return ret;
 }
-static uint32_t quality_flags_to_mask(const quality_flags_t* f)
-{
-    uint32_t mask = 0;
-
-    if(f->downlink_snr) mask |= LINKQ_DL_SNR;
-    if(f->downlink_per) mask |= LINKQ_DL_PER;
-    if(f->downlink_phy) mask |= LINKQ_DL_PHY;
-    if(f->uplink_snr)   mask |= LINKQ_UL_SNR;
-    if(f->uplink_per)   mask |= LINKQ_UL_PER;
-    if(f->uplink_phy)   mask |= LINKQ_UL_PHY;
-    if(f->aggregate)    mask |= LINKQ_AGGREGATE;
-    if(f->int_reconn)   mask |= LINKQ_INT_RECONN;
-
-    return mask;
-}
-
-static void mask_to_quality_flags(uint32_t mask, quality_flags_t* f)
-{
-    memset(f, 0, sizeof(*f));
-
-    f->downlink_snr = mask & LINKQ_DL_SNR;
-    f->downlink_per = mask & LINKQ_DL_PER;
-    f->downlink_phy = mask & LINKQ_DL_PHY;
-    f->uplink_snr   = mask & LINKQ_UL_SNR;
-    f->uplink_per   = mask & LINKQ_UL_PER;
-    f->uplink_phy   = mask & LINKQ_UL_PHY;
-    f->aggregate    = mask & LINKQ_AGGREGATE;
-    f->int_reconn   = mask & LINKQ_INT_RECONN;
-}
 
 static inline double hotspot_timing_elapsed_sec(const struct timespec *start,
                                                 const struct timespec *end)
@@ -967,7 +938,6 @@ bus_error_t wifi_get_link_quality_data(char *event_name, raw_data_t *p_data, bus
    return RETURN_OK;
 
 }
-#endif
 
 bus_error_t wifi_get_link_quality_flags(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -1014,6 +984,7 @@ bus_error_t wifi_set_link_quality_flags(char *event_name, raw_data_t *p_data, bu
 
     return bus_error_success;
 }
+#endif
 
 bus_error_t webconfig_init_data_get_subdoc(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -4475,9 +4446,6 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
                                 { WIFI_LINK_QUALITY_GW, bus_element_type_method,
                                     { NULL, set_linkq_gw, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_boolean, false, 0, 0, 0, NULL } },
-                                { WIFI_LINK_QUALITY_FLAGS, bus_element_type_method,
-                                    { wifi_get_link_quality_flags, wifi_set_link_quality_flags, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
-                                    { bus_data_type_uint32, false, 0, 0, 0, NULL } },
     };
 
     rc = get_bus_descriptor()->bus_open_fn(&ctrl->handle, component_name);

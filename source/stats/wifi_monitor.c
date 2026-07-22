@@ -4828,7 +4828,9 @@ int init_wifi_monitor()
     wifi_vapstatus_callback_register(vapstatus_callback);
     wifi_hal_apDeAuthEvent_callback_register(device_deauthenticated);
     wifi_hal_apDisassociatedDevice_callback_register(device_disassociated);
+#if 0
     wifi_hal_apFrameDropUnencrypted_callback_register(device_frame_drop_unencrypted);
+#endif
     wifi_hal_ap_max_client_rejection_callback_register(device_max_client_rejection);
     wifi_hal_radius_eap_failure_callback_register(radius_eap_failure_callback);
     wifi_hal_radiusFallback_failover_callback_register(radius_fallback_and_failover_callback);

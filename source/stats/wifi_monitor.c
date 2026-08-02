@@ -3642,7 +3642,7 @@ int ap_status_code(int ap_index, char *src_mac, char *dest_mac, int type, int st
         return -1;
     }
     wifi_util_dbg_print(WIFI_MON, "%s:%d details of vap_index:%d src_mac :%s dest_mac :%s status:%d type:%d \r\n", __func__, __LINE__, ap_index, src_mac, dest_mac,status,type);
-
+/* Here u need to send to linkquality app as it is for other hal events */
 /* WPA3-SAE (and other auth/assoc) rejections arrive here in the AP's downlink
      * status_code; the mgmt-frame path only sees the status-0 uplink frames, and the
      * STA is pre-association (absent from the interop map that early-returns below).

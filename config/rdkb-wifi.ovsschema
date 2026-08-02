@@ -1916,7 +1916,7 @@
             "max": 1
           }
         },
-        "link_quality_rfc": {
+        "wei_rfc": {
           "type": {
             "key": {
               "type": "boolean"

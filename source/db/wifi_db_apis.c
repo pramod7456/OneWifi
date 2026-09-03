@@ -116,6 +116,7 @@ ovsdb_table_t table_Wifi_Postassoc_Control_Config;
 ovsdb_table_t table_Wifi_Connection_Control_Config;
 ovsdb_table_t table_Wifi_Rfc_Config;
 ovsdb_table_t table_Wifi_Ignite_Config;
+ovsdb_table_t table_Wifi_Wei_Rfc_Config;
 
 static char *ApMFPConfig         = "eRT.com.cisco.spvtg.ccsp.tr181pa.Device.WiFi.AccessPoint.%d.Security.MFPConfig";
 static char *CTSProtection      = "eRT.com.cisco.spvtg.ccsp.tr181pa.Device.WiFi.Radio.%d.CTSProtection";
@@ -8516,6 +8517,7 @@ int start_wifidb_monitor()
     ONEWIFI_OVSDB_TABLE_MONITOR(g_wifidb->wifidb_fd, Wifi_Passpoint_Config, true);
     ONEWIFI_OVSDB_TABLE_MONITOR(g_wifidb->wifidb_fd, Wifi_Anqp_Config, true);
     ONEWIFI_OVSDB_TABLE_MONITOR(g_wifidb->wifidb_fd, Wifi_Ignite_Config, true);
+    ONEWIFI_OVSDB_TABLE_MONITOR(g_wifidb->wifidb_fd, Wifi_Wei_Rfc_Config, true);
     return 0;
 }
 
@@ -8562,6 +8564,7 @@ int init_wifidb_tables()
     ONEWIFI_OVSDB_TABLE_INIT(Wifi_Passpoint_Config, vap_name);
     ONEWIFI_OVSDB_TABLE_INIT(Wifi_Anqp_Config, vap_name);
     ONEWIFI_OVSDB_TABLE_INIT(Wifi_Ignite_Config, ignite_name);
+    ONEWIFI_OVSDB_TABLE_INIT(Wifi_Wei_Rfc_Config, wei_rfc_id);
     //connect to wifidb with sock path
     if (is_db_consolidated()) {
         snprintf(g_wifidb->wifidb_sock_path, sizeof(g_wifidb->wifidb_sock_path), WIFIDB_CONSOLIDATED_PATH);

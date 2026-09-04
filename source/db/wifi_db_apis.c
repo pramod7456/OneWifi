@@ -308,6 +308,135 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
 
 /************************************************************************************
  ************************************************************************************
+  Function    : wei_rfc_schema_to_dml / wei_rfc_dml_to_schema
+  Description : Field-mapping helpers between wei_rfc_dml_parameters_t and
+                struct schema_Wifi_Wei_Rfc_Config, shared by the get/update/
+                monitor-callback paths so the column list is defined once.
+ *************************************************************************************
+**************************************************************************************/
+static void wei_rfc_schema_to_dml(const struct schema_Wifi_Wei_Rfc_Config *cfg, wei_rfc_dml_parameters_t *dml)
+{
+    dml->wei_enable = cfg->wei_enable;
+    dml->lq_meas_params_mask = (uint32_t)cfg->lq_meas_params_mask;
+    dml->lq_meas_threshold = cfg->lq_meas_threshold;
+    dml->lq_meas_duration = (uint32_t)cfg->lq_meas_duration;
+    dml->radio_2g_max_snr = (uint32_t)cfg->radio_2g_max_snr;
+    dml->radio_5g_max_snr = (uint32_t)cfg->radio_5g_max_snr;
+    dml->radio_6g_max_snr = (uint32_t)cfg->radio_6g_max_snr;
+    dml->radio_2g_max_phy = (uint32_t)cfg->radio_2g_max_phy;
+    dml->radio_5g_max_phy = (uint32_t)cfg->radio_5g_max_phy;
+    dml->radio_6g_max_phy = (uint32_t)cfg->radio_6g_max_phy;
+
+    dml->sc.home_enable = cfg->sc_home_enable;
+    dml->sc.home_threshold = (uint32_t)cfg->sc_home_threshold;
+    dml->sc.home_detail_enable = cfg->sc_home_detail_enable;
+    dml->sc.client_enable = cfg->sc_client_enable;
+    dml->sc.client_threshold = (uint32_t)cfg->sc_client_threshold;
+    dml->sc.client_detail_enable = cfg->sc_client_detail_enable;
+    snprintf(dml->sc.client_whitelist, sizeof(dml->sc.client_whitelist), "%s", cfg->sc_client_whitelist);
+
+    dml->gc.home_enable = cfg->gc_home_enable;
+    dml->gc.home_threshold = (uint32_t)cfg->gc_home_threshold;
+    dml->gc.home_detail_enable = cfg->gc_home_detail_enable;
+    dml->gc.client_enable = cfg->gc_client_enable;
+    dml->gc.client_threshold = (uint32_t)cfg->gc_client_threshold;
+    dml->gc.client_detail_enable = cfg->gc_client_detail_enable;
+    snprintf(dml->gc.client_whitelist, sizeof(dml->gc.client_whitelist), "%s", cfg->gc_client_whitelist);
+
+    dml->lq.home_enable = cfg->lq_home_enable;
+    dml->lq.home_threshold = (uint32_t)cfg->lq_home_threshold;
+    dml->lq.home_detail_enable = cfg->lq_home_detail_enable;
+    dml->lq.client_enable = cfg->lq_client_enable;
+    dml->lq.client_threshold = (uint32_t)cfg->lq_client_threshold;
+    dml->lq.client_detail_enable = cfg->lq_client_detail_enable;
+    snprintf(dml->lq.client_whitelist, sizeof(dml->lq.client_whitelist), "%s", cfg->lq_client_whitelist);
+}
+
+static void wei_rfc_dml_to_schema(const wei_rfc_dml_parameters_t *dml, struct schema_Wifi_Wei_Rfc_Config *cfg)
+{
+    cfg->wei_enable = dml->wei_enable;
+    cfg->lq_meas_params_mask = (int)dml->lq_meas_params_mask;
+    cfg->lq_meas_threshold = dml->lq_meas_threshold;
+    cfg->lq_meas_duration = (int)dml->lq_meas_duration;
+    cfg->radio_2g_max_snr = (int)dml->radio_2g_max_snr;
+    cfg->radio_5g_max_snr = (int)dml->radio_5g_max_snr;
+    cfg->radio_6g_max_snr = (int)dml->radio_6g_max_snr;
+    cfg->radio_2g_max_phy = (int)dml->radio_2g_max_phy;
+    cfg->radio_5g_max_phy = (int)dml->radio_5g_max_phy;
+    cfg->radio_6g_max_phy = (int)dml->radio_6g_max_phy;
+
+    cfg->sc_home_enable = dml->sc.home_enable;
+    cfg->sc_home_threshold = (int)dml->sc.home_threshold;
+    cfg->sc_home_detail_enable = dml->sc.home_detail_enable;
+    cfg->sc_client_enable = dml->sc.client_enable;
+    cfg->sc_client_threshold = (int)dml->sc.client_threshold;
+    cfg->sc_client_detail_enable = dml->sc.client_detail_enable;
+    snprintf(cfg->sc_client_whitelist, sizeof(cfg->sc_client_whitelist), "%s", dml->sc.client_whitelist);
+
+    cfg->gc_home_enable = dml->gc.home_enable;
+    cfg->gc_home_threshold = (int)dml->gc.home_threshold;
+    cfg->gc_home_detail_enable = dml->gc.home_detail_enable;
+    cfg->gc_client_enable = dml->gc.client_enable;
+    cfg->gc_client_threshold = (int)dml->gc.client_threshold;
+    cfg->gc_client_detail_enable = dml->gc.client_detail_enable;
+    snprintf(cfg->gc_client_whitelist, sizeof(cfg->gc_client_whitelist), "%s", dml->gc.client_whitelist);
+
+    cfg->lq_home_enable = dml->lq.home_enable;
+    cfg->lq_home_threshold = (int)dml->lq.home_threshold;
+    cfg->lq_home_detail_enable = dml->lq.home_detail_enable;
+    cfg->lq_client_enable = dml->lq.client_enable;
+    cfg->lq_client_threshold = (int)dml->lq.client_threshold;
+    cfg->lq_client_detail_enable = dml->lq.client_detail_enable;
+    snprintf(cfg->lq_client_whitelist, sizeof(cfg->lq_client_whitelist), "%s", dml->lq.client_whitelist);
+}
+
+/************************************************************************************
+ ************************************************************************************
+  Function    : callback_Wifi_Wei_Rfc_Config
+  Parameter   : mon     - Type of modification
+                old_rec - schema_Wifi_Wei_Rfc_Config holds value before modification
+                new_rec - schema_Wifi_Wei_Rfc_Config holds value after modification
+  Description : Callback invoked when Wifi_Wei_Rfc_Config is modified in wifidb;
+                refreshes the DB-mirror cache and drives mask recompute/notify.
+ *************************************************************************************
+**************************************************************************************/
+void callback_Wifi_Wei_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Wei_Rfc_Config *old_rec,
+    struct schema_Wifi_Wei_Rfc_Config *new_rec)
+{
+    wifi_mgr_t *g_wifidb = get_wifimgr_obj();
+    wei_rfc_dml_parameters_t *rfc_param = get_wifi_db_wei_rfc_parameters();
+
+    if (dbwritten == false) {
+        wifi_util_info_print(WIFI_DB, "%s:%d: Db is not initialised yet\n", __func__, __LINE__);
+        return;
+    }
+
+    if (mon->mon_type == OVSDB_UPDATE_DEL) {
+        wifi_util_dbg_print(WIFI_DB, "%s:%d:Delete\n", __func__, __LINE__);
+        return;
+    }
+    if ((mon->mon_type != OVSDB_UPDATE_NEW) && (mon->mon_type != OVSDB_UPDATE_MODIFY)) {
+        return;
+    }
+
+    pthread_mutex_lock(&g_wifidb->data_cache_lock);
+    wei_rfc_schema_to_dml(new_rec, rfc_param);
+    snprintf(rfc_param->wei_rfc_id, sizeof(rfc_param->wei_rfc_id), "%s", new_rec->wei_rfc_id);
+    pthread_mutex_unlock(&g_wifidb->data_cache_lock);
+
+    wifi_util_dbg_print(WIFI_DB,
+        "%s:%d WEI RFC Config New/Modify wei_enable=%d lq_thr=%.3f lq_dur=%u "
+        "sc(h_en=%d c_en=%d) gc(h_en=%d c_en=%d) lq(h_en=%d c_en=%d)\r\n",
+        __func__, __LINE__, rfc_param->wei_enable, rfc_param->lq_meas_threshold, rfc_param->lq_meas_duration,
+        rfc_param->sc.home_enable, rfc_param->sc.client_enable,
+        rfc_param->gc.home_enable, rfc_param->gc.client_enable,
+        rfc_param->lq.home_enable, rfc_param->lq.client_enable);
+
+    process_wei_rfc_config_update(rfc_param);
+}
+
+/************************************************************************************
+ ************************************************************************************
   Function    : callback_Wifi_Ignite_Config
   Parameter   : mon     - Type of modification
                 old_rec - schema_Wifi_Ignite_Config  holds value before modification
@@ -6416,6 +6545,126 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
         }
     }
     return 0;
+}
+
+/************************************************************************************
+ ************************************************************************************
+  Function    : wifidb_get_wei_rfc_config
+  Parameter   : rfc_info - populated with the single row from Wifi_Wei_Rfc_Config
+  Description : Get WEI RFC config from wifidb (WiFi DB is the source of truth)
+ *************************************************************************************
+**************************************************************************************/
+int wifidb_get_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_info)
+{
+    struct schema_Wifi_Wei_Rfc_Config *pcfg;
+    json_t *where;
+    int count;
+    wifi_db_t *g_wifidb = (wifi_db_t*) get_wifidb_obj();
+
+    if (rfc_info == NULL) {
+        wifi_util_error_print(WIFI_DB, "%s:%d: rfc_info is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    where = onewifi_ovsdb_tran_cond(OCLM_STR, "wei_rfc_id", OFUNC_EQ, WEI_RFC_ID_DEFAULT);
+    pcfg = onewifi_ovsdb_table_select_where(g_wifidb->wifidb_sock_path, &table_Wifi_Wei_Rfc_Config, where, &count);
+    if (pcfg == NULL || count <= 0) {
+        wifidb_print("%s:%d Table table_Wifi_Wei_Rfc_Config not found entry count=%d\n", __func__, __LINE__, count);
+        if (pcfg) {
+            free(pcfg);
+        }
+        return -1;
+    }
+
+    wei_rfc_schema_to_dml(pcfg, rfc_info);
+    snprintf(rfc_info->wei_rfc_id, sizeof(rfc_info->wei_rfc_id), "%s", pcfg->wei_rfc_id);
+    free(pcfg);
+    return 0;
+}
+
+/************************************************************************************
+ ************************************************************************************
+  Function    : wifidb_update_wei_rfc_config
+  Parameter   : rfc_param - WEI RFC config to persist to wifidb
+  Description : Update (or insert, if absent) the single Wifi_Wei_Rfc_Config row.
+                dmcli/RFC-manager Set handlers call this so WiFi DB is updated
+                before any bus notification is sent to WEI.
+ *************************************************************************************
+**************************************************************************************/
+int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param)
+{
+    struct schema_Wifi_Wei_Rfc_Config cfg, *pcfg;
+    json_t *where;
+    bool update = false;
+    int count, ret;
+    wifi_db_t *g_wifidb = (wifi_db_t*) get_wifidb_obj();
+
+    if (rfc_param == NULL) {
+        wifi_util_error_print(WIFI_DB, "%s:%d: rfc_param is NULL\n", __func__, __LINE__);
+        return -1;
+    }
+
+    memset(&cfg, 0, sizeof(cfg));
+    where = onewifi_ovsdb_tran_cond(OCLM_STR, "wei_rfc_id", OFUNC_EQ, WEI_RFC_ID_DEFAULT);
+    pcfg = onewifi_ovsdb_table_select_where(g_wifidb->wifidb_sock_path, &table_Wifi_Wei_Rfc_Config, where, &count);
+    if ((count != 0) && (pcfg != NULL)) {
+        memcpy(&cfg, pcfg, sizeof(struct schema_Wifi_Wei_Rfc_Config));
+        update = true;
+        free(pcfg);
+    }
+
+    wei_rfc_dml_to_schema(rfc_param, &cfg);
+
+    if (update) {
+        where = onewifi_ovsdb_tran_cond(OCLM_STR, "wei_rfc_id", OFUNC_EQ, WEI_RFC_ID_DEFAULT);
+        ret = onewifi_ovsdb_table_update_where(g_wifidb->wifidb_sock_path, &table_Wifi_Wei_Rfc_Config, where, &cfg);
+        if (ret == -1) {
+            wifidb_print("%s:%d WIFI DB update error !!!. Failed to update Wifi_Wei_Rfc_Config table\n", __func__, __LINE__);
+            return -1;
+        }
+    } else {
+        strncpy(cfg.wei_rfc_id, WEI_RFC_ID_DEFAULT, sizeof(cfg.wei_rfc_id) - 1);
+        if (onewifi_ovsdb_table_upsert_simple(g_wifidb->wifidb_sock_path, &table_Wifi_Wei_Rfc_Config,
+                                  SCHEMA_COLUMN(Wifi_Wei_Rfc_Config, wei_rfc_id),
+                                  cfg.wei_rfc_id, &cfg, NULL) == false) {
+            wifidb_print("%s:%d WIFI DB update error !!!. Failed to insert in table_Wifi_Wei_Rfc_Config\n", __func__, __LINE__);
+            return -1;
+        }
+    }
+
+    /* Write-through: keep the DB-mirror cache authoritative immediately
+     * rather than waiting for the async OVSDB monitor callback to land. */
+    snprintf(rfc_param->wei_rfc_id, sizeof(rfc_param->wei_rfc_id), "%s", WEI_RFC_ID_DEFAULT);
+    memcpy(get_wifi_db_wei_rfc_parameters(), rfc_param, sizeof(wei_rfc_dml_parameters_t));
+    wifidb_print("%s:%d Updated WIFI DB. Wifi_Wei_Rfc_Config table updated successfully\n", __func__, __LINE__);
+    return 0;
+}
+
+/************************************************************************************
+ ************************************************************************************
+  Function    : wifidb_init_wei_rfc_config_default
+  Parameter   : config - populated with factory-default WEI RFC values
+  Description : Defaults mirror WEI's legacy /nvram/wei.json createDefault();
+                used on first boot / after a factory reset when the row is absent.
+ *************************************************************************************
+**************************************************************************************/
+void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config)
+{
+    wei_rfc_dml_parameters_t defaults;
+
+    memset(&defaults, 0, sizeof(defaults));
+    snprintf(defaults.wei_rfc_id, sizeof(defaults.wei_rfc_id), "%s", WEI_RFC_ID_DEFAULT);
+    defaults.lq_meas_threshold = 0.5;
+    defaults.lq_meas_duration = 1;
+    defaults.lq_meas_params_mask = 0x38; /* DL_SNR | DL_PER | DL_PHY, legacy default */
+    defaults.radio_2g_max_snr = 55;
+    defaults.radio_5g_max_snr = 60;
+    defaults.radio_6g_max_snr = 70;
+    defaults.radio_2g_max_phy = 300;
+    defaults.radio_5g_max_phy = 1201;
+    defaults.radio_6g_max_phy = 2100;
+
+    memcpy(config, &defaults, sizeof(defaults));
 }
 
 static bool wifidb_overide_rfc_config(wifi_rfc_dml_parameters_t *rfc_param)

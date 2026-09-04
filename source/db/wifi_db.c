@@ -980,6 +980,21 @@ int wifidb_get_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_info)
     return 0;
 }
 
+int wifidb_get_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_info)
+{
+    return 0;
+}
+
+int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param)
+{
+    return 0;
+}
+
+void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config)
+{
+    memset(config, 0, sizeof(wei_rfc_dml_parameters_t));
+}
+
 int wifidb_init_interworking_config_default(int vapIndex,void /*wifi_InterworkingElement_t*/ *config)
 {
    return 0;

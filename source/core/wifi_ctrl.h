@@ -126,6 +126,7 @@ extern "C" {
 /* Published by OneWifi whenever Wifi_Wei_Rfc_Config changes; carries a
  * monotonically increasing generation counter that tells WEI to re-GET. */
 #define WEI_RFC_CONFIG_CHANGED     "Device.X_RDKCENTRAL-COM_WEI.ConfigChanged"
+#define WEI_RFC_ID_DEFAULT         "0"
 
 /* ---- Staying-Connected (SC) TR-181 parameter paths (WiFi-DB owned) ---- */
 #define WEI_SC_HOME_ENABLE_DMPATH          "Device.X_RDKCENTRAL-COM_WEI.SC.Home.Enable"
@@ -479,6 +480,12 @@ ignite_config_t* get_ignite_config_by_name(char *name);
 wifi_rfc_dml_parameters_t* get_ctrl_rfc_parameters(void);
 wei_rfc_dml_parameters_t* get_wifi_db_wei_rfc_parameters(void);
 wei_rfc_dml_parameters_t* get_ctrl_wei_rfc_parameters(void);
+int wifidb_get_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_info);
+int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param);
+void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config);
+/* Implemented in wifi_ctrl_queue_handlers.c: derives Wifi_Rfc_Config.wei_rfc_mask
+ * and publishes change-notification bus events after a config commit. */
+void process_wei_rfc_config_update(wei_rfc_dml_parameters_t *rfc_param);
 rdk_wifi_radio_t* find_radio_config_by_index(uint8_t r_index);
 int get_device_config_list(char *d_list, int size, char *str);
 int get_cm_mac_address(char *mac);

@@ -268,6 +268,47 @@ typedef struct hotspot_cfg_sem_param {
     bool cfg_status;
 } hotspot_cfg_sem_param_t;
 
+typedef enum
+{
+    WEI_RFC_NONE  = 0x00,  /* Main WEI RFC disabled                  */
+    WEI_RFC_MAIN  = 0x01,  /* Main WEI RFC enabled                   */
+    WEI_RFC_LQ    = 0x02,  /* Link Quality pillar enabled            */
+    WEI_RFC_GC    = 0x04,  /* Getting Connected pillar enabled       */
+    WEI_RFC_SC    = 0x08,  /* Staying Connected pillar enabled       */
+    WEI_RFC_ALL   = (WEI_RFC_MAIN | WEI_RFC_LQ | WEI_RFC_GC | WEI_RFC_SC)
+} wei_rfc_mask_t;
+
+/* One SC/GC/LQ pillar's home + client scoring config, mirrors WEI's
+ * wei_rfc_config_t so the two sides map field-for-field. */
+typedef struct {
+    bool     home_enable;
+    uint32_t home_threshold;
+    bool     home_detail_enable;
+    bool     client_enable;
+    uint32_t client_threshold;
+    bool     client_detail_enable;
+    char     client_whitelist[256 + 1];
+} wei_rfc_pillar_config_t;
+
+/* Full WEI RFC configuration set, backed by Wifi_Wei_Rfc_Config (WiFi DB is
+ * the single source of truth; WEI holds only a runtime cache of this). */
+typedef struct {
+    char                     wei_rfc_id[16 + 1];
+    bool                     wei_enable;
+    uint32_t                 lq_meas_params_mask;
+    double                   lq_meas_threshold;
+    uint32_t                 lq_meas_duration;
+    uint32_t                 radio_2g_max_snr;
+    uint32_t                 radio_5g_max_snr;
+    uint32_t                 radio_6g_max_snr;
+    uint32_t                 radio_2g_max_phy;
+    uint32_t                 radio_5g_max_phy;
+    uint32_t                 radio_6g_max_phy;
+    wei_rfc_pillar_config_t  sc;
+    wei_rfc_pillar_config_t  gc;
+    wei_rfc_pillar_config_t  lq;
+} wei_rfc_dml_parameters_t;
+
 typedef struct wifi_ctrl {
     bool                exit_ctrl;
     queue_t             *queue;
@@ -372,46 +413,18 @@ typedef struct {
     bool enabled;
 } public_vaps_data_t;
 
-typedef enum
-{
-    WEI_RFC_NONE  = 0x00,  /* Main WEI RFC disabled                  */
-    WEI_RFC_MAIN  = 0x01,  /* Main WEI RFC enabled                   */
-    WEI_RFC_LQ    = 0x02,  /* Link Quality pillar enabled            */
-    WEI_RFC_GC    = 0x04,  /* Getting Connected pillar enabled       */
-    WEI_RFC_SC    = 0x08,  /* Staying Connected pillar enabled       */
-    WEI_RFC_ALL   = (WEI_RFC_MAIN | WEI_RFC_LQ | WEI_RFC_GC | WEI_RFC_SC)
-} wei_rfc_mask_t;
-
-/* One SC/GC/LQ pillar's home + client scoring config, mirrors WEI's
- * wei_rfc_config_t so the two sides map field-for-field. */
+/* Delta pushed through the ctrl queue by a WEI rbus Set (field_id indexes
+ * the descriptor table in wifi_ctrl_rbus_handlers.c) so every mutation of
+ * wei_rfc_dml_parameters_t is applied serialized on the ctrl thread.
+ * field_id == -1 means "already applied to the DB-mirror cache by an
+ * external write (e.g. direct OVSDB update); just recompute + notify". */
 typedef struct {
-    bool     home_enable;
-    uint32_t home_threshold;
-    bool     home_detail_enable;
-    bool     client_enable;
-    uint32_t client_threshold;
-    bool     client_detail_enable;
-    char     client_whitelist[256 + 1];
-} wei_rfc_pillar_config_t;
-
-/* Full WEI RFC configuration set, backed by Wifi_Wei_Rfc_Config (WiFi DB is
- * the single source of truth; WEI holds only a runtime cache of this). */
-typedef struct {
-    char                     wei_rfc_id[16 + 1];
-    bool                     wei_enable;
-    uint32_t                 lq_meas_params_mask;
-    double                   lq_meas_threshold;
-    uint32_t                 lq_meas_duration;
-    uint32_t                 radio_2g_max_snr;
-    uint32_t                 radio_5g_max_snr;
-    uint32_t                 radio_6g_max_snr;
-    uint32_t                 radio_2g_max_phy;
-    uint32_t                 radio_5g_max_phy;
-    uint32_t                 radio_6g_max_phy;
-    wei_rfc_pillar_config_t  sc;
-    wei_rfc_pillar_config_t  gc;
-    wei_rfc_pillar_config_t  lq;
-} wei_rfc_dml_parameters_t;
+    int      field_id;
+    bool     bval;
+    uint32_t uval;
+    double   dval;
+    char     sval[256 + 1];
+} wei_rfc_field_update_t;
 void process_mgmt_ctrl_frame_event(frame_data_t *msg, uint32_t msg_length);
 wifi_db_t *get_wifidb_obj();
 wifi_ctrl_t *get_wifictrl_obj();
@@ -483,9 +496,11 @@ wei_rfc_dml_parameters_t* get_ctrl_wei_rfc_parameters(void);
 int wifidb_get_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_info);
 int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param);
 void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config);
-/* Implemented in wifi_ctrl_queue_handlers.c: derives Wifi_Rfc_Config.wei_rfc_mask
- * and publishes change-notification bus events after a config commit. */
-void process_wei_rfc_config_update(wei_rfc_dml_parameters_t *rfc_param);
+/* Implemented in wifi_ctrl_rbus_handlers.c: applies a field delta (if any),
+ * derives Wifi_Rfc_Config.wei_rfc_mask and publishes change-notification
+ * bus events. Invoked from the ctrl-queue dispatcher in
+ * wifi_ctrl_queue_handlers.c on wifi_event_type_wei_rfc_config. */
+void process_wei_rfc_config_update(wei_rfc_field_update_t *upd);
 rdk_wifi_radio_t* find_radio_config_by_index(uint8_t r_index);
 int get_device_config_list(char *d_list, int size, char *str);
 int get_cm_mac_address(char *mac);

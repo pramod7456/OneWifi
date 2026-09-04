@@ -52,6 +52,7 @@
 #include "wifi_util.h"
 #include "wifi_mgr.h"
 #include "wifi_dml.h"
+#include "wifi_events.h"
 #include "wifi_monitor.h"
 
 #define MAX_BUF_SIZE 128
@@ -432,7 +433,16 @@ void callback_Wifi_Wei_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wif
         rfc_param->gc.home_enable, rfc_param->gc.client_enable,
         rfc_param->lq.home_enable, rfc_param->lq.client_enable);
 
-    process_wei_rfc_config_update(rfc_param);
+    /* Marshal onto the ctrl thread (this callback runs on the wifidb event-loop
+     * thread); field_id=-1 means "already applied to the DB-mirror cache above,
+     * just recompute the derived mask and notify subscribers". */
+    {
+        wei_rfc_field_update_t upd;
+        memset(&upd, 0, sizeof(upd));
+        upd.field_id = -1;
+        push_event_to_ctrl_queue(&upd, sizeof(upd), wifi_event_type_command,
+            wifi_event_type_wei_rfc_config, NULL);
+    }
 }
 
 /************************************************************************************
@@ -8622,6 +8632,17 @@ void init_wifidb_data(void)
         else {
                 if(wifidb_overide_rfc_config(rfc_param) == true) {
                     wifidb_update_rfc_config(0, rfc_param);
+            }
+        }
+
+        {
+            wei_rfc_dml_parameters_t *wei_rfc_param = get_wifi_db_wei_rfc_parameters();
+            if (wifidb_get_wei_rfc_config(wei_rfc_param) != 0) {
+                wifi_util_info_print(WIFI_DB,
+                    "%s:%d: Wifi_Wei_Rfc_Config empty (first boot/upgrade); seeding defaults\n",
+                    __func__, __LINE__);
+                wifidb_init_wei_rfc_config_default(wei_rfc_param);
+                wifidb_update_wei_rfc_config(wei_rfc_param);
             }
         }
 

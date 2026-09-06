@@ -2096,23 +2096,6 @@ static void meshStatusHandler(char *event_name, bus_data_prop_t *p_data, void *u
         wifi_event_type_command_mesh_status, NULL);
 }
 
-static void wei_rfc_mask_handler(char *event_name, bus_data_prop_t *p_data, void *userData)
-{
-    (void)userData;
-    int wei_status = 0;
-
-    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Recvd Event event_name=%s\n", __func__, __LINE__,event_name);
-
-    if (p_data->value.data_type != bus_data_type_uint32) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d Invalid event received,%s:%x\n", __func__, __LINE__, event_name, p_data->value.data_type);
-        return;
-    }
-
-    wei_status = (int)p_data->value.raw_data.u32;
-    push_event_to_ctrl_queue(&wei_status, sizeof(wei_status), wifi_event_type_command,
-                             wifi_event_type_wei_rfc_mask, NULL);
-}
-
 /* ============================================================
  * WEI RFC parameter provider (Device.X_RDKCENTRAL-COM_WEI.*)
  *
@@ -2288,8 +2271,10 @@ static bus_error_t wei_set_param(char *event_name, raw_data_t *p_data, bus_user_
     return bus_error_success;
 }
 
-/* Read-only: derived bitmask, kept in Wifi_Rfc_Config.wei_rfc_mask for the
- * existing OneWifi apps (wifi_linkquality, wifi_monitor, wifi_stats_assoc_client)
+/* Read-only: derived on demand from Wifi_Wei_Rfc_Config via
+ * wei_compute_rfc_mask(); not backed by any OVSDB column. Kept on
+ * wifi_rfc_dml_parameters_t as an in-memory cache for the existing
+ * OneWifi apps (wifi_linkquality, wifi_monitor, wifi_stats_assoc_client)
  * that already branch on it. */
 static bus_error_t wei_get_rfc_mask_param(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -2442,8 +2427,11 @@ void process_wei_rfc_config_update(wei_rfc_field_update_t *upd)
     wifi_rfc_dml_parameters_t *legacy = get_ctrl_rfc_parameters();
     if (legacy->wei_rfc_mask != (int)mask) {
         legacy->wei_rfc_mask = (int)mask;
+        /* In-memory only: Wifi_Wei_Rfc_Config (already persisted above) is the
+         * sole source of truth, so this derived value is never written back
+         * to OVSDB -- keep the DB-mirror struct in sync purely so the next
+         * get_ctrl_rfc_parameters() refresh doesn't clobber it back to stale. */
         get_wifi_db_rfc_parameters()->wei_rfc_mask = (int)mask;
-        get_wifidb_obj()->desc.update_rfc_config_fn(0, legacy);
     }
 
     wei_publish_rfc_mask_and_notify(mask);
@@ -2967,19 +2955,6 @@ void bus_subscribe_events(wifi_ctrl_t *ctrl)
             wifi_util_dbg_print(WIFI_CTRL, "%s:%d MeshStatus subscribe success, rc: %d\n",
                 __FUNCTION__, __LINE__, rc);
         }
-    }
-
-    if (ctrl->wei_events_subscribed == false) {
-        int ret1 = -1;
-        ret1 = bus_desc->bus_event_subs_fn(&ctrl->handle, WEI_RFC_MASK, wei_rfc_mask_handler, NULL,0);
-        if (ret1 == 0 )  {    
-	    ctrl->wei_events_subscribed = true;
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe success\n",
-                __FUNCTION__, __LINE__);
-        } else {
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe unsuccess\n",
-                __FUNCTION__, __LINE__);
-	}
     }
 
 #if defined(RDKB_EXTENDER_ENABLED) || defined(WAN_FAILOVER_SUPPORTED)

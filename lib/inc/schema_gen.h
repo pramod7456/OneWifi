@@ -217,7 +217,6 @@
         PJS_OVS_BOOL(csi_analytics_enabled_rfc) \
         PJS_OVS_BOOL(xfi_tel_enable_rfc) \
         PJS_OVS_BOOL(multiap_rfc) \
-        PJS_OVS_INT(wei_rfc_mask) \
   )
 
 #define PJS_SCHEMA_Wifi_MacFilter_Config \
@@ -1706,7 +1705,7 @@
     )
 
 /* Wifi_Wei_Rfc_Config: single-row WEI RFC config, WiFi DB is the sole owner
- * (see Wifi_Rfc_Config.wei_rfc_mask, which stays derived from this table). */
+ * (the WEI_RFC_MASK bitmask is derived from this table at read time, not persisted). */
 #define PJS_SCHEMA_Wifi_Wei_Rfc_Config \
     PJS(schema_Wifi_Wei_Rfc_Config, \
         PJS_OVS_UUID_Q(_uuid) \
@@ -2214,8 +2213,7 @@
     COLUMN(wpa3_compatibility_enable) \
     COLUMN(csi_analytics_enabled_rfc) \
     COLUMN(multiap_rfc) \
-    COLUMN(xfi_tel_enable_rfc) \
-    COLUMN(wei_rfc_mask) 
+    COLUMN(xfi_tel_enable_rfc) 
 
 #define SCHEMA__Wifi_MacFilter_Config "Wifi_MacFilter_Config"
 #define SCHEMA_COLUMN__Wifi_MacFilter_Config(COLUMN) \
@@ -3629,7 +3627,6 @@
 #define SCHEMA__Wifi_Rfc_Config__csi_analytics_enabled_rfc "csi_analytics_enabled_rfc"
 #define SCHEMA__Wifi_Rfc_Config__multiap_rfc "multiap_rfc"
 #define SCHEMA__Wifi_Rfc_Config__xfi_tel_enable_rfc "xfi_tel_enable_rfc"
-#define SCHEMA__Wifi_Rfc_Config__wei_rfc_mask "wei_rfc_mask"
 
 #define SCHEMA__Alarms__code "code"
 #define SCHEMA__Alarms__timestamp "timestamp"

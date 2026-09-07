@@ -8503,6 +8503,7 @@ void wifidb_init_default_value()
     wifidb_reset_macfilter_hashmap();
     wifidb_init_gas_config_default(&g_wifidb->global_config.gas_config);
     wifidb_init_rfc_config_default(&g_wifidb->rfc_dml_parameters);
+    wifidb_init_wei_rfc_config_default(get_wifi_db_wei_rfc_parameters());
     wifi_util_info_print(WIFI_DB,"%s:%d Wifi db update completed\n",__func__, __LINE__);
 
 }
@@ -8546,6 +8547,22 @@ void init_wifidb_data(void)
 
     if ((access(ONEWIFI_FR_REBOOT_FLAG, F_OK) == 0) && (access(ONEWIFI_FR_WIFIDB_RESET_DONE_FLAG, F_OK) != 0)) {
         wifidb_update_rfc_config(0, rfc_param);
+
+        {
+            /* Factory reset must reset Wifi_Wei_Rfc_Config too: unlike the
+             * normal-boot branch below, always reseed and write here rather
+             * than only-if-absent, since this branch's whole purpose is
+             * restoring defaults after the DB was wiped. */
+            wei_rfc_dml_parameters_t *wei_rfc_param = get_wifi_db_wei_rfc_parameters();
+            wifidb_init_wei_rfc_config_default(wei_rfc_param);
+            wifidb_update_wei_rfc_config(wei_rfc_param);
+            wei_rfc_field_update_t boot_upd;
+            memset(&boot_upd, 0, sizeof(boot_upd));
+            boot_upd.field_id = -1;
+            push_event_to_ctrl_queue(&boot_upd, sizeof(boot_upd), wifi_event_type_command,
+                wifi_event_type_wei_rfc_config, NULL);
+        }
+
         get_wifi_country_code_from_bootstrap_json(country_code, COUNTRY_CODE_LEN);
         pthread_mutex_lock(&g_wifidb->data_cache_lock);
         for (r_index = 0; r_index < num_radio; r_index++) {

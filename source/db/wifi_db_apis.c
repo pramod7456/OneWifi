@@ -8639,6 +8639,12 @@ void init_wifidb_data(void)
                 wifidb_init_wei_rfc_config_default(wei_rfc_param);
                 wifidb_update_wei_rfc_config(wei_rfc_param);
             }
+            // To avoid sync issues from onewifi wifidb to wei push wei rfc config here
+            wei_rfc_field_update_t boot_upd;
+            memset(&boot_upd, 0, sizeof(boot_upd));
+            boot_upd.field_id = -1;
+            push_event_to_ctrl_queue(&boot_upd, sizeof(boot_upd), wifi_event_type_command,
+                wifi_event_type_wei_rfc_config, NULL);
         }
 
         get_wifi_country_code_from_bootstrap_json(country_code, COUNTRY_CODE_LEN);

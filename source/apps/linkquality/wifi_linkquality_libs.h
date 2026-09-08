@@ -21,9 +21,9 @@
 #define WIFI_LINKQUALITY_LIBS_H
 #include "run_qmgr.h"
 #ifdef __cplusplus
-  extern "C" {
- #endif
- 
+extern "C" {
+#endif
+
 typedef int (* periodic_caffinity_stats_update_t)(stats_arg_t *stats,int len);
 typedef void (* register_station_mac_t)(const char *str);
 typedef void (* unregister_station_mac_t)(const char *str);
@@ -37,7 +37,6 @@ typedef int (* set_quality_flags_t) (quality_flags_t *flag);
 typedef int (* get_quality_flags_t) (quality_flags_t *flag);
 typedef int (* process_lq_stats_t)(stats_arg_t *stats, int len);
 typedef int (* vap_down_link_stats_t)(stats_arg_t *stats);
-
 
 typedef struct {
     periodic_caffinity_stats_update_t periodic_caffinity_stats_update_fn;
@@ -58,9 +57,8 @@ typedef struct {
 
 wifi_lq_descriptor_t *get_lq_descriptor();
 
-
 #ifdef __cplusplus
- }
- #endif
+}
+#endif
 
 #endif // WIFI_LINKQUALITY_LIBS_H

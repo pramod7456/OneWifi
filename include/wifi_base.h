@@ -84,7 +84,7 @@ extern "C" {
 #define WIFI_COLLECT_STATS_VAP_TABLE                   "Device.WiFi.CollectStats.AccessPoint.{i}."
 #define WIFI_COLLECT_STATS_ASSOC_DEVICE_STATS          "Device.WiFi.CollectStats.AccessPoint.{i}.AssociatedDeviceStats"
 #define WIFI_NOTIFY_DENY_TCM_ASSOCIATION               "Device.WiFi.ConnectionControl.TcmClientDenyAssociation"
-#define WIFI_NOTIFY_INTEROP_DETAILS                    "Device.WiFi.AccessPoint.{i}.InteropDetails" 
+#define WIFI_NOTIFY_INTEROP_DETAILS                    "Device.WiFi.AccessPoint.{i}.InteropDetails"
 #define WIFI_CSA_BEACON_FRAME_RECEIVED                 "Device.WiFi.CSABeaconFrameRecieved"
 #define HOTSPOT_CLIENT_DHCP_FAILURE_DISCONNECTED       "Device.X_COMCAST-COM_GRE.Hotspot.RejectAssociatedClient"
 #define WIFI_STUCK_DETECT_FILE_NAME         "/nvram/wifi_stuck_detect"
@@ -100,7 +100,7 @@ extern "C" {
 
 #define PLAN_ID_LENGTH     38
 #define MAX_STEP_COUNT  32 /*Active Measurement Step Count */
-#define  MAC_ADDRESS_LENGTH  13
+#define MAC_ADDRESS_LENGTH 13
 #define WIFI_AP_MAX_WPSPIN_LEN  9
 #define MAX_BUF_LENGTH 128
 
@@ -464,7 +464,7 @@ typedef struct {
     wifi_neighborScanMode_t  scan_mode;
     wifi_mon_stats_type_t stats_type;
     unsigned char target_mac[MAC_ADDRESS_LENGTH];
-    unsigned int stats_type_subscribed;//bitmask  for wifi_mon_stats_type_t
+    unsigned int stats_type_subscribed; // bitmask for wifi_mon_stats_type_t
 } collect_stats_t;
 
 typedef struct {
@@ -533,7 +533,7 @@ typedef struct {
     int    alarm;
     char   reporting_time[32];
     size_t sample_count;
-    sample_t *samples;   
+    sample_t *samples;
 } link_report_t;
 
 typedef struct {
@@ -542,7 +542,7 @@ typedef struct {
     unsigned long cli_RetransCount;
     unsigned long long cli_RxRetries;
     int cli_SNR;
-    unsigned int   cli_MaxDownlinkRate;
+    unsigned int cli_MaxDownlinkRate;
     unsigned int cli_MaxUplinkRate;
     unsigned int cli_LastDataDownlinkRate;
     unsigned int cli_LastDataUplinkRate;
@@ -930,29 +930,29 @@ typedef struct {
     unsigned int    success_threshold_secs;
 } steering_config_t;
 
- typedef enum {
-     stats_type_neighbor,
-     stats_type_survey,
-     stats_type_client,
-     stats_type_capacity,
-     stats_type_radio,
-     stats_type_essid,
-     stats_type_quality,
-     stats_type_device,
-     stats_type_rssi,
-     stats_type_steering,
-     stats_type_client_auth_fails,
-     stats_type_max
- } stats_type_t;
+typedef enum {
+    stats_type_neighbor,
+    stats_type_survey,
+    stats_type_client,
+    stats_type_capacity,
+    stats_type_radio,
+    stats_type_essid,
+    stats_type_quality,
+    stats_type_device,
+    stats_type_rssi,
+    stats_type_steering,
+    stats_type_client_auth_fails,
+    stats_type_max
+} stats_type_t;
 
- typedef enum {
-     report_type_raw,
-     report_type_average,
-     report_type_histogram,
-     report_type_percentile,
-     report_type_diff,
-     report_type_max
- } reporting_type_t;
+typedef enum {
+    report_type_raw,
+    report_type_average,
+    report_type_histogram,
+    report_type_percentile,
+    report_type_diff,
+    report_type_max
+} reporting_type_t;
 
 typedef enum {
     survey_type_on_channel,
@@ -1036,7 +1036,7 @@ typedef struct {
 //  schema_wifi_radio_state_t   radio_state;
 } rdk_wifi_radio_t;
 
-#define  MAC_ADDRESS_LENGTH  13
+#define MAC_ADDRESS_LENGTH 13
 typedef struct {
     bool                   b_inst_client_enabled;
     unsigned long          u_inst_client_reporting_period;
@@ -1316,7 +1316,7 @@ typedef enum {
 typedef struct {
     char    neighbor_id[CFG_ID_LEN];
     mac_addr_str_t bssid;
-    char if_name[32] ;
+    char if_name[32];
     int channel;
     ht_mode_t ht_mode;
     int priority;

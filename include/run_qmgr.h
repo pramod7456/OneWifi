@@ -21,11 +21,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define MAX_LINE_SIZE   1024
- #define MAX_FILE_NAME_SZ 1024
+#define MAX_LINE_SIZE 1024
+#define MAX_FILE_NAME_SZ 1024
 
-#define MAX_LINKQ_PARAMS    6
-#define MAX_SCORE_PARAMS    12
+#define MAX_LINKQ_PARAMS 6
+#define MAX_SCORE_PARAMS 12
 #define THRESHOLD 0.4
 #define SAMPLING_INTERVAL 5
 #define REPORTING_INTERVAL 5
@@ -46,8 +46,8 @@ extern "C" {
  * Uses LINKQ_DL_SNR..LINKQ_INT_RECONN (bits 0-7) defined above.
  * Valid mask is LINKQ_VALID_MASK (0xFF). */
 
-#define LINK_QTY_B0  -9.495604
-#define LINK_QTY_B1  0.081093
+#define LINK_QTY_B0 -9.495604
+#define LINK_QTY_B1 0.081093
 typedef struct {
     char path[MAX_FILE_NAME_SZ];
     char output_file[MAX_FILE_NAME_SZ];
@@ -56,13 +56,12 @@ typedef struct {
     unsigned int reporting;
 } server_arg_t;
 
-
 typedef struct {
-    unsigned int  pkt_sent;
-    unsigned  int pkt_recv;
-    unsigned int  err_sent;
-    unsigned int  err_recv;
-  } window_per_param_t;
+    unsigned int pkt_sent;
+    unsigned int pkt_recv;
+    unsigned int err_sent;
+    unsigned int err_recv;
+} window_per_param_t;
 
 typedef struct {
     int radio_2g_max_snr;
@@ -79,25 +78,24 @@ typedef struct {
     bool uplink_phy;
     bool aggregate;
     bool int_reconn;
-
-  } quality_flags_t;
+} quality_flags_t;
 
 /* DHCP event flag for affinity updates */
-#define DHCP_EVENT_UPDATE    1
+#define DHCP_EVENT_UPDATE 1
 
 typedef enum {
     DHCP_DISCOVER = 1,
-    DHCP_OFFER    = 2,
-    DHCP_REQUEST  = 3,
-    DHCP_DECLINE  = 4,
-    DHCP_ACK      = 5,
-    DHCP_NAK      = 6,
+    DHCP_OFFER = 2,
+    DHCP_REQUEST = 3,
+    DHCP_DECLINE = 4,
+    DHCP_ACK = 5,
+    DHCP_NAK = 6,
     DHCP_UNKNOWN
 } dhcp_pkt_type_t;
 
 typedef void (*qmgr_report_batch_cb_t)(const report_batch_t *report);
-typedef void (*qmgr_report_score_cb_t)(const char *str, double score,double threshold);
-typedef int (*qmgr_max_snr_cb_t)(int radio_index,int score);
+typedef void (*qmgr_report_score_cb_t)(const char *str, double score, double threshold);
+typedef int (*qmgr_max_snr_cb_t)(int radio_index, int score);
 
 /* Registration function (called from C main) */
 void qmgr_register_batch_callback(qmgr_report_batch_cb_t cb);
@@ -109,12 +107,11 @@ bool qmgr_is_score_registered(void);
 
 void reset_qmgr_score_cb(void);
 void qmgr_invoke_batch(const report_batch_t *batch);
-void qmgr_invoke_score(const char *str, double score,double threshold);
-void qmgr_invoke_max_snr_callback(int radio_index,int max_snr);
+void qmgr_invoke_score(const char *str, double score, double threshold);
+void qmgr_invoke_max_snr_callback(int radio_index, int max_snr);
 
 int run_web_server();
 int stop_web_server();
-
 
 int add_stats_metrics(stats_arg_t *stats);
 int remove_link_stats(stats_arg_t *stats);
@@ -122,13 +119,13 @@ int start_link_metrics();
 int stop_link_metrics();
 int disconnect_link_stats(stats_arg_t *stats);
 int reinit_link_metrics(server_arg_t *arg);
-char* get_link_metrics();
+char *get_link_metrics();
 int set_quality_flags(quality_flags_t *flag);
 int get_quality_flags(quality_flags_t *flag);
 
-/* Ignite station mac register and unregister function to monitor*/
-void register_station_mac(const char* str);
-void unregister_station_mac(const char* str);
+/* Ignite station mac register and unregister function to monitor */
+void register_station_mac(const char *str);
+void unregister_station_mac(const char *str);
 
 /* Sets the max_snr per radios after its learnt */
 int set_max_snr_radios(radio_max_snr_t *max_snr_val);
@@ -137,11 +134,10 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 int set_score_params(uint32_t mask);
 
 /* Connection Affinity related helper functions */
-int update_affinity_stats(stats_arg_t *arg,bool flag);
+int update_affinity_stats(stats_arg_t *arg, bool flag);
 
 /* Periodic caffinity stats update for connected/disconnected time and SNR */
-int periodic_caffinity_stats_update(stats_arg_t *stats ,int len);
-
+int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
 
 /* Check if a client is connected using caffinity tracking */
 bool is_client_connected(const char *mac_str);

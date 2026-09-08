@@ -546,7 +546,7 @@ int start_radios(rdk_dev_mode_type_t mode, unsigned int radio_index)
                 }
             }
 
-            if (strcmp(wifi_radio_oper_param->radarDetected, " ")) {
+            if (strcmp(wifi_radio_oper_param->radarDetected, " ") != 0) {
                 wifi_util_info_print(WIFI_CTRL,"%s:%d Triggering dfs_nop_start_timer for radar:%s \n",__func__, __LINE__, wifi_radio_oper_param->radarDetected);
                 scheduler_add_timer_task(ctrl->sched, FALSE, NULL, dfs_nop_start_timer, NULL, (60 * 1000), 1, FALSE);
             }
@@ -1970,7 +1970,7 @@ int validate_and_sync_private_vap_credentials()
     pTmp = (char *)data.raw_data.bytes;
 
     wifi_util_info_print(WIFI_CTRL, "Last reboot reason is %s\n", pTmp);
-    if (strcmp(pTmp, "factory-reset") && strcmp(pTmp, "WPS-Factory-Reset")) {
+    if (strcmp(pTmp, "factory-reset") != 0 && strcmp(pTmp, "WPS-Factory-Reset") != 0) {
 
         get_ssid_from_device_mac(default_ssid);
 
@@ -2068,14 +2068,17 @@ int start_wifi_ctrl(wifi_ctrl_t *ctrl)
         apps_mgr_multiap_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
     }
 
-    if ((ctrl->network_mode == rdk_dev_mode_type_em_node || ctrl->network_mode == rdk_dev_mode_type_em_colocated_node
-        || ctrl->rf_status_down == true)) {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d start link quality app, network_mode:%d rf_status_down:%d\n",
-            __func__, __LINE__, ctrl->network_mode, ctrl->rf_status_down);
+    if ((ctrl->network_mode == rdk_dev_mode_type_em_node ||
+            ctrl->network_mode == rdk_dev_mode_type_em_colocated_node ||
+            ctrl->rf_status_down == true)) {
+        wifi_util_info_print(WIFI_CTRL,
+            "%s:%d start link quality app, network_mode:%d rf_status_down:%d\n", __func__, __LINE__,
+            ctrl->network_mode, ctrl->rf_status_down);
         apps_mgr_link_quality_event(&ctrl->apps_mgr, wifi_event_type_exec, wifi_event_exec_start, NULL, 0);
     } else {
-        wifi_util_info_print(WIFI_CTRL, "%s:%d stop link quality app, network_mode:%d rf_status_down:%d\n",
-            __func__, __LINE__, ctrl->network_mode, ctrl->rf_status_down);
+        wifi_util_info_print(WIFI_CTRL,
+            "%s:%d stop link quality app, network_mode:%d rf_status_down:%d\n", __func__, __LINE__,
+            ctrl->network_mode, ctrl->rf_status_down);
     }
 
     ctrl_queue_timeout_scheduler_tasks(ctrl);
@@ -2482,17 +2485,19 @@ static int bus_check_and_subscribe_events(void* arg)
     ctrl->mesh_keep_out_chans_subscribed = true;
 #endif
 
-    if ((ctrl->bus_events_subscribed == false) ||
-        (ctrl->device_mode_subscribed == false) || (ctrl->active_gateway_check_subscribed == false) ||
+    if ((ctrl->bus_events_subscribed == false) || (ctrl->device_mode_subscribed == false) ||
+        (ctrl->active_gateway_check_subscribed == false) ||
         (ctrl->hotspot_status_subscribed && ctrl->device_tunnel_status_subscribed == false) ||
         (ctrl->device_wps_test_subscribed == false) ||
         (ctrl->test_device_mode_subscribed == false) || (ctrl->mesh_status_subscribed == false) ||
-        (ctrl->marker_list_config_subscribed == false) || (ctrl->mesh_keep_out_chans_subscribed == false) ||
-        (ctrl->hotspot_client_dhcp_failure_subscribed == false) || (ctrl->wei_events_subscribed == false) 
+        (ctrl->marker_list_config_subscribed == false) ||
+        (ctrl->mesh_keep_out_chans_subscribed == false) ||
+        (ctrl->hotspot_client_dhcp_failure_subscribed == false) ||
+        (ctrl->wei_events_subscribed == false)
 #if defined (RDKB_EXTENDER_ENABLED)
         || (ctrl->eth_bh_status_subscribed == false)
 #endif
-        ) {
+    ) {
         bus_subscribe_events(ctrl);
     }
     return TIMER_TASK_COMPLETE;
@@ -3064,8 +3069,7 @@ wifi_rfc_dml_parameters_t *get_ctrl_rfc_parameters(void)
         g_wifi_mgr->rfc_dml_parameters.wpa3_compatibility_enable;
     g_wifi_mgr->ctrl.rfc_params.csi_analytics_enabled_rfc =
         g_wifi_mgr->rfc_dml_parameters.csi_analytics_enabled_rfc;
-    g_wifi_mgr->ctrl.rfc_params.wei_rfc_mask =
-        g_wifi_mgr->rfc_dml_parameters.wei_rfc_mask;
+    g_wifi_mgr->ctrl.rfc_params.wei_rfc_mask = g_wifi_mgr->rfc_dml_parameters.wei_rfc_mask;
     g_wifi_mgr->ctrl.rfc_params.xfi_tel_enable_rfc =
         g_wifi_mgr->rfc_dml_parameters.xfi_tel_enable_rfc;
     g_wifi_mgr->ctrl.rfc_params.multiap_rfc =

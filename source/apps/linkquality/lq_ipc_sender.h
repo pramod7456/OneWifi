@@ -16,8 +16,8 @@
 #ifndef LQ_IPC_SENDER_H
 #define LQ_IPC_SENDER_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * AF_UNIX datagram socket path shared between OneWifi (sender) and
@@ -72,7 +72,6 @@ typedef struct {
  *
  * Returns 0 on success, -1 on error (non-fatal — logged and ignored by caller).
  */
-int lq_ipc_send(uint32_t msg_type, const void *entries,
-                uint32_t count, size_t entry_size);
+int lq_ipc_send(uint32_t msg_type, const void *entries, uint32_t count, size_t entry_size);
 
 #endif /* LQ_IPC_SENDER_H */

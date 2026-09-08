@@ -27,9 +27,9 @@ extern "C" {
 #endif
 #include "run_qmgr.h"
 #include "wifi_base.h"
-#include "wifi_webconfig.h"
 #include "wifi_hal.h"
 #include "wifi_linkquality_libs.h"
+#include "wifi_webconfig.h"
 
 #define MAX_STR_LEN_LQ 128
 #define IGNITE_SCORE_LOG_INTERVAL_MS 900000 // 15 mins
@@ -52,7 +52,6 @@ typedef struct {
 } linkquality_data_t;
 
 #define CTRL_CAP_SZ 8
-
 
 #ifdef __cplusplus
 }

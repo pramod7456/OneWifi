@@ -290,7 +290,7 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
             "wifi_offchannelscan_app_rfc=%d offchannelscan=%d rfc_id=%s "
             "MemwrapTool=%d levl_enabled_rfc=%d tcm_enabled_rfc=%d wpa3_compatibility_enable=%d "
             "csi_analytics_enabled_rfc=%d  xfi_tel_enable_rfc=%d multiap_rfc=%d "
-	    "wei_rfc_mask=%d \r\n",
+            "wei_rfc_mask=%d \r\n",
             __func__, __LINE__, rfc_param->wifipasspoint_rfc, rfc_param->wifiinterworking_rfc,
             rfc_param->radiusgreylist_rfc, rfc_param->dfsatbootup_rfc, rfc_param->dfs_rfc,
             rfc_param->wpa3_rfc, rfc_param->twoG80211axEnable_rfc,
@@ -299,8 +299,9 @@ void callback_Wifi_Rfc_Config(ovsdb_update_monitor_t *mon, struct schema_Wifi_Rf
             rfc_param->hotspot_secure_5g_last_enabled, rfc_param->hotspot_secure_6g_last_enabled,
             rfc_param->wifi_offchannelscan_app_rfc, rfc_param->wifi_offchannelscan_sm_rfc,
             rfc_param->rfc_id, rfc_param->memwraptool_app_rfc, rfc_param->levl_enabled_rfc,
-            rfc_param->tcm_enabled_rfc, rfc_param->wpa3_compatibility_enable, rfc_param->csi_analytics_enabled_rfc,
-            rfc_param->xfi_tel_enable_rfc, rfc_param->multiap_rfc,rfc_param->wei_rfc_mask);
+            rfc_param->tcm_enabled_rfc, rfc_param->wpa3_compatibility_enable,
+            rfc_param->csi_analytics_enabled_rfc, rfc_param->xfi_tel_enable_rfc,
+            rfc_param->multiap_rfc, rfc_param->wei_rfc_mask);
         pthread_mutex_unlock(&g_wifidb->data_cache_lock);
     }
 }
@@ -6400,7 +6401,7 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
             wifi_util_dbg_print(WIFI_DB,"%s:%d: nothing to update table_Wifi_Rfc_Config table\n", __func__, __LINE__);
         } else {
             wifidb_print("%s:%d Updated WIFI DB. Wifi Rfc Config table updated successful. \n",__func__, __LINE__);
-            wifi_util_dbg_print(WIFI_DB,"%s:%d: _Wifi_Rfc_Config table\n", __func__, __LINE__);
+            wifi_util_dbg_print(WIFI_DB, "%s:%d: _Wifi_Rfc_Config table\n", __func__, __LINE__);
         }
     } else {
         strcpy(cfg.rfc_id,index);

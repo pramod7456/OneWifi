@@ -1315,9 +1315,8 @@ int vap_svc_mesh_ext_start(vap_svc_t *svc, unsigned int radio_index, wifi_vap_in
     }
 
     if ((num_of_radios = getNumberRadios()) > MAX_NUM_RADIOS) {
-        wifi_util_error_print(WIFI_CTRL,
-            "%s:%d number of radios %d exceeds supported %d\n", __func__, __LINE__,
-            num_of_radios, MAX_NUM_RADIOS);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d number of radios %d exceeds supported %d\n",
+            __func__, __LINE__, num_of_radios, MAX_NUM_RADIOS);
         return -1;
     }
 
@@ -1399,9 +1398,8 @@ int vap_svc_mesh_ext_stop(vap_svc_t *svc, unsigned int radio_index, wifi_vap_inf
     }
 
     if ((num_of_radios = getNumberRadios()) > MAX_NUM_RADIOS) {
-        wifi_util_error_print(WIFI_CTRL,
-            "%s:%d number of radios %d exceeds supported %d\n", __func__, __LINE__,
-            num_of_radios, MAX_NUM_RADIOS);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d number of radios %d exceeds supported %d\n",
+            __func__, __LINE__, num_of_radios, MAX_NUM_RADIOS);
         return -1;
     }
 

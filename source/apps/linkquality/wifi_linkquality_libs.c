@@ -16,36 +16,34 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  **************************************************************************/
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <string.h>
-#include "wifi_hal.h"
-#include "wifi_util.h"
-#include "wifi_ctrl.h"
 #include "wifi_linkquality_libs.h"
-#include "wifi_linkquality.h"
-#include "run_qmgr.h"
 #include "lq_ipc_sender.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include "run_qmgr.h"
+#include "wifi_ctrl.h"
+#include "wifi_hal.h"
+#include "wifi_linkquality.h"
+#include "wifi_util.h"
 #include <arpa/inet.h>
-#include <unistd.h>
 #include <errno.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
-#define MAX_EM_BUFF_SZ  1024
+#include <netinet/in.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#define MAX_EM_BUFF_SZ 1024
 #define QMGR_FILE "/tmp/qmgr_ready"
 
 /* CAFFINITY_EVENT (msg_type 4) – HAL/DHCP events for caffinity scoring */
 static int periodic_caffinity_stats_update_impl(stats_arg_t *stats, int len)
 {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d vap_index =%d\n",__func__,__LINE__,
-    stats->vap_index);
-    int rc = lq_ipc_send(LQ_IPC_MSG_CAFFINITY_EVENT, stats,
-                         (uint32_t)len, sizeof(stats_arg_t));
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d vap_index =%d\n", __func__, __LINE__, stats->vap_index);
+    int rc = lq_ipc_send(LQ_IPC_MSG_CAFFINITY_EVENT, stats, (uint32_t)len, sizeof(stats_arg_t));
     return rc;
 }
 
@@ -55,9 +53,8 @@ static void register_station_mac_impl(const char *str)
 
     size_t slen = strlen(str) + 1;
     int rc = lq_ipc_send(LQ_IPC_MSG_REGISTER_STA, str, 1, slen);
-    wifi_util_info_print(WIFI_APPS,"%s:%d [IPC->REGISTER_STA] lq_ipc_send rc=%d\n",
-        __func__, __LINE__, rc);
-
+    wifi_util_info_print(WIFI_APPS, "%s:%d [IPC->REGISTER_STA] lq_ipc_send rc=%d\n", __func__,
+        __LINE__, rc);
 }
 /* UNREGISTER_STA (msg_type 6) – Ignite RF-down station unregistration */
 static void unregister_station_mac_impl(const char *str)
@@ -65,18 +62,16 @@ static void unregister_station_mac_impl(const char *str)
 
     size_t slen = strlen(str) + 1;
     int rc = lq_ipc_send(LQ_IPC_MSG_UNREGISTER_STA, str, 1, slen);
-    wifi_util_info_print(WIFI_APPS,"%s:%d [IPC->UNREGISTER_STA] lq_ipc_send rc=%d\n",
-        __func__, __LINE__, rc);
+    wifi_util_info_print(WIFI_APPS, "%s:%d [IPC->UNREGISTER_STA] lq_ipc_send rc=%d\n", __func__,
+        __LINE__, rc);
 }
-
 
 /* RAPID_DISCONNECT (msg_type 3) – rapid connect/disconnect detection */
 static int disconnect_link_stats_impl(stats_arg_t *stats)
 {
-    int rc = lq_ipc_send(LQ_IPC_MSG_RAPID_DISCONNECT, stats, 1,
-                         sizeof(stats_arg_t));
-    wifi_util_info_print(WIFI_APPS,"%s:%d [IPC->RAPID_DISCONNECT] lq_ipc_send rc=%d\n",
-        __func__, __LINE__, rc);
+    int rc = lq_ipc_send(LQ_IPC_MSG_RAPID_DISCONNECT, stats, 1, sizeof(stats_arg_t));
+    wifi_util_info_print(WIFI_APPS, "%s:%d [IPC->RAPID_DISCONNECT] lq_ipc_send rc=%d\n", __func__,
+        __LINE__, rc);
     return rc;
 }
 
@@ -84,9 +79,9 @@ static int disconnect_link_stats_impl(stats_arg_t *stats)
 static int reinit_link_metrics_impl(server_arg_t *arg)
 {
 
-    int rc = lq_ipc_send(LQ_IPC_MSG_REINIT_METRICS, arg, 1,sizeof(server_arg_t));
-    wifi_util_info_print(WIFI_APPS,"%s:%d [IPC->REINIT_METRICS] lq_ipc_send rc=%d\n",
-        __func__, __LINE__, rc);
+    int rc = lq_ipc_send(LQ_IPC_MSG_REINIT_METRICS, arg, 1, sizeof(server_arg_t));
+    wifi_util_info_print(WIFI_APPS, "%s:%d [IPC->REINIT_METRICS] lq_ipc_send rc=%d\n", __func__,
+        __LINE__, rc);
     return rc;
 }
 
@@ -94,9 +89,9 @@ static int reinit_link_metrics_impl(server_arg_t *arg)
 static int remove_link_stats_impl(stats_arg_t *stats)
 {
 
-    int rc = lq_ipc_send(LQ_IPC_MSG_DISCONNECT, stats, 1,sizeof(stats_arg_t));
-    wifi_util_info_print(WIFI_APPS,"%s:%d [IPC->DISCONNECT] lq_ipc_send rc=%d\n",
-        __func__, __LINE__, rc);
+    int rc = lq_ipc_send(LQ_IPC_MSG_DISCONNECT, stats, 1, sizeof(stats_arg_t));
+    wifi_util_info_print(WIFI_APPS, "%s:%d [IPC->DISCONNECT] lq_ipc_send rc=%d\n", __func__,
+        __LINE__, rc);
     return rc;
 }
 
@@ -105,7 +100,7 @@ static int remove_link_stats_impl(stats_arg_t *stats)
 static int vap_down_link_stats_impl(stats_arg_t *stats)
 {
     int rc = lq_ipc_send(LQ_IPC_MSG_VAP_DOWN, stats, 1, sizeof(stats_arg_t));
-    wifi_util_info_print(WIFI_APPS,"VAP-DOWN-DBG %s:%d [IPC->VAP_DOWN] mac=%s vap=%u rc=%d\n",
+    wifi_util_info_print(WIFI_APPS, "VAP-DOWN-DBG %s:%d [IPC->VAP_DOWN] mac=%s vap=%u rc=%d\n",
         __func__, __LINE__, stats->mac_str, stats->vap_index, rc);
     return rc;
 }
@@ -130,12 +125,12 @@ static int process_lq_stats_rpi(stats_arg_t *stats, int len)
         return -1;
     }
 
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d len=%d\n",__func__,__LINE__,len);
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d len=%d\n", __func__, __LINE__, len);
     for (int i = 0; i < len; i++) {
-       int ret = add_stats_metrics(&stats[i]);
-       if (ret < 0) {
-           rc = ret;
-       }
+        int ret = add_stats_metrics(&stats[i]);
+        if (ret < 0) {
+            rc = ret;
+        }
     }
     return rc;
 }
@@ -153,10 +148,8 @@ static int process_lq_stats_impl(stats_arg_t *stats, int len)
         wifi_util_dbg_print(WIFI_APPS,
             "%s:%d  [%d] MAC=%s snr=%d vap=%u status_code=%u "
             "conn_time=%llds disconn_time=%llds\n",
-            __func__, __LINE__, i,
-            stats[i].mac_str, stats[i].dev.cli_SNR, stats[i].vap_index,
-            stats[i].status_code,
-            (long long)stats[i].total_connected_time.tv_sec,
+            __func__, __LINE__, i, stats[i].mac_str, stats[i].dev.cli_SNR, stats[i].vap_index,
+            stats[i].status_code, (long long)stats[i].total_connected_time.tv_sec,
             (long long)stats[i].total_disconnected_time.tv_sec);
     }
 
@@ -164,20 +157,20 @@ static int process_lq_stats_impl(stats_arg_t *stats, int len)
     int offset = 0;
     while (offset < len) {
         int chunk = (len - offset > LQ_IPC_BATCH_SIZE) ? LQ_IPC_BATCH_SIZE : (len - offset);
-        int ret = lq_ipc_send(LQ_IPC_MSG_PERIODIC_STATS, &stats[offset],
-                              (uint32_t)chunk, sizeof(stats_arg_t));
+        int ret = lq_ipc_send(LQ_IPC_MSG_PERIODIC_STATS, &stats[offset], (uint32_t)chunk,
+            sizeof(stats_arg_t));
         if (ret < 0) {
             rc = ret;
         }
         offset += chunk;
     }
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d [IPC->PERIODIC_STATS] total=%d batches=%d rc=%d\n",
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d [IPC->PERIODIC_STATS] total=%d batches=%d rc=%d\n",
         __func__, __LINE__, len, (len + LQ_IPC_BATCH_SIZE - 1) / LQ_IPC_BATCH_SIZE, rc);
     return rc;
 }
 
 /* get_link_metrics – local only, no IPC equivalent */
-static char* get_link_metrics_impl()
+static char *get_link_metrics_impl()
 {
     wifi_util_dbg_print(WIFI_APPS, "%s:%d\n", __func__, __LINE__);
     return NULL;
@@ -203,7 +196,7 @@ static int get_quality_flags_impl(quality_flags_t *flag)
  * get_lq_descriptor – singleton; wires up unified functions (no separate
  * _ext/_gw split; mode is checked inside each function).
  * ------------------------------------------------------------------------- */
-wifi_lq_descriptor_t* get_lq_descriptor()
+wifi_lq_descriptor_t *get_lq_descriptor()
 {
     static bool initialized = false;
     static wifi_lq_descriptor_t desc;
@@ -221,7 +214,7 @@ wifi_lq_descriptor_t* get_lq_descriptor()
         desc.get_quality_flags_fn               = get_quality_flags_impl;
         desc.process_lq_stats_fn                = process_lq_stats_impl;
         desc.vap_down_link_stats_fn             = vap_down_link_stats_impl;
-#else 
+#else
         desc.periodic_caffinity_stats_update_fn = periodic_caffinity_stats_update_rpi;
         desc.register_station_mac_fn            = register_station_mac;
         desc.unregister_station_mac_fn          = unregister_station_mac;
@@ -241,4 +234,3 @@ wifi_lq_descriptor_t* get_lq_descriptor()
 
     return &desc;
 }
-

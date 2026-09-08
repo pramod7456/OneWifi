@@ -24,13 +24,13 @@
 extern "C" {
 #endif
 
-#include <pthread.h>
-#include "wifi_base.h"
-#include "wifi_db.h"
-#include "wifi_ctrl.h"
-#include "platform_common.h"
-#include "wifi_dml.h"
 #include "misc.h"
+#include "platform_common.h"
+#include "wifi_base.h"
+#include "wifi_ctrl.h"
+#include "wifi_db.h"
+#include "wifi_dml.h"
+#include <pthread.h>
 
 #define DFS_RFC_ENABLE_NAMESPACE      "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.DFS.Enable"
 #define WIFI_PSM_DB_NAMESPACE         "Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.WiFi-PSM-DB.Enable"

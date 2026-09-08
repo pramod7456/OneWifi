@@ -17,30 +17,29 @@
   limitations under the License.
  **************************************************************************/
 
+#include "wifi_util.h"
+#include "const.h"
+#include "services/vap_svc.h"
+#include "wifi_ctrl.h"
+#include "wifi_mgr.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <ifaddrs.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <openssl/sha.h>
+#include <semaphore.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <fcntl.h>
-#include "const.h"
-#include "wifi_util.h"
-#include "wifi_ctrl.h"
-#include "wifi_mgr.h"
-#include "services/vap_svc.h"
-#include <netinet/in.h>
-#include <time.h>
-#include <openssl/sha.h>
-#include <net/if.h>
 #include <sys/ioctl.h>
-#include <linux/if_packet.h>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <ifaddrs.h>
-#include <semaphore.h>
-#include <fcntl.h>
 #include <sys/stat.h>
-#include <errno.h>
+#include <sys/types.h>
+#include <time.h>
 
 #define  ARRAY_SZ(x)    (sizeof(x) / sizeof((x)[0]))
 /* enable PID in debug logs */
@@ -59,19 +58,19 @@ void test_names(wifi_platform_property_t *wifi_prop);
 
 #define TOTAL_VAPS(vaps, wifi_prop) {\
     do {\
-        vaps = 0;\
-        for (unsigned int i = 0; i < wifi_prop->numRadios; ++i) {\
-            vaps += wifi_prop->radiocap[i].maxNumberVAPs;\
+        (vaps) = 0;\
+        for (unsigned int i = 0; i < (wifi_prop)->numRadios; ++i) {\
+            (vaps) += (wifi_prop)->radiocap[i].maxNumberVAPs;\
         }\
     } while(0);\
 }
 
 #define TOTAL_INTERFACES(num_iface, wifi_prop) {\
     do {\
-        num_iface = 0;\
-        for(UINT i = 0; i < wifi_prop->numRadios*MAX_NUM_VAP_PER_RADIO; ++i) {\
-            if ((wifi_prop->interface_map[i].interface_name[0] != '\0') && (wifi_prop->interface_map[i].vap_name[0] != '\0')) {\
-                ++num_iface;\
+        (num_iface) = 0;\
+        for(UINT i = 0; i < (wifi_prop)->numRadios*MAX_NUM_VAP_PER_RADIO; ++i) {\
+            if (((wifi_prop)->interface_map[i].interface_name[0] != '\0') && ((wifi_prop)->interface_map[i].vap_name[0] != '\0')) {\
+                ++(num_iface);\
             }\
         }\
     } while (0);\
@@ -358,24 +357,20 @@ void write_to_file(const char *file_name, char *fmt, ...)
     static const char *sem_name = "/wifi_health_log_sem";
     sem_t *sem = sem_open(sem_name, O_CREAT, 0666, 1);
     if (sem == SEM_FAILED) {
-        wifi_util_error_print(WIFI_CTRL,
-            "%s:%d sem_open failed errno=%d\n",
-            __func__, __LINE__, errno);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d sem_open failed errno=%d\n", __func__, __LINE__,
+            errno);
         return;
     }
-     while (sem_wait(sem) == -1) {
+    while (sem_wait(sem) == -1) {
         if (errno == EINTR)
             continue;
 
-        wifi_util_error_print(WIFI_CTRL,
-            "%s:%d sem_wait failed errno=%d\n",
-            __func__, __LINE__, errno);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d sem_wait failed errno=%d\n", __func__, __LINE__,
+            errno);
 
         sem_close(sem);
         return;
     }
-
-
 
     fp = fopen(file_name, "a+");
 
@@ -383,7 +378,7 @@ void write_to_file(const char *file_name, char *fmt, ...)
         wifi_util_dbg_print(WIFI_CTRL,"%s:%d: Error, open file_name: %s\n",__func__, __LINE__, file_name);
         sem_post(sem);
         sem_close(sem);
-	return;
+        return;
     }
 
     va_start(args, fmt);
@@ -5065,18 +5060,18 @@ int get_mesh_sta_mac_address_for_radio(wifi_platform_property_t *wifi_prop, unsi
 
     return -1;
 }
- void copy_assocstats_dev_stats(wifi_associated_dev3_t* assoc_dev,dev_stats_t *dev)
- {
- 
-    dev->cli_PacketsSent = assoc_dev->cli_PacketsSent;  
-   dev->cli_PacketsReceived = assoc_dev->cli_PacketsReceived;  
-   dev->cli_RetransCount = assoc_dev->cli_RetransCount;  
-   dev->cli_RxRetries = assoc_dev->cli_RxRetries;  
-   dev->cli_SNR = assoc_dev->cli_SNR;  
-   dev->cli_MaxDownlinkRate = assoc_dev->cli_MaxDownlinkRate;  
-   dev->cli_MaxUplinkRate = assoc_dev->cli_MaxUplinkRate;  
-   dev->cli_LastDataDownlinkRate = assoc_dev->cli_LastDataDownlinkRate;  
-   dev->cli_LastDataUplinkRate = assoc_dev->cli_LastDataUplinkRate;  
-   dev->cli_PowerSaveMode = assoc_dev->cli_PowerSaveMode;
-   dev->cli_sleepTime = assoc_dev->cli_sleepTime;
- } 
+void copy_assocstats_dev_stats(wifi_associated_dev3_t *assoc_dev, dev_stats_t *dev)
+{
+
+    dev->cli_PacketsSent = assoc_dev->cli_PacketsSent;
+    dev->cli_PacketsReceived = assoc_dev->cli_PacketsReceived;
+    dev->cli_RetransCount = assoc_dev->cli_RetransCount;
+    dev->cli_RxRetries = assoc_dev->cli_RxRetries;
+    dev->cli_SNR = assoc_dev->cli_SNR;
+    dev->cli_MaxDownlinkRate = assoc_dev->cli_MaxDownlinkRate;
+    dev->cli_MaxUplinkRate = assoc_dev->cli_MaxUplinkRate;
+    dev->cli_LastDataDownlinkRate = assoc_dev->cli_LastDataDownlinkRate;
+    dev->cli_LastDataUplinkRate = assoc_dev->cli_LastDataUplinkRate;
+    dev->cli_PowerSaveMode = assoc_dev->cli_PowerSaveMode;
+    dev->cli_sleepTime = assoc_dev->cli_sleepTime;
+}

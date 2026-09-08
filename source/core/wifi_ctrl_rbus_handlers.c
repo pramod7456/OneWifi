@@ -19,22 +19,22 @@
 
 #include "const.h"
 #include "log.h"
-#include "wifi_passpoint.h"
-#include "wifi_hal.h"
-#include "wifi_ctrl.h"
-#include "wifi_mgr.h"
-#include "wifi_util.h"
-#include "wifi_monitor.h"
-#include "wifi_webconfig.h"
-#include "run_qmgr.h"
-#include "wifi_stubs.h"
 #include "lq_ipc_sender.h"
+#include "run_qmgr.h"
+#include "wifi_ctrl.h"
+#include "wifi_hal.h"
 #include "wifi_linkquality_libs.h"
+#include "wifi_mgr.h"
+#include "wifi_monitor.h"
+#include "wifi_passpoint.h"
+#include "wifi_stubs.h"
+#include "wifi_util.h"
+#include "wifi_webconfig.h"
+#include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <unistd.h>
-#include <limits.h>
 
 #define MAX_EVENT_NAME_SIZE 200
 #define MAX_STR_LEN 128
@@ -328,7 +328,7 @@ void hotspot_timing_disconnected(void)
 }
 int check_and_start_wei()
 {
-    wifi_util_error_print(WIFI_CTRL,"Enter %s:%d\n",__func__,__LINE__);
+    wifi_util_error_print(WIFI_CTRL, "Enter %s:%d\n", __func__, __LINE__);
     bus_error_t rc = bus_error_success;
     wifi_mgr_t *g_wifi_mgr = get_wifimgr_obj();
     raw_data_t data;
@@ -352,97 +352,93 @@ int check_and_start_wei()
     get_bus_descriptor()->bus_data_free_fn(&data);
 
     if (wei_enabled) {
-         wifi_util_error_print(WIFI_CTRL,"WEI is enabled\n");
+        wifi_util_error_print(WIFI_CTRL, "WEI is enabled\n");
         memset(str, 0, sizeof(str));
         snprintf(str, sizeof(str), "%s", WEI_RFC_MASK);
         rc = get_bus_descriptor()->bus_data_get_fn(&g_wifi_mgr->ctrl.handle, str, &mask_data);
         if (mask_data.data_type != bus_data_type_uint32 || rc != bus_error_success) {
             wifi_util_error_print(WIFI_CTRL,
-            "%s:%d '%s' bus_data_get_fn failed with data_type:0x%x, rc:%d\n", __func__, __LINE__,
-            str, mask_data.data_type, rc);
+                "%s:%d '%s' bus_data_get_fn failed with data_type:0x%x, rc:%d\n", __func__,
+                __LINE__, str, mask_data.data_type, rc);
             get_bus_descriptor()->bus_data_free_fn(&mask_data);
-            return -1 ;
+            return -1;
         }
         wei_mask = mask_data.raw_data.u32;
         get_bus_descriptor()->bus_data_free_fn(&mask_data);
 
         if (wei_mask & WEI_RFC_LQ) {
-            wifi_util_error_print(WIFI_CTRL,"WEI and LQ is enabled %s:%d\n",__func__, __LINE__);
-            return 0 ;
+            wifi_util_error_print(WIFI_CTRL, "WEI and LQ is enabled %s:%d\n", __func__, __LINE__);
+            return 0;
         } else {
-            wifi_util_error_print(WIFI_CTRL,"WEI is enabled and LQ not enabled %s:%d\n",__func__, __LINE__);
+            wifi_util_error_print(WIFI_CTRL, "WEI is enabled and LQ not enabled %s:%d\n", __func__,
+                __LINE__);
             memset(&mask_data, 0, sizeof(raw_data_t));
             memset(str, 0, sizeof(str));
             snprintf(str, sizeof(str), "%s", WEI_LQ_CLIENT_ENABLE_DMPATH);
-            mask_data.data_type  = bus_data_type_boolean;
+            mask_data.data_type = bus_data_type_boolean;
             mask_data.raw_data.b = true;
             rc = get_bus_descriptor()->bus_set_fn(&g_wifi_mgr->ctrl.handle, str, &mask_data);
-            if ( rc != bus_error_success) {
-                wifi_util_error_print(WIFI_CTRL,"Not able to set LQ\n");
+            if (rc != bus_error_success) {
+                wifi_util_error_print(WIFI_CTRL, "Not able to set LQ\n");
                 return -1;
-
             }
-
         }
     } else {
-         wifi_util_error_print(WIFI_CTRL,"WEI is disabled hence setting both WEI and LQ\n");
+        wifi_util_error_print(WIFI_CTRL, "WEI is disabled hence setting both WEI and LQ\n");
         memset(str, 0, sizeof(str));
         memset(&mask_data, 0, sizeof(raw_data_t));
-        mask_data.data_type  = bus_data_type_boolean;
+        mask_data.data_type = bus_data_type_boolean;
         mask_data.raw_data.b = true;
         snprintf(str, sizeof(str), "%s", WEI_MEASUREMENT_RFC);
         rc = get_bus_descriptor()->bus_set_fn(&g_wifi_mgr->ctrl.handle, str, &mask_data);
-        if ( rc != bus_error_success) {
-            wifi_util_error_print(WIFI_CTRL,"LQ was not able to set enabled\n");
+        if (rc != bus_error_success) {
+            wifi_util_error_print(WIFI_CTRL, "LQ was not able to set enabled\n");
             return -1;
 
         } else {
             snprintf(str, sizeof(str), "%s", WEI_LQ_CLIENT_ENABLE_DMPATH);
             rc = get_bus_descriptor()->bus_set_fn(&g_wifi_mgr->ctrl.handle, str, &mask_data);
-            if ( rc != bus_error_success) {
-                wifi_util_error_print(WIFI_CTRL,"LQ was not able to set enabled\n");
+            if (rc != bus_error_success) {
+                wifi_util_error_print(WIFI_CTRL, "LQ was not able to set enabled\n");
                 return -1;
             }
-            wifi_util_error_print(WIFI_CTRL,"WEI and LQ both are enabled\n");
+            wifi_util_error_print(WIFI_CTRL, "WEI and LQ both are enabled\n");
             return 0;
-
         }
-        
-
     }
-    
+
     return 0;
 }
 int stop_wei()
 {
-    wifi_util_error_print(WIFI_CTRL,"Enter %s:%d\n",__func__,__LINE__);
+    wifi_util_error_print(WIFI_CTRL, "Enter %s:%d\n", __func__, __LINE__);
     bus_error_t rc = bus_error_success;
     wifi_mgr_t *g_wifi_mgr = get_wifimgr_obj();
     raw_data_t data;
     char str[512];
-  
+
     memset(&data, 0, sizeof(raw_data_t));
 
-
     memset(str, 0, sizeof(str));
-    data.data_type  = bus_data_type_boolean;
+    data.data_type = bus_data_type_boolean;
     data.raw_data.b = false;
     snprintf(str, sizeof(str), "%s", WEI_LQ_CLIENT_ENABLE_DMPATH);
     rc = get_bus_descriptor()->bus_set_fn(&g_wifi_mgr->ctrl.handle, str, &data);
-    if ( rc != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d LQ was not able to set disabled\n",__func__,__LINE__);
+    if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d LQ was not able to set disabled\n", __func__,
+            __LINE__);
         return -1;
-    } 
+    }
     memset(str, 0, sizeof(str));
     snprintf(str, sizeof(str), "%s", WEI_MEASUREMENT_RFC);
     rc = get_bus_descriptor()->bus_set_fn(&g_wifi_mgr->ctrl.handle, str, &data);
-    if ( rc != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d WEI_MAIN was not able to set disabled\n",__func__,__LINE__);
+    if (rc != bus_error_success) {
+        wifi_util_error_print(WIFI_CTRL, "%s:%d WEI_MAIN was not able to set disabled\n", __func__,
+            __LINE__);
         return -1;
-    } 
+    }
     return 0;
 }
-
 
 bus_error_t get_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
@@ -491,7 +487,7 @@ bus_error_t set_endpoint_enable(char *name, raw_data_t *p_data, bus_user_data_t 
         wifi_util_info_print(WIFI_CTRL, "IGNITE_RF_DOWN: Docsis disabled. Starting Station Vaps\n");
         wei_ret = check_and_start_wei();
         if (wei_ret != 0) {
-             wifi_util_info_print(WIFI_CTRL, "Not able to start WEI ret:%d\n",wei_ret);
+            wifi_util_info_print(WIFI_CTRL, "Not able to start WEI ret:%d\n", wei_ret);
             return bus_error_general;
         }
         wifi_global_config_t *global_cfg = get_wifidb_wifi_global_config();
@@ -2107,16 +2103,18 @@ static void wei_rfc_mask_handler(char *event_name, bus_data_prop_t *p_data, void
     (void)userData;
     int wei_status = 0;
 
-    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Recvd Event event_name=%s\n", __func__, __LINE__,event_name);
+    wifi_util_dbg_print(WIFI_CTRL, "%s:%d Recvd Event event_name=%s\n", __func__, __LINE__,
+        event_name);
 
     if (p_data->value.data_type != bus_data_type_uint32) {
-        wifi_util_error_print(WIFI_CTRL,"%s:%d Invalid event received,%s:%x\n", __func__, __LINE__, event_name, p_data->value.data_type);
+        wifi_util_error_print(WIFI_CTRL, "%s:%d Invalid event received,%s:%x\n", __func__, __LINE__,
+            event_name, p_data->value.data_type);
         return;
     }
 
     wei_status = (int)p_data->value.raw_data.u32;
     push_event_to_ctrl_queue(&wei_status, sizeof(wei_status), wifi_event_type_command,
-                             wifi_event_type_wei_rfc_mask, NULL);
+        wifi_event_type_wei_rfc_mask, NULL);
 }
 
 static void process_device_tunnel_status(const char *status)
@@ -2641,15 +2639,16 @@ void bus_subscribe_events(wifi_ctrl_t *ctrl)
 
     if (ctrl->wei_events_subscribed == false) {
         int ret1 = -1;
-        ret1 = bus_desc->bus_event_subs_fn(&ctrl->handle, WEI_RFC_MASK, wei_rfc_mask_handler, NULL,0);
-        if (ret1 == 0 )  {    
-	    ctrl->wei_events_subscribed = true;
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe success\n",
-                __FUNCTION__, __LINE__);
+        ret1 = bus_desc->bus_event_subs_fn(&ctrl->handle, WEI_RFC_MASK, wei_rfc_mask_handler, NULL,
+            0);
+        if (ret1 == 0) {
+            ctrl->wei_events_subscribed = true;
+            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe success\n", __FUNCTION__,
+                __LINE__);
         } else {
-            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe unsuccess\n",
-                __FUNCTION__, __LINE__);
-	}
+            wifi_util_dbg_print(WIFI_CTRL, "%s:%d wei event subscribe unsuccess\n", __FUNCTION__,
+                __LINE__);
+        }
     }
 
 #if defined(RDKB_EXTENDER_ENABLED) || defined(WAN_FAILOVER_SUPPORTED)

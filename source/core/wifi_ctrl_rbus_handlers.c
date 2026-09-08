@@ -2386,18 +2386,15 @@ static void wei_apply_field_update(wei_rfc_dml_parameters_t *cfg, wei_rfc_field_
     }
 }
 
-static void wei_publish_rfc_mask_and_notify(uint32_t mask)
+/* WEI_RFC_MASK has no subscribers anywhere (WEI derives its own mask
+ * locally; the only in-process reader, check_and_start_wei(), uses a
+ * plain GET). Only WEI_RFC_CONFIG_CHANGED has a real subscriber (WEI's
+ * WeiRFCParams::subscribeForChanges()), so that's all this publishes. */
+static void wei_notify_rfc_config_changed(void)
 {
     static uint32_t s_wei_rfc_generation = 0;
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     raw_data_t data;
-
-    memset(&data, 0, sizeof(data));
-    data.data_type = bus_data_type_uint32;
-    data.raw_data.u32 = mask;
-    if (get_bus_descriptor()->bus_event_publish_fn(&ctrl->handle, WEI_RFC_MASK, &data) != bus_error_success) {
-        wifi_util_error_print(WIFI_CTRL, "%s:%d publish %s failed\n", __func__, __LINE__, WEI_RFC_MASK);
-    }
 
     s_wei_rfc_generation++;
     memset(&data, 0, sizeof(data));
@@ -2434,7 +2431,7 @@ void process_wei_rfc_config_update(wei_rfc_field_update_t *upd)
         get_wifi_db_rfc_parameters()->wei_rfc_mask = (int)mask;
     }
 
-    wei_publish_rfc_mask_and_notify(mask);
+    wei_notify_rfc_config_changed();
 }
 
 static void process_device_tunnel_status(const char *status)

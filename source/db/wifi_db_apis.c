@@ -6662,12 +6662,12 @@ void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config)
     defaults.lq_meas_threshold = 0.5;
     defaults.lq_meas_duration = 1;
     defaults.lq_meas_params_mask = 0x38; /* DL_SNR | DL_PER | DL_PHY, legacy default */
-    defaults.radio_2g_max_snr = 55;
-    defaults.radio_5g_max_snr = 60;
+    defaults.radio_2g_max_snr = 60;
+    defaults.radio_5g_max_snr = 70;
     defaults.radio_6g_max_snr = 70;
-    defaults.radio_2g_max_phy = 300;
-    defaults.radio_5g_max_phy = 1201;
-    defaults.radio_6g_max_phy = 2100;
+    defaults.radio_2g_max_phy = 286;
+    defaults.radio_5g_max_phy = 1200;
+    defaults.radio_6g_max_phy = 2401;
 
     memcpy(config, &defaults, sizeof(defaults));
 }

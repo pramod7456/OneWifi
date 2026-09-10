@@ -2114,7 +2114,6 @@ int wifidb_get_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_info)
     rfc_info->csi_analytics_enabled_rfc = pcfg->csi_analytics_enabled_rfc;
     rfc_info->xfi_tel_enable_rfc = pcfg->xfi_tel_enable_rfc;
     rfc_info->multiap_rfc = pcfg->multiap_rfc;
-    rfc_info->wei_rfc_mask = pcfg->wei_rfc_mask;
     free(pcfg);
     return 0;
 }
@@ -6527,7 +6526,6 @@ int wifidb_update_rfc_config(UINT rfc_id, wifi_rfc_dml_parameters_t *rfc_param)
     cfg.csi_analytics_enabled_rfc = rfc_param->csi_analytics_enabled_rfc;
     cfg.xfi_tel_enable_rfc = rfc_param->xfi_tel_enable_rfc;
     cfg.multiap_rfc = rfc_param->multiap_rfc;
-    cfg.wei_rfc_mask = rfc_param->wei_rfc_mask;
     if (update == true) {
         where = onewifi_ovsdb_tran_cond(OCLM_STR, "rfc_id", OFUNC_EQ, index); 
         ret = onewifi_ovsdb_table_update_where(g_wifidb->wifidb_sock_path, &table_Wifi_Rfc_Config, where, &cfg);

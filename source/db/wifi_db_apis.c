@@ -8621,6 +8621,11 @@ void init_wifidb_data(void)
         }
         wifidb_update_gas_config(g_wifidb->global_config.gas_config.AdvertisementID, &g_wifidb->global_config.gas_config);
         pthread_mutex_unlock(&g_wifidb->data_cache_lock);
+
+        wei_rfc_dml_parameters_t *wei_rfc_param = get_wifi_db_wei_rfc_parameters();
+        wifidb_init_wei_rfc_config_default(wei_rfc_param);
+        wifidb_update_wei_rfc_config(wei_rfc_param);
+
         remove_onewifi_factory_reset_reboot_flag();
         create_onewifi_fr_wifidb_reset_done_flag();
         wifi_util_info_print(WIFI_DB,"%s:%d FactoryReset done. wifidb updated with default values.\n",__func__, __LINE__);

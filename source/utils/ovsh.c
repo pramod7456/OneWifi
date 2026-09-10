@@ -1095,6 +1095,10 @@ bool json_stringify(json_t *jval, char *dst, size_t dst_sz)
     {
         snprintf(dst, dst_sz, "%lld", json_integer_value(jval));
     }
+    else if (json_is_real(jval))
+    {
+        snprintf(dst, dst_sz, "%g", json_real_value(jval));
+    }
     else if (json_is_boolean(jval))
     {
         if (json_is_true(jval))

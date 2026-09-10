@@ -41,6 +41,7 @@ extern "C" {
 
 #define WEI_RFC_MASK               "Device.X_RDKCENTRAL-COM_WEI.RFC_MASK"
 #define WEI_MEASUREMENT_RFC        "Device.X_RDKCENTRAL-COM_WEI.Enable"
+#define WEI_LINK_QUALITY_FLAGS     "Device.X_RDKCENTRAL-COM_WEI.LinkQualityFlags"
 #define WEI_LINK_QUALITY_THRESHOLD "Device.X_RDKCENTRAL-COM_WEI.LinkQualityThreshold"
 #define WEI_LINK_QUALITY_DURATION  "Device.X_RDKCENTRAL-COM_WEI.LinkQualityDuration"
 /* Published by OneWifi whenever Wifi_Wei_Rfc_Config changes; carries a

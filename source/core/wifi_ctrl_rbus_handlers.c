@@ -2117,7 +2117,8 @@ static void meshStatusHandler(char *event_name, bus_data_prop_t *p_data, void *u
     { (path), (ftype), offsetof(wei_rfc_dml_parameters_t, member), sizeof(((wei_rfc_dml_parameters_t *)0)->member) }
 
 static wei_param_entry_t g_wei_param_table[] = {
-    WEI_FIELD(WEI_MEASUREMENT_RFC,      FIELD_BOOL,   wei_enable),
+    WEI_FIELD(WEI_MEASUREMENT_RFC,        FIELD_BOOL,   wei_enable),
+    WEI_FIELD(WEI_LINK_QUALITY_FLAGS,     FIELD_UINT,   lq_meas_params_mask),
     WEI_FIELD(WEI_LINK_QUALITY_THRESHOLD, FIELD_DOUBLE, lq_meas_threshold),
     WEI_FIELD(WEI_LINK_QUALITY_DURATION,  FIELD_UINT,   lq_meas_duration),
 

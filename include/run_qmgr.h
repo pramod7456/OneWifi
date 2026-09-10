@@ -147,10 +147,10 @@ int set_max_snr_radios(radio_max_snr_t *max_snr_val);
 int set_score_params(uint32_t mask);
 
 /* Connection Affinity related helper functions */
-int update_affinity_stats(stats_arg_t *arg,bool flag);
+int update_affinity_stats(stats_arg_t *arg, bool flag);
 
 /* Periodic caffinity stats update for connected/disconnected time and SNR */
-int periodic_caffinity_stats_update(stats_arg_t *stats ,int len);
+int periodic_caffinity_stats_update(stats_arg_t *stats, int len);
 
 
 /* Check if a client is connected using caffinity tracking */

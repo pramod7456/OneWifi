@@ -217,7 +217,6 @@
         PJS_OVS_BOOL(csi_analytics_enabled_rfc) \
         PJS_OVS_BOOL(xfi_tel_enable_rfc) \
         PJS_OVS_BOOL(multiap_rfc) \
-        PJS_OVS_INT(wei_rfc_mask) \
   )
 
 #define PJS_SCHEMA_Wifi_MacFilter_Config \
@@ -3628,7 +3627,6 @@
 #define SCHEMA__Wifi_Rfc_Config__csi_analytics_enabled_rfc "csi_analytics_enabled_rfc"
 #define SCHEMA__Wifi_Rfc_Config__multiap_rfc "multiap_rfc"
 #define SCHEMA__Wifi_Rfc_Config__xfi_tel_enable_rfc "xfi_tel_enable_rfc"
-#define SCHEMA__Wifi_Rfc_Config__wei_rfc_mask "wei_rfc_mask"
 
 #define SCHEMA__Alarms__code "code"
 #define SCHEMA__Alarms__timestamp "timestamp"

@@ -3027,8 +3027,11 @@ wei_rfc_dml_parameters_t *get_ctrl_wei_rfc_parameters(void)
     wifi_ctrl_t *ctrl = (wifi_ctrl_t *)get_wifictrl_obj();
     wifi_mgr_t *g_wifi_mgr = get_wifimgr_obj();
 
+    pthread_mutex_lock(&g_wifi_mgr->data_cache_lock);
     memcpy(&ctrl->wei_rfc_params, &g_wifi_mgr->wei_rfc_dml_parameters,
         sizeof(wei_rfc_dml_parameters_t));
+    pthread_mutex_unlock(&g_wifi_mgr->data_cache_lock);
+
     return &ctrl->wei_rfc_params;
 }
 
@@ -3083,8 +3086,6 @@ wifi_rfc_dml_parameters_t *get_ctrl_rfc_parameters(void)
         g_wifi_mgr->rfc_dml_parameters.wpa3_compatibility_enable;
     g_wifi_mgr->ctrl.rfc_params.csi_analytics_enabled_rfc =
         g_wifi_mgr->rfc_dml_parameters.csi_analytics_enabled_rfc;
-    g_wifi_mgr->ctrl.rfc_params.wei_rfc_mask =
-        g_wifi_mgr->rfc_dml_parameters.wei_rfc_mask;
     g_wifi_mgr->ctrl.rfc_params.xfi_tel_enable_rfc =
         g_wifi_mgr->rfc_dml_parameters.xfi_tel_enable_rfc;
     g_wifi_mgr->ctrl.rfc_params.multiap_rfc =

@@ -6644,7 +6644,11 @@ int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param)
     /* Write-through: keep the DB-mirror cache authoritative immediately
      * rather than waiting for the async OVSDB monitor callback to land. */
     snprintf(rfc_param->wei_rfc_id, sizeof(rfc_param->wei_rfc_id), "%s", WEI_RFC_ID_DEFAULT);
-    memcpy(get_wifi_db_wei_rfc_parameters(), rfc_param, sizeof(wei_rfc_dml_parameters_t));
+    wifi_mgr_t *mgr = get_wifimgr_obj();
+    pthread_mutex_lock(&mgr->data_cache_lock);
+    memcpy(get_wifi_db_wei_rfc_parameters(), rfc_param, sizeof(*rfc_param));
+    pthread_mutex_unlock(&mgr->data_cache_lock);
+
     wifidb_print("%s:%d Updated WIFI DB. Wifi_Wei_Rfc_Config table updated successfully\n", __func__, __LINE__);
     return 0;
 }
@@ -6653,8 +6657,7 @@ int wifidb_update_wei_rfc_config(wei_rfc_dml_parameters_t *rfc_param)
  ************************************************************************************
   Function    : wifidb_init_wei_rfc_config_default
   Parameter   : config - populated with factory-default WEI RFC values
-  Description : Defaults mirror WEI's legacy /nvram/wei.json createDefault();
-                used on first boot / after a factory reset when the row is absent.
+  Description : used on first boot / after a factory reset when the row is absent.
  *************************************************************************************
 **************************************************************************************/
 void wifidb_init_wei_rfc_config_default(wei_rfc_dml_parameters_t *config)

@@ -1202,7 +1202,6 @@ bus_error_t webconfig_get_dml_subdoc(char *event_name, raw_data_t *p_data, bus_u
     data = NULL;
     return bus_error_success;
 }
-
 bus_error_t get_endpoint_status(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
 {
     (void)user_data;
@@ -1249,7 +1248,6 @@ bus_error_t get_endpoint_status(char *event_name, raw_data_t *p_data, bus_user_d
 
     return bus_error_success;
 }
-
 bus_error_t publish_endpoint_status(wifi_ctrl_t *ctrl, int connection_status)
 {
     char name[MAX_STR_LEN] = { '\0' };
@@ -2242,7 +2240,6 @@ static bus_error_t wei_set_ignite_enable(char *name, raw_data_t *p_data, bus_use
         name ? name : "NULL", (int)g_wei_ignite_enable);
     return bus_error_success;
 }
-
 static int register_wei_bus_elements(bus_data_element_t *elements)
 {
     unsigned int count = WEI_PARAM_TABLE_COUNT;
@@ -2303,7 +2300,6 @@ static int register_wei_bus_elements(bus_data_element_t *elements)
 
     return (int)count;
 }
-
 /* Recomputes the WEI_RFC_MAIN/LQ/GC/SC bitmask; mirrors WEI's own
  * WeiRFCParams::Wei_UpdateRfcMask() so both sides agree on semantics. */
 static uint32_t wei_compute_rfc_mask(wei_rfc_dml_parameters_t *cfg)
@@ -4640,7 +4636,6 @@ void register_endpoint_components(wifi_ctrl_t *ctrl)
                          { WIFI_ENDPOINT_CONNECT_STATUS, bus_element_type_method,
                                     { get_endpoint_status,NULL, NULL, NULL, NULL, NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_string, true, 0, 0, 0, NULL } },
-
                          { WIFI_ENDPOINT_ENABLE_CHECK, bus_element_type_method,
                                     { get_endpoint_enable, set_endpoint_enable, NULL, NULL, NULL,NULL }, slow_speed, ZERO_TABLE,
                                     { bus_data_type_boolean, true, 0, 0, 0, NULL } },
@@ -4935,9 +4930,9 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
     if (rc != bus_error_success) {
         wifi_util_error_print(WIFI_CTRL, "%s bus: bus_regDataElements failed\n", __FUNCTION__);
     }
-
     /* WEI RFC namespace (Device.X_RDKCENTRAL-COM_WEI.*), table-driven so a new
      * WEI RFC parameter only needs one row in g_wei_param_table. */
+
     {
         bus_data_element_t weiElements[WEI_PARAM_TABLE_COUNT + 3] = { 0 };
         int wei_num_elements = register_wei_bus_elements(weiElements);
@@ -4947,7 +4942,6 @@ void bus_register_handlers(wifi_ctrl_t *ctrl)
             wifi_util_error_print(WIFI_CTRL, "%s bus: WEI bus_regDataElements failed\n", __FUNCTION__);
         }
     }
-
     wifi_util_info_print(WIFI_CTRL, "%s bus: bus event register:[%s]:%s\r\n", __FUNCTION__,
         WIFI_STA_2G_VAP_CONNECT_STATUS, WIFI_STA_5G_VAP_CONNECT_STATUS);
     return;

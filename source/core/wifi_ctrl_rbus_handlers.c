@@ -2377,9 +2377,19 @@ void process_wei_rfc_config_update(wei_rfc_field_update_t *upd)
 {
     wei_rfc_dml_parameters_t *cfg = get_ctrl_wei_rfc_parameters();
 
+    wifi_util_dbg_print(WIFI_CTRL,
+        "%s:%d M_WEI processing %s RFC update field_id=%d cfg=%p\n",
+        __func__, __LINE__,
+        (upd != NULL && upd->field_id >= 0) ? "field" : "bulk/external",
+        upd != NULL ? upd->field_id : -2, (void *)cfg);
+
     if (upd != NULL && upd->field_id >= 0) {
         wei_apply_field_update(cfg, upd);
-        if (wifidb_update_wei_rfc_config(cfg) != 0) {
+        int ret = wifidb_update_wei_rfc_config(cfg);
+        wifi_util_dbg_print(WIFI_CTRL,
+            "%s:%d M_WEI RFC field update field_id=%d persistence=%s\n",
+            __func__, __LINE__, upd->field_id, ret == 0 ? "success" : "failed");
+        if (ret != 0) {
             wifi_util_error_print(WIFI_CTRL, "%s:%d failed to persist Wifi_Wei_Rfc_Config\n",
                 __func__, __LINE__);
         }

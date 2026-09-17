@@ -799,6 +799,10 @@ int push_event_to_ctrl_queue(const void *msg, unsigned int len, wifi_event_type_
     wifi_event_t *event;
     bool is_limit_reached;
 
+    wifi_util_dbg_print(WIFI_CTRL,
+        "%s:%d M_WEIpush event to ctrl queue subtype: %s\n", __FUNCTION__, __LINE__,
+        wifi_event_subtype_to_string(sub_type));
+
     if (msg == NULL) {
         wifi_util_error_print(WIFI_CTRL, "%s %d  msg is null\n", __FUNCTION__, __LINE__);
         return RETURN_ERR;
@@ -823,6 +827,11 @@ int push_event_to_ctrl_queue(const void *msg, unsigned int len, wifi_event_type_
     is_limit_reached = queue_count(ctrl->queue) >= CTRL_QUEUE_SIZE_MAX;
   
     if (!is_limit_reached || is_high_priority_event(sub_type)) {
+        wifi_util_dbg_print(WIFI_CTRL,
+            "%s:%d M_WEI enqueue event type: %s subtype: %s queue_count: %d high_priority: %s\n",
+            __FUNCTION__, __LINE__, wifi_event_type_to_string(type),
+            wifi_event_subtype_to_string(sub_type), queue_count(ctrl->queue),
+            is_high_priority_event(sub_type) ? "true" : "false");
         queue_push(ctrl->queue, event);
         pthread_cond_signal(&ctrl->cond);
         pthread_mutex_unlock(&ctrl->queue_lock);

@@ -583,6 +583,27 @@ typedef struct {
     nasta_opclass_entry_t opclass_list[MAX_NASTA_OPCLASS_ENTRIES];
 } nasta_query_t;
 
+/* Max per-radio MLD affiliated-link MACs carried in stats_arg_t. Mirrors the HAL's
+ * MAX_NUM_RADIOS (currently 3); bump this if the platform radio count grows. Kept as an
+ * independent constant (instead of depending on MAX_NUM_RADIOS directly) since wifi_hal.h
+ * is an external SDK header not guaranteed to be resolvable wherever wifi_base.h is parsed. */
+#define STATS_ARG_MAX_MLD_LINKS 3
+
+typedef struct {
+    /* Mirrors wifi_associated_dev3_t::cli_MLDEnable as read from the periodic HAL poll.
+     * Platform-dependent: only reliable where the HAL driver backend actually reports it
+     * (see execute_assoc_client_stats_api() analysis) - do not treat as universally authoritative. */
+    bool mld_enable;
+    /* Client's MLD MAC address (wifi_associated_dev3_t::cli_MLDAddr), identical across every
+     * radio/link this client is affiliated on. All-zero for non-Wi-Fi 7 / non-MLO clients. */
+    mac_address_t mld_addr;
+    /* Per-radio affiliated link MAC address, indexed by radio_index. All-zero slot means no
+     * link observed on that radio (yet, or never for non-MLO clients). */
+    mac_address_t link_addr[STATS_ARG_MAX_MLD_LINKS];
+    /* link_valid[radio_index] true once link_addr[radio_index] has been populated. */
+    bool link_valid[STATS_ARG_MAX_MLD_LINKS];
+} stats_mld_info_t;
+
 typedef struct {
     mac_addr_str_t mac_str;
     mac_addr_str_t ap_mac_str;
@@ -609,6 +630,8 @@ typedef struct {
     /* True only when STA_CONN (4WAY complete) has fired for this session.
      * Populated by wifi_stats_assoc_client from sta_data_t::connection_authorized. */
     bool connection_authorized;
+    /* Wi-Fi 7 MLO MAC info for this client; see stats_mld_info_t. */
+    stats_mld_info_t mld;
 } stats_arg_t;
 
 typedef struct {

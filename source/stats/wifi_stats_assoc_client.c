@@ -318,6 +318,35 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
 #endif
             get_radio_channel_utilization(link_data[i].stats.radio_index,&link_data[i].stats.channel_utilization);
 
+            /* Wi-Fi 7 MLO: capture the client's MLD identity and this radio's affiliated link
+             * MAC while both are still available on dev_array[i] (the loop below overwrites
+             * cli_MACAddress with cli_MLDAddr once this entry is reused via sta_map). Reuses
+             * values already read out for this iteration - no extra lookups/allocations.
+             * mld_enable is copied unconditionally (not gated on a non-zero MLD MAC) since the
+             * HAL can report MLD-enabled before cli_MLDAddr is populated - see
+             * device_associated()'s "MLD enabled but MLDAddr not populated" fallback. */
+            link_data[i].stats.mld.mld_enable = dev_array[i].cli_MLDEnable;
+            memcpy(link_data[i].stats.mld.mld_addr, dev_array[i].cli_MLDAddr, sizeof(mac_address_t));
+            if (link_data[i].stats.radio_index < STATS_ARG_MAX_MLD_LINKS) {
+                memcpy(link_data[i].stats.mld.link_addr[link_data[i].stats.radio_index],
+                    dev_array[i].cli_MACAddress, sizeof(mac_address_t));
+                link_data[i].stats.mld.link_valid[link_data[i].stats.radio_index] = true;
+            }
+            {
+                sta_key_t mld_addr_key, link_addr_key;
+                wifi_util_dbg_print(WIFI_MON,
+                    "%s:%d MLO: vap_index=%d radio_index=%d mac=%s mld_enable=%d mld_addr=%s "
+                    "link_addr=%s\n",
+                    __func__, __LINE__, link_data[i].stats.vap_index,
+                    link_data[i].stats.radio_index, link_data[i].stats.mac_str,
+                    link_data[i].stats.mld.mld_enable,
+                    to_sta_key(link_data[i].stats.mld.mld_addr, mld_addr_key),
+                    (link_data[i].stats.radio_index < STATS_ARG_MAX_MLD_LINKS) ?
+                        to_sta_key(link_data[i].stats.mld.link_addr[link_data[i].stats.radio_index],
+                            link_addr_key) :
+                        "n/a");
+            }
+
             wifi_util_dbg_print(WIFI_MON,
                     "%s:%d cli_SNR:%d cli_PacketsSent:%lu cli_ErrorsSent:%lu cli_LastDataDownlinkRate:%d "
                     "cli_MaxDownlinkRate=%d vap_index=%d radio_index=%d channel_utilization=%d "

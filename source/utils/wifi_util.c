@@ -5079,3 +5079,19 @@ int get_mesh_sta_mac_address_for_radio(wifi_platform_property_t *wifi_prop, unsi
    dev->cli_LastDataUplinkRate = assoc_dev->cli_LastDataUplinkRate;  
    dev->cli_sleepTime = assoc_dev->cli_sleepTime;
  } 
+
+void populate_stats_mld_info(stats_arg_t *stats, const wifi_associated_dev3_t *dev_stats)
+{
+    if (stats == NULL || dev_stats == NULL) {
+        return;
+    }
+
+    stats->mld.mld_enable = dev_stats->cli_MLDEnable;
+    memcpy(stats->mld.mld_addr, dev_stats->cli_MLDAddr, sizeof(mac_address_t));
+    /* radio_index must already be set on stats before calling this. */
+    if (stats->radio_index < STATS_ARG_MAX_MLD_LINKS) {
+        memcpy(stats->mld.link_addr[stats->radio_index], dev_stats->cli_MACAddress,
+            sizeof(mac_address_t));
+        stats->mld.link_valid[stats->radio_index] = true;
+    }
+}

@@ -491,6 +491,10 @@ void apply_wpa2_personal_encr_policy(wifi_vap_security_t *security_info);
 void apply_wpa3_transition_encr_policy(wifi_vap_security_t *security_info);
 int get_mesh_sta_mac_address_for_radio(wifi_platform_property_t *wifi_prop, unsigned int radio_index, mac_address_t mac);
 void copy_assocstats_dev_stats(wifi_associated_dev3_t* assoc_dev,dev_stats_t *dev);
+/* Shared by every stats_arg_t builder (periodic/disconnect/rapid-disconnect in
+ * wifi_stats_assoc_client.c, frame/status-code events in wifi_linkquality.c) so MLD
+ * population logic/semantics stay in exactly one place. No-op if either arg is NULL. */
+void populate_stats_mld_info(stats_arg_t *stats, const wifi_associated_dev3_t *dev_stats);
 #ifdef __cplusplus
 }
 #endif

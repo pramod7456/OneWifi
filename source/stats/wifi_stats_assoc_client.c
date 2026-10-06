@@ -318,20 +318,10 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
 #endif
             get_radio_channel_utilization(link_data[i].stats.radio_index,&link_data[i].stats.channel_utilization);
 
-            /* Wi-Fi 7 MLO: capture the client's MLD identity and this radio's affiliated link
-             * MAC while both are still available on dev_array[i] (the loop below overwrites
-             * cli_MACAddress with cli_MLDAddr once this entry is reused via sta_map). Reuses
-             * values already read out for this iteration - no extra lookups/allocations.
-             * mld_enable is copied unconditionally (not gated on a non-zero MLD MAC) since the
-             * HAL can report MLD-enabled before cli_MLDAddr is populated - see
-             * device_associated()'s "MLD enabled but MLDAddr not populated" fallback. */
-            link_data[i].stats.mld.mld_enable = dev_array[i].cli_MLDEnable;
-            memcpy(link_data[i].stats.mld.mld_addr, dev_array[i].cli_MLDAddr, sizeof(mac_address_t));
-            if (link_data[i].stats.radio_index < STATS_ARG_MAX_MLD_LINKS) {
-                memcpy(link_data[i].stats.mld.link_addr[link_data[i].stats.radio_index],
-                    dev_array[i].cli_MACAddress, sizeof(mac_address_t));
-                link_data[i].stats.mld.link_valid[link_data[i].stats.radio_index] = true;
-            }
+            /* Wi-Fi 7 MLO: dev_array[i] is still the pre-swap HAL entry here (the loop below
+             * overwrites cli_MACAddress with cli_MLDAddr once this entry is reused via sta_map),
+             * so this is the one place per tick that can capture the true per-link MAC. */
+            populate_stats_mld_info(&link_data[i].stats, &dev_array[i]);
             {
                 sta_key_t mld_addr_key, link_addr_key;
                 wifi_util_dbg_print(WIFI_MON,
@@ -594,10 +584,15 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                                 return RETURN_ERR;
                             }
 			    to_mac_str(bss_param->bssid, disconnect_link_data->stats.ap_mac_str);
+                            disconnect_link_data->stats.radio_index =
+                                getRadioIndexFromAp(args->vap_index);
+                            populate_stats_mld_info(&disconnect_link_data->stats, &sta->dev_stats);
                             wifi_util_dbg_print(WIFI_MON,
-                                "%s:%d: diag client disassociated sta mac=%s vap_index =%d ap_mac=%s\n", __func__, __LINE__,
+                                "%s:%d: diag client disassociated sta mac=%s vap_index =%d ap_mac=%s "
+                                "mld_enable=%d\n", __func__, __LINE__,
                                 disconnect_link_data->stats.mac_str,disconnect_link_data->stats.vap_index,
-				 disconnect_link_data->stats.ap_mac_str);
+				 disconnect_link_data->stats.ap_mac_str,
+                                disconnect_link_data->stats.mld.mld_enable);
 
                             if (rf_down_mesh_sta) {
 			         wifi_util_dbg_print(WIFI_MON,"%s:%d\n",__func__,__LINE__);
@@ -653,7 +648,13 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                         return RETURN_ERR;
                     }
 	            to_mac_str(bss_param->bssid, remove_link_data->stats.ap_mac_str);
-                    wifi_util_dbg_print(WIFI_MON, "%s:%d:  diag client disassociated  sta mac=%s vap_index:%d ap_mac=%s\n", __func__, __LINE__,remove_link_data->stats.mac_str,remove_link_data->stats.vap_index,remove_link_data->stats.ap_mac_str);
+                    remove_link_data->stats.radio_index = getRadioIndexFromAp(args->vap_index);
+                    populate_stats_mld_info(&remove_link_data->stats, &tmp_sta->dev_stats);
+                    wifi_util_dbg_print(WIFI_MON,
+                        "%s:%d: diag client disassociated sta mac=%s vap_index:%d ap_mac=%s "
+                        "mld_enable=%d\n", __func__, __LINE__, remove_link_data->stats.mac_str,
+                        remove_link_data->stats.vap_index, remove_link_data->stats.ap_mac_str,
+                        remove_link_data->stats.mld.mld_enable);
 			         wifi_util_dbg_print(WIFI_MON,"%s:%d\n",__func__,__LINE__);
                     apps_mgr_link_quality_event(&ctrl->apps_mgr,wifi_event_type_hal_ind, wifi_event_exec_stop, remove_link_data, 0);
                 }

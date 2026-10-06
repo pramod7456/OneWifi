@@ -196,6 +196,10 @@ int link_quality_hal_rapid_connect(wifi_app_t *apps, void *arg)
         stats->dev.cli_SNR,
         stats->dev.cli_LastDataDownlinkRate
     );
+    /* mld.* was already populated upstream (wifi_stats_assoc_client.c) on this same
+     * stats_arg_t; nothing to do here beyond confirming it survived the forward. */
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d MLO: RAPID_DISCONNECT MAC=%s mld_enable=%d\n",
+        __func__, __LINE__, stats->mac_str, stats->mld.mld_enable);
 
      get_lq_descriptor()->disconnect_link_stats_fn(stats);
     return RETURN_OK;
@@ -297,7 +301,11 @@ int link_quality_hal_disconnect(wifi_app_t *apps, void *arg)
          stats->mac_str,
          stats->dev.cli_SNR,
          stats->dev.cli_LastDataDownlinkRate
-    );      
+    );
+    /* mld.* was already populated upstream (wifi_stats_assoc_client.c) on this same
+     * stats_arg_t; nothing to do here beyond confirming it survived the forward. */
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d MLO: DISCONNECT MAC=%s mld_enable=%d\n",
+        __func__, __LINE__, stats->mac_str, stats->mld.mld_enable);
  
      get_lq_descriptor()->remove_link_stats_fn(stats);
     return RETURN_OK;
@@ -454,6 +462,15 @@ int link_quality_apps_auth_event(wifi_app_t *app, bool req, int sub_event,void *
         return RETURN_ERR;
     }
     to_mac_str(bss_param->bssid, affinity_arg->ap_mac_str);
+    /* frame_data_t carries no MLD fields; best-effort lookup against the sta_map entry
+     * the periodic poll already maintains. Stays all-zero (not a failure) when this is
+     * the client's very first AUTH frame and no sta_map entry exists yet. */
+    sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
+    if (sta != NULL) {
+        populate_stats_mld_info(affinity_arg, &sta->dev_stats);
+    }
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d MLO: MAC=%s sta_map_hit=%d mld_enable=%d\n",
+        __func__, __LINE__, affinity_arg->mac_str, sta != NULL, affinity_arg->mld.mld_enable);
     if (sub_event == wifi_event_hal_auth_frame && msg->frame.len >= 30) {
         struct ieee80211_mgmt *frame = (struct ieee80211_mgmt *)&msg->data;
         uint16_t st  = le_to_host16(frame->u.auth.status_code);
@@ -514,6 +531,15 @@ int link_quality_apps_assoc_event(wifi_app_t *app, bool req,int sub_event,void *
         return RETURN_ERR;
     }
     to_mac_str(bss_param->bssid, affinity_arg->ap_mac_str);
+    /* frame_data_t carries no MLD fields; best-effort lookup against the sta_map entry
+     * the periodic poll already maintains. Stays all-zero (not a failure) when this is
+     * the client's very first ASSOC REQ and no sta_map entry exists yet. */
+    sta_data_t *sta = get_stats_for_sta(affinity_arg->vap_index, msg->frame.sta_mac);
+    if (sta != NULL) {
+        populate_stats_mld_info(affinity_arg, &sta->dev_stats);
+    }
+    wifi_util_dbg_print(WIFI_APPS, "%s:%d MLO: MAC=%s sta_map_hit=%d mld_enable=%d\n",
+        __func__, __LINE__, affinity_arg->mac_str, sta != NULL, affinity_arg->mld.mld_enable);
     affinity_arg->dev.cli_SNR = msg->frame.sig_dbm - NOISE_FLOOR;
     wifi_util_info_print(WIFI_APPS," %s:%d assoc client snr =%d\n",__func__,__LINE__,affinity_arg->dev.cli_SNR);
     
@@ -617,11 +643,18 @@ int link_quality_apps_status_code_event(wifi_app_t *app, int sub_event, void *ar
     /* No RSSI on this path; negative keeps WEI's "cli_SNR >= 0" guard from
      * overwriting m_snr_assoc with a bogus value. */
     affinity_arg->dev.cli_SNR = -1;
+    {
+        /* msg->dev_stats is a packed-struct member; copy out before taking its address. */
+        wifi_associated_dev3_t dev_stats_copy = msg->dev_stats;
+        populate_stats_mld_info(affinity_arg, &dev_stats_copy);
+    }
 
     wifi_util_error_print(WIFI_APPS,
-        "AUTH-ASSOC-CODE %s:%d STATUS-CODE MAC=%s sub_event=%d -> event=%d status_code=%d vap=%u radio=%u\n",
+        "AUTH-ASSOC-CODE %s:%d STATUS-CODE MAC=%s sub_event=%d -> event=%d status_code=%d vap=%u radio=%u "
+        "mld_enable=%d\n",
         __func__, __LINE__, affinity_arg->mac_str, sub_event, (int)send_event,
-        msg->reason, affinity_arg->vap_index, affinity_arg->radio_index);
+        msg->reason, affinity_arg->vap_index, affinity_arg->radio_index,
+        affinity_arg->mld.mld_enable);
 
     get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg, 1);
 
@@ -658,11 +691,17 @@ int link_quality_apps_disassoc_event(wifi_app_t *app, bool req,int sub_event,voi
     get_radio_channel_utilization(affinity_arg->radio_index, &affinity_arg->channel_utilization);
     /* Carry the 802.11 disconnect reason in status_code for WEI to classify. */
     affinity_arg->status_code = msg->reason;
+    {
+        /* msg->dev_stats is a packed-struct member; copy out before taking its address. */
+        wifi_associated_dev3_t dev_stats_copy = msg->dev_stats;
+        populate_stats_mld_info(affinity_arg, &dev_stats_copy);
+    }
     wifi_util_info_print(WIFI_APPS,
-        "AUTH-ASSOC-CODE %s:%d %s MAC=%s reason=%d vap=%u radio=%u\n",
+        "AUTH-ASSOC-CODE %s:%d %s MAC=%s reason=%d vap=%u radio=%u mld_enable=%d\n",
         __func__, __LINE__,
         (sub_event == wifi_event_hal_deauth_frame) ? "DEAUTH" : "DISASSOC",
-        affinity_arg->mac_str, msg->reason, affinity_arg->vap_index, affinity_arg->radio_index);
+        affinity_arg->mac_str, msg->reason, affinity_arg->vap_index, affinity_arg->radio_index,
+        affinity_arg->mld.mld_enable);
     
     if (req) {
         /* DISASSOC with a WPA/auth-failure reason code → remap to DEAUTH so WEI counts m_auth_failures.
@@ -716,11 +755,17 @@ int link_quality_apps_assoc_device_event(wifi_app_t *app, int sub_event, void *a
     affinity_arg->dev.cli_SNR = msg->dev_stats.cli_SNR;
     affinity_arg->status_code = 0;
     affinity_arg->event = sub_event;
+    {
+        /* msg->dev_stats is a packed-struct member; copy out before taking its address. */
+        wifi_associated_dev3_t dev_stats_copy = msg->dev_stats;
+        populate_stats_mld_info(affinity_arg, &dev_stats_copy);
+    }
 
     wifi_util_info_print(WIFI_APPS,
-        "AUTH-ASSOC-CODE %s:%d STA FULLY CONNECTED (assoc_device) MAC=%s vap=%u radio=%u snr=%d\n",
+        "AUTH-ASSOC-CODE %s:%d STA FULLY CONNECTED (assoc_device) MAC=%s vap=%u radio=%u snr=%d "
+        "mld_enable=%d\n",
         __func__, __LINE__, affinity_arg->mac_str, affinity_arg->vap_index, affinity_arg->radio_index,
-        affinity_arg->dev.cli_SNR);
+        affinity_arg->dev.cli_SNR, affinity_arg->mld.mld_enable);
     get_lq_descriptor()->periodic_caffinity_stats_update_fn(affinity_arg, 1);
 
     free(affinity_arg);

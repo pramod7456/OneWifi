@@ -42,8 +42,8 @@
 /* CAFFINITY_EVENT (msg_type 4) – HAL/DHCP events for caffinity scoring */
 static int periodic_caffinity_stats_update_impl(stats_arg_t *stats, int len)
 {
-    wifi_util_dbg_print(WIFI_APPS,"%s:%d vap_index =%d\n",__func__,__LINE__,
-    stats->vap_index);
+    wifi_util_dbg_print(WIFI_APPS,"%s:%d vap_index =%d mld_enable=%d\n",__func__,__LINE__,
+    stats->vap_index, stats->mld.mld_enable);
     int rc = lq_ipc_send(LQ_IPC_MSG_CAFFINITY_EVENT, stats,
                          (uint32_t)len, sizeof(stats_arg_t));
     return rc;
@@ -153,12 +153,13 @@ static int process_lq_stats_impl(stats_arg_t *stats, int len)
     for (int i = 0; i < len; i++) {
         wifi_util_dbg_print(WIFI_APPS,
             "%s:%d  [%d] MAC=%s snr=%d vap=%u status_code=%u "
-            "conn_time=%llds disconn_time=%llds\n",
+            "conn_time=%llds disconn_time=%llds mld_enable=%d\n",
             __func__, __LINE__, i,
             stats[i].mac_str, stats[i].dev.cli_SNR, stats[i].vap_index,
             stats[i].status_code,
             (long long)stats[i].total_connected_time.tv_sec,
-            (long long)stats[i].total_disconnected_time.tv_sec);
+            (long long)stats[i].total_disconnected_time.tv_sec,
+            stats[i].mld.mld_enable);
     }
 
     int rc = 0;

@@ -75,4 +75,12 @@ typedef struct {
 int lq_ipc_send(uint32_t msg_type, const void *entries,
                 uint32_t count, size_t entry_size);
 
+/*
+ * Identity of this sending device, as stamped into stats_arg_t::src_dev_mac.
+ * Currently the brlan0 bridge MAC; an extender/XLE/IoT sender will report its
+ * own. Returns a cached "aa:bb:cc:dd:ee:ff" string, or "" if not resolvable
+ * yet (interface not up) — the lookup is retried on the next call.
+ */
+const char *lq_ipc_src_dev_mac(void);
+
 #endif /* LQ_IPC_SENDER_H */

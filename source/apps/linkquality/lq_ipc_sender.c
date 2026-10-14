@@ -14,9 +14,12 @@
  **************************************************************************/
 
 #include <errno.h>
+#include <net/if.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -25,7 +28,73 @@
 #include "wifi_util.h"
 #include "run_qmgr.h"
 
+/* Interface whose MAC identifies this device to WEI. */
+#define LQ_SRC_DEV_IFNAME "brlan0"
+
 static int lq_ipc_fd = -1;
+static mac_addr_str_t lq_src_dev_mac = { 0 };
+
+const char *lq_ipc_src_dev_mac(void)
+{
+    struct ifreq ifr;
+    const unsigned char *hw;
+    int fd;
+
+    if (lq_src_dev_mac[0] != '\0') {
+        return lq_src_dev_mac;
+    }
+
+    fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) {
+        wifi_util_error_print(WIFI_APPS,
+            "%s:%d socket() failed: %s\n", __func__, __LINE__, strerror(errno));
+        return lq_src_dev_mac;
+    }
+
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, LQ_SRC_DEV_IFNAME, IFNAMSIZ - 1);
+
+    if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0) {
+        hw = (const unsigned char *)ifr.ifr_hwaddr.sa_data;
+        snprintf(lq_src_dev_mac, sizeof(lq_src_dev_mac),
+            "%02x:%02x:%02x:%02x:%02x:%02x",
+            hw[0], hw[1], hw[2], hw[3], hw[4], hw[5]);
+        wifi_util_info_print(WIFI_APPS,
+            "%s:%d source device MAC (%s) = %s\n",
+            __func__, __LINE__, LQ_SRC_DEV_IFNAME, lq_src_dev_mac);
+    } else {
+        wifi_util_error_print(WIFI_APPS,
+            "%s:%d SIOCGIFHWADDR(%s) failed: %s — will retry\n",
+            __func__, __LINE__, LQ_SRC_DEV_IFNAME, strerror(errno));
+    }
+
+    close(fd);
+    return lq_src_dev_mac;
+}
+
+/*
+ * Stamp every stats_arg_t already serialized into `tlv_buf` with this device's
+ * identity. Done on the encoded copy (never on the caller's data) and via
+ * memcpy because the TLV payload starts at an unaligned 3-byte offset.
+ */
+static void lq_ipc_stamp_src_dev_mac(uint8_t *tlv_buf, uint32_t count, size_t entry_size)
+{
+    uint8_t *value;
+    uint32_t i;
+
+    if (entry_size != sizeof(stats_arg_t) || count == 0) {
+        return;
+    }
+    if (lq_ipc_src_dev_mac()[0] == '\0') {
+        return;
+    }
+
+    value = tlv_buf + sizeof(lq_tlv_t);
+    for (i = 0; i < count; i++) {
+        memcpy(value + (size_t)i * entry_size + offsetof(stats_arg_t, src_dev_mac),
+               lq_src_dev_mac, sizeof(lq_src_dev_mac));
+    }
+}
 
 /* Close and reset the sender socket — called when a send failure indicates
  * that the receiver (wei) has restarted and its socket file was recreated. */
@@ -199,15 +268,17 @@ int lq_ipc_send(uint32_t msg_type, const void *entries,
 
     int tlv_len = build_tlv(msg_type, entries, count, entry_size, buf, alloc_sz);
 
-    wifi_util_dbg_print(WIFI_APPS,
-        "%s:%d [IPC-SEND] TLV encoded: tlv_type=%s(%u) tlv_len=%d datagram_sz=%zu\n",
-        __func__, __LINE__, lq_msg_type_str(msg_type), msg_type,
-        tlv_len, (size_t)tlv_len);
-
     if (tlv_len < 0) {
          free(buf);
          return -1;
      }
+
+    lq_ipc_stamp_src_dev_mac(buf, count, entry_size);
+
+    wifi_util_dbg_print(WIFI_APPS,
+        "%s:%d [IPC-SEND] TLV encoded: tlv_type=%s(%u) tlv_len=%d datagram_sz=%zu src_dev_mac=%s\n",
+        __func__, __LINE__, lq_msg_type_str(msg_type), msg_type,
+        tlv_len, (size_t)tlv_len, lq_src_dev_mac);
 
     ssize_t ret = -1;
     /*

@@ -586,6 +586,10 @@ typedef struct {
 typedef struct {
     mac_addr_str_t mac_str;
     mac_addr_str_t ap_mac_str;
+    /* Identity of the device that produced this record (gateway brlan0 MAC
+     * today; extender/XLE/IoT once those become senders). Stamped centrally
+     * by lq_ipc_send() just before the TLV leaves the process. */
+    mac_addr_str_t src_dev_mac;
     unsigned int vap_index;
     unsigned int radio_index;
     int channel_utilization;

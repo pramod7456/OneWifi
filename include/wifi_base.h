@@ -583,13 +583,17 @@ typedef struct {
     nasta_opclass_entry_t opclass_list[MAX_NASTA_OPCLASS_ENTRIES];
 } nasta_query_t;
 
+/* Max length of a reporting device's identity string (factory serial number).
+ * Comcast serials are 18 chars; sized well above for extender/XLE/IoT senders. */
+#define WIFI_SRC_DEV_ID_LEN 64
+
 typedef struct {
     mac_addr_str_t mac_str;
     mac_addr_str_t ap_mac_str;
-    /* Identity of the device that produced this record (gateway brlan0 MAC
-     * today; extender/XLE/IoT once those become senders). Stamped centrally
-     * by lq_ipc_send() just before the TLV leaves the process. */
-    mac_addr_str_t src_dev_mac;
+    /* Identity of the device that produced this record — the factory serial
+     * number (gateway today; extender/XLE/IoT once those become senders).
+     * Stamped centrally by lq_ipc_send() just before the TLV leaves. */
+    char src_dev_id[WIFI_SRC_DEV_ID_LEN];
     unsigned int vap_index;
     unsigned int radio_index;
     int channel_utilization;

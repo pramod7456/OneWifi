@@ -33,6 +33,7 @@
 #include "wifi_apps_mgr.h"
 #include "wifi_linkquality.h"
 #include "wifi_linkquality_libs.h"
+#include "lq_ipc_sender.h"
 #include "wifi_hal_rdk_framework.h"
 #include "wifi_monitor.h"
 #include "scheduler.h"
@@ -867,6 +868,7 @@ int link_quality_init(wifi_app_t *app, unsigned int create_flag)
         return RETURN_ERR;
     }
 
+    lq_ipc_src_dev_id();
     ignite_lq_state_t *ignite = &app->data.u.linkquality.ignite;
     ignite->last_score = 0.0;
     ignite->last_threshold = 0.0;

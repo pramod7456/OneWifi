@@ -614,6 +614,8 @@ typedef struct {
     /* True only when STA_CONN (4WAY complete) has fired for this session.
      * Populated by wifi_stats_assoc_client from sta_data_t::connection_authorized. */
     bool connection_authorized;
+    /* True when vap_index belongs to a mesh backhaul VAP (vap_name prefix "mesh_backhaul"). */
+    bool is_mesh_backhaul;
 } stats_arg_t;
 
 typedef struct {

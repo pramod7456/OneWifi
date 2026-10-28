@@ -222,7 +222,7 @@ int lq_ipc_send(uint32_t msg_type, const void *entries,
         return -1;
     }
 
-    /* Filter: only forward events for private VAPs (private_ssid*) */
+    /* Filter: only forward events for private VAPs (private_ssid*), mesh station, or mesh backhaul */
     if (msg_type !=  LQ_IPC_MSG_REGISTER_STA && msg_type !=  LQ_IPC_MSG_UNREGISTER_STA 
      && msg_type !=  LQ_IPC_MSG_REINIT_METRICS ) {
         if (entry_size == sizeof(stats_arg_t) && count > 0 ) {
@@ -231,9 +231,10 @@ int lq_ipc_send(uint32_t msg_type, const void *entries,
                 const stats_arg_t *s = (const stats_arg_t *)entries;
                 for (uint32_t i = 0; i < count; i++) {
                     if ((is_vap_private(&mgr->hal_cap.wifi_prop, s[i].vap_index) != TRUE) &&
-                      (is_vap_mesh_sta(&mgr->hal_cap.wifi_prop, s[i].vap_index) != TRUE)   ) {
+                      (is_vap_mesh_sta(&mgr->hal_cap.wifi_prop, s[i].vap_index) != TRUE) &&
+                      (is_vap_mesh_backhaul(&mgr->hal_cap.wifi_prop, s[i].vap_index) != TRUE)   ) {
                         wifi_util_dbg_print(WIFI_APPS,
-                            "%s:%d [IPC-SEND] dropping %s: vap_index=%u is not a private/station VAP\n",
+                            "%s:%d [IPC-SEND] dropping %s: vap_index=%u is not a private/station/backhaul VAP\n",
                             __func__, __LINE__, lq_msg_type_str(msg_type), s[i].vap_index);
                         return 0;
                     }

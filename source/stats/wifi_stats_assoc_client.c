@@ -625,6 +625,7 @@ int execute_assoc_client_stats_api(wifi_mon_collector_element_t *c_elem, wifi_mo
                         pthread_mutex_unlock(&mon_data->data_lock);
                         return RETURN_ERR;
                     }
+
 	            to_mac_str(bss_param->bssid, remove_link_data->stats.ap_mac_str);
                     wifi_util_dbg_print(WIFI_MON, "%s:%d:  diag client disassociated  sta mac=%s vap_index:%d ap_mac=%s is_mesh_backhaul=%d\n", __func__, __LINE__,remove_link_data->stats.mac_str,remove_link_data->stats.vap_index,remove_link_data->stats.ap_mac_str, remove_link_data->stats.is_mesh_backhaul);
                     apps_mgr_link_quality_event(&ctrl->apps_mgr,wifi_event_type_hal_ind, wifi_event_exec_stop, remove_link_data, 0);

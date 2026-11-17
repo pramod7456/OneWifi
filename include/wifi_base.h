@@ -616,6 +616,9 @@ typedef struct {
     bool connection_authorized;
     /* True when vap_index belongs to a mesh backhaul VAP (vap_name prefix "mesh_backhaul"). */
     bool is_mesh_backhaul;
+    char dhcp_hostname[256];
+    char dhcp_vendor_class[256];
+    char dhcp_param_list[512];
 } stats_arg_t;
 
 typedef struct {
